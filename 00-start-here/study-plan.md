@@ -32,9 +32,9 @@ A reasonable rhythm: one or two short rep sessions in week 1, light Vercel reps 
 | May 12 | Mon | Read full [Exam Guide PDF][exam-pdf]; note gut weakest domain | [Yondem §1 API Fundamentals and Output Control][yondem-sec1] | Overview |
 | May 13 | Tue | Anthropic docs: [Agent loop][agent-loop] + [Stop reasons][stop-reasons] | [Yondem §8 Agentic Patterns and Task Decomposition][yondem-sec8] | D1 Agentic |
 | May 14 | Wed | Anthropic docs: [Subagents][subagents] + [engineering blog post][eng-blog] | [Yondem §9 Customer Service and Production Workflow Design][yondem-sec9] | D1 Agentic |
-| May 15 | Thu | Anthropic docs: [Claude Code memory (CLAUDE.md hierarchy)][cc-memory] | [Yondem §10 Claude Code and Claude Agent SDK Workflows][yondem-sec10] | D2 Claude Code |
+| May 15 | Thu | Anthropic docs: [Claude Code memory (CLAUDE.md hierarchy)][cc-memory] | [Yondem §10 Claude Code and Claude Agent SDK Workflows][yondem-sec10] | D3 Claude Code |
 | May 16 | Fri | Anthropic docs: [Hooks][hooks] | [Yondem §6 System Prompt Engineering and Conversational Behavior][yondem-sec6] | D1 Agentic |
-| May 17 | Sat | Academy course: [Intro to Subagents][course-subagents] | Academy course: [Intro to Agent Skills][course-skills] | D1 + D2 |
+| May 17 | Sat | Academy course: [Intro to Subagents][course-subagents] | Academy course: [Intro to Agent Skills][course-skills] | D1 + D3 |
 | May 18 | Sun | Re-read weakest area from week | [Yondem §11 Iterative Refinement][yondem-sec11] + [§12 Batch / Cost / Latency][yondem-sec12] | — |
 
 > **Checkpoint:** Can you explain the 5-step loop, name every `stop_reason` value, and describe what a subagent inherits — without notes? If no, slow down.
@@ -47,7 +47,7 @@ A reasonable rhythm: one or two short rep sessions in week 1, light Vercel reps 
 
 | Date | Day | Core (1 hr) | Stretch (+30 min) | Domain |
 |------|-----|-------------|-------------------|--------|
-| May 19 | Mon | Anthropic docs: [MCP in the SDK][mcp-sdk] + [MCP spec server section][mcp-spec] | Academy course: [Intro to MCP][course-mcp] | D3 MCP |
+| May 19 | Mon | Anthropic docs: [MCP in the SDK][mcp-sdk] + [MCP spec server section][mcp-spec] | Academy course: [Intro to MCP][course-mcp] | D2 MCP |
 | May 20 | Tue | Anthropic docs: [Structured outputs][structured] | Academy course: [MCP Advanced Topics][course-mcp-adv] | D4 Prompt |
 | May 21 | Wed | Anthropic docs: [Prompt caching][prompt-cache] | [Yondem §5 Conversation Context Management][yondem-sec5] | D5 Context |
 | May 22 | Thu | [Larionov GitHub][larionov]: scenarios 1–3 walkthroughs | [Yondem §2 Designing Tool Interfaces for LLM Agents][yondem-sec2] | Scenarios |
