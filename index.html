@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
 <title>CCA-F Cert Practice Tracker</title>
 <style>
   :root { color-scheme: light; }
@@ -22,6 +24,7 @@
   a { color: #2752c4; text-decoration: none; }
   a:hover { text-decoration: underline; }
 
+  /* Header */
   .header {
     display: flex;
     flex-wrap: wrap;
@@ -30,11 +33,7 @@
     gap: 16px;
     margin-bottom: 16px;
   }
-  .header .meta {
-    text-align: right;
-    font-size: 13px;
-    color: #555;
-  }
+  .header .meta { text-align: right; font-size: 13px; color: #555; }
   .countdown-box {
     background: linear-gradient(135deg, #f9e7d4 0%, #f5d4a8 100%);
     border: 1px solid #e6c188;
@@ -43,17 +42,8 @@
     display: inline-block;
     margin-top: 4px;
   }
-  .countdown-num {
-    font-size: 22px;
-    font-weight: 700;
-    color: #8a4a00;
-  }
-  .countdown-label {
-    font-size: 11px;
-    color: #8a4a00;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+  .countdown-num { font-size: 22px; font-weight: 700; color: #8a4a00; }
+  .countdown-label { font-size: 11px; color: #8a4a00; text-transform: uppercase; letter-spacing: 0.05em; }
 
   .name-input {
     border: 1px solid #ddd;
@@ -65,50 +55,244 @@
     background: white;
   }
 
-  .progress-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin: 16px 0;
+  /* View toggle */
+  .view-toggle {
+    display: inline-flex;
+    background: white;
+    border: 1px solid #d6d2c4;
+    border-radius: 8px;
+    padding: 3px;
+    margin: 10px 0;
+    gap: 2px;
   }
-  @media (max-width: 600px) { .progress-grid { grid-template-columns: 1fr; } }
+  .view-toggle button {
+    background: transparent;
+    border: none;
+    padding: 7px 16px;
+    font-size: 13px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #555;
+    font-weight: 500;
+  }
+  .view-toggle button.active {
+    background: #d97757;
+    color: white;
+  }
+  .view-toggle button:hover:not(.active) { background: #f3efe5; }
 
-  .progress-card {
+  /* Practice banner (external mocks) */
+  .practice-banner {
+    margin: 14px 0;
+    background: linear-gradient(135deg, #fff2d6 0%, #ffe1ad 60%, #ffd084 100%);
+    border: 1px solid #e8b66c;
+    border-radius: 12px;
+    padding: 14px 18px;
+  }
+  .practice-banner h2 {
+    font-size: 15px;
+    color: #6b3a00;
+    margin: 0 0 4px 0;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .practice-banner .pe-tagline { font-size: 12px; color: #6b3a00; margin: 0 0 10px 0; }
+  .practice-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn-cta {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: white;
+    border: 1px solid #c48f3c;
+    color: #6b3a00;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-cta:hover { background: #fff8eb; border-color: #8a4a00; text-decoration: none; }
+  .btn-cta .meta { font-size: 10px; opacity: 0.75; font-weight: 400; }
+
+  /* Cards */
+  .card {
     background: white;
     border: 1px solid #e7e4dc;
     border-radius: 10px;
-    padding: 14px;
+    padding: 14px 16px;
+    margin: 12px 0;
   }
-  .progress-card .label {
-    font-size: 12px;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-bottom: 6px;
+  .card-label {
+    font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;
   }
-  .progress-card .value {
-    font-size: 24px;
-    font-weight: 700;
-    color: #1a1a1a;
+
+  /* Skill graph */
+  .skill-graph { padding: 16px 18px; }
+  .skill-graph h2 { margin-top: 0; }
+  .skill-graph .summary { font-size: 13px; color: #555; margin-bottom: 12px; }
+  .domain-bar {
+    display: grid;
+    grid-template-columns: 170px 1fr 78px 110px;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid #f1ede3;
+    font-size: 13px;
   }
-  .progress-bar {
-    height: 8px;
+  .domain-bar:first-of-type { border-top: none; }
+  .domain-bar .dname {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .domain-bar .dname .weight { font-size: 11px; color: #888; }
+  .skill-bar-track {
+    height: 12px;
     background: #eee9dd;
-    border-radius: 4px;
-    margin-top: 8px;
+    border-radius: 6px;
     overflow: hidden;
+    position: relative;
   }
-  .progress-bar > div {
+  .skill-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.4s ease;
+  }
+  .skill-bar-fill.weak { background: linear-gradient(90deg, #e85a4f 0%, #c8423a 100%); }
+  .skill-bar-fill.developing { background: linear-gradient(90deg, #d97757 0%, #b85a3a 100%); }
+  .skill-bar-fill.strong { background: linear-gradient(90deg, #5a8b5a 0%, #2f6b2f 100%); }
+  .skill-bar-fill.unproven { background: linear-gradient(90deg, #ccc 0%, #aaa 100%); }
+  .domain-bar .stats { text-align: right; font-variant-numeric: tabular-nums; color: #555; font-size: 12px; }
+  .domain-bar .stats strong { color: #1a1a1a; font-size: 14px; }
+  .practice-domain-btn {
+    background: white;
+    border: 1px solid #d6d2c4;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #444;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .practice-domain-btn:hover { background: #d97757; color: white; border-color: #b85a3a; }
+  .weak-callout {
+    background: #fef3f3;
+    border: 1px solid #f0bbb6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #8a2a22;
+  }
+  .weak-callout strong { color: #5a1a14; }
+
+  /* Quiz UI */
+  .quiz-card { padding: 20px 22px; }
+  .quiz-progress {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: #666; margin-bottom: 10px;
+  }
+  .quiz-progress .progress-bar {
+    flex: 1; margin: 0 12px;
+    height: 6px; background: #eee9dd; border-radius: 3px; overflow: hidden;
+  }
+  .quiz-progress .progress-bar > div {
     height: 100%;
     background: linear-gradient(90deg, #d97757 0%, #b85a3a 100%);
     transition: width 0.3s ease;
   }
+  .q-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .q-tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #ece6d4;
+    color: #5a4a1a;
+    font-weight: 500;
+  }
+  .q-tag.diff-easy { background: #dff0d8; color: #2b6019; }
+  .q-tag.diff-medium { background: #fcefd6; color: #82530a; }
+  .q-tag.diff-hard { background: #f8d7da; color: #842029; }
+  .q-stem {
+    font-size: 15px;
+    margin: 12px 0 18px 0;
+    color: #1a1a1a;
+    line-height: 1.55;
+  }
+  .q-stem code {
+    background: #f3efe5;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 13px;
+  }
+  .q-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .q-option {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px;
+    border: 1.5px solid #e7e4dc;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1.5;
+    background: white;
+    transition: all 0.15s ease;
+  }
+  .q-option:hover:not(.disabled) { border-color: #d97757; background: #fff8eb; }
+  .q-option.selected { border-color: #d97757; background: #fff8eb; }
+  .q-option .letter {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #f3efe5;
+    color: #555;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 12px;
+  }
+  .q-option.selected .letter { background: #d97757; color: white; }
+  .q-option.correct { border-color: #5a8b5a; background: #ecf4ec; }
+  .q-option.correct .letter { background: #5a8b5a; color: white; }
+  .q-option.incorrect { border-color: #e85a4f; background: #fef3f3; }
+  .q-option.incorrect .letter { background: #e85a4f; color: white; }
+  .q-option .otext { flex: 1; }
+  .q-option .otext code { background: #f3efe5; padding: 1px 4px; border-radius: 3px; font-size: 12.5px; }
+  .q-option.disabled { cursor: default; }
+  .explanations {
+    background: #f7f4ec;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .explanations .expl-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start; }
+  .explanations .expl-row:last-child { margin-bottom: 0; }
+  .explanations .expl-letter {
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    color: white;
+    font-weight: 600; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .explanations .expl-letter.correct { background: #5a8b5a; }
+  .explanations .expl-letter.wrong { background: #aaa; }
+  .explanations code { background: white; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  .quiz-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 
-  .domain-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-  .domain-row { display: grid; grid-template-columns: 130px 1fr 50px; align-items: center; gap: 10px; font-size: 13px; }
-  .domain-row .dname { color: #444; }
-  .domain-row .dpct { text-align: right; color: #666; font-variant-numeric: tabular-nums; }
+  /* Buttons */
+  .btn {
+    background: white;
+    border: 1px solid #d6d2c4;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #333;
+    font-weight: 500;
+  }
+  .btn:hover { background: #f3efe5; }
+  .btn.primary { background: #d97757; border-color: #b85a3a; color: white; }
+  .btn.primary:hover { background: #b85a3a; color: white; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  /* Plan view (existing daily checklist) */
   .week {
     background: white;
     border: 1px solid #e7e4dc;
@@ -119,11 +303,8 @@
   .week-header {
     background: #f3efe5;
     padding: 12px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
   }
   .week-header h2 { margin: 0; font-size: 15px; }
   .week-header .summary { font-size: 12px; color: #666; }
@@ -138,7 +319,6 @@
     font-size: 13px;
     color: #5a3a00;
   }
-
   .day-row {
     display: grid;
     grid-template-columns: 88px 1fr 1fr 90px;
@@ -157,11 +337,7 @@
   .checkitem input[type=checkbox] { margin-top: 3px; flex-shrink: 0; cursor: pointer; }
   .checkitem .ctext { flex: 1; }
   .checkitem.done .ctext { text-decoration: line-through; color: #888; }
-  .ctext a {
-    color: #2752c4;
-    border-bottom: 1px dotted #93acdb;
-    text-decoration: none;
-  }
+  .ctext a { color: #2752c4; border-bottom: 1px dotted #93acdb; text-decoration: none; }
   .ctext a:hover { background: #eaf0fb; }
   .checkitem.done .ctext a { color: #888; border-bottom-color: #ccc; }
   .domain-pill {
@@ -178,31 +354,30 @@
   .domain-pill.d3 { background: #fce3e8; color: #842744; }
   .domain-pill.d4 { background: #f0e0fa; color: #5e2289; }
   .domain-pill.d5 { background: #fcefd6; color: #82530a; }
-
   @media (max-width: 720px) {
     .day-row { grid-template-columns: 80px 1fr 70px; }
     .day-row .stretch { grid-column: 2 / 4; grid-row: 2; padding-left: 24px; }
+    .domain-bar { grid-template-columns: 1fr; gap: 6px; }
+    .domain-bar .stats { text-align: left; }
   }
 
-  .actions {
-    margin-top: 20px;
-    display: flex;
+  /* Quiz summary */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
-    flex-wrap: wrap;
+    margin: 12px 0;
   }
-  .btn {
-    background: white;
-    border: 1px solid #d6d2c4;
-    border-radius: 6px;
-    padding: 7px 14px;
-    font-size: 13px;
-    cursor: pointer;
-    color: #333;
+  .summary-stat {
+    background: #f7f4ec;
+    border-radius: 8px;
+    padding: 12px 14px;
+    text-align: center;
   }
-  .btn:hover { background: #f3efe5; }
-  .btn.primary { background: #d97757; border-color: #c46640; color: white; }
-  .btn.primary:hover { background: #c46640; }
+  .summary-stat .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  .summary-stat .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
 
+  /* Resources */
   .resources {
     background: white;
     border: 1px solid #e7e4dc;
@@ -212,10 +387,7 @@
     font-size: 13px;
   }
   .resources summary {
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
+    cursor: pointer; font-weight: 600; font-size: 14px; color: #333;
   }
   .resources ul { padding-left: 20px; margin: 8px 0; }
   .resources li { margin: 4px 0; }
@@ -228,16 +400,12 @@
   .tier-label::after {
     content: attr(data-tooltip);
     position: absolute;
-    top: 100%;
-    left: 0;
+    top: 100%; left: 0;
     margin-top: 4px;
-    background: #2a2a2a;
-    color: white;
+    background: #2a2a2a; color: white;
     padding: 6px 10px;
     border-radius: 6px;
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 1.4;
+    font-size: 12px; font-weight: 400; line-height: 1.4;
     white-space: normal;
     width: 260px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -246,97 +414,10 @@
     transition: opacity 0.15s ease;
     z-index: 10;
   }
-  .tier-label:hover::after,
-  .tier-label:focus::after { opacity: 1; }
+  .tier-label:hover::after, .tier-label:focus::after { opacity: 1; }
 
   .footer { color: #888; font-size: 11px; margin-top: 24px; text-align: center; }
-
-  /* Practice exam banner */
-  .practice-banner {
-    margin: 18px 0;
-    background: linear-gradient(135deg, #fff2d6 0%, #ffe1ad 60%, #ffd084 100%);
-    border: 1px solid #e8b66c;
-    border-radius: 12px;
-    padding: 18px 20px;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
-  }
-  .practice-banner h2 {
-    font-size: 18px;
-    color: #6b3a00;
-    margin: 0 0 4px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .practice-banner .pe-target {
-    display: inline-block;
-    width: 18px; height: 18px;
-    background: #d97757;
-    border-radius: 50%;
-    position: relative;
-    flex-shrink: 0;
-  }
-  .practice-banner .pe-target::after {
-    content: "";
-    position: absolute;
-    top: 4px; left: 4px;
-    width: 10px; height: 10px;
-    background: #fff2d6;
-    border-radius: 50%;
-  }
-  .practice-banner .pe-target::before {
-    content: "";
-    position: absolute;
-    top: 7px; left: 7px;
-    width: 4px; height: 4px;
-    background: #d97757;
-    border-radius: 50%;
-    z-index: 1;
-  }
-  .practice-banner .pe-tagline {
-    font-size: 13px;
-    color: #6b3a00;
-    margin: 0 0 12px 0;
-  }
-  .practice-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .btn-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: white;
-    border: 1px solid #c48f3c;
-    color: #6b3a00;
-    padding: 9px 14px;
-    border-radius: 7px;
-    font-size: 13px;
-    font-weight: 500;
-    text-decoration: none;
-    transition: all 0.15s ease;
-  }
-  .btn-cta:hover {
-    background: #fff8eb;
-    border-color: #8a4a00;
-    text-decoration: none;
-    transform: translateY(-1px);
-  }
-  .btn-cta.primary {
-    background: #d97757;
-    border-color: #b85a3a;
-    color: white;
-  }
-  .btn-cta.primary:hover {
-    background: #b85a3a;
-    color: white;
-  }
-  .btn-cta .meta {
-    font-size: 11px;
-    opacity: 0.75;
-    font-weight: 400;
-  }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -345,9 +426,13 @@
   <div>
     <h1>CCA-F Cert Practice Tracker</h1>
     <div style="color:#666; font-size:13px; margin-top:4px;">
-      Claude Certified Architect — Foundations · exam Thu, May 29, 2026
+      Claude Certified Architect — Foundations · exam Thu, May 29, 2026 · 210 practice questions
     </div>
-    <input id="nameInput" class="name-input" placeholder="Your name (optional)" style="margin-top:10px;">
+    <input id="nameInput" class="name-input" placeholder="Your name (creates a separate progress slot)" style="margin-top:10px;">
+    <div class="view-toggle" id="viewToggle">
+      <button data-view="quiz" class="active">Quiz mode</button>
+      <button data-view="plan">Daily plan</button>
+    </div>
   </div>
   <div class="meta">
     <div class="countdown-box">
@@ -358,11 +443,11 @@
 </div>
 
 <div class="practice-banner">
-  <h2><span class="pe-target" aria-hidden="true"></span> Practice Exam — test your skills early and often</h2>
-  <p class="pe-tagline">Don't wait until the May 26 diagnostic. Take a 10–20 question quiz any time you have a slow weekday — every rep makes the real exam easier.</p>
+  <h2>🎯 Outside-the-app practice mocks</h2>
+  <p class="pe-tagline">For variety beyond this tracker's bank — community-built mocks you can run anytime.</p>
   <div class="practice-buttons">
-    <a class="btn-cta primary" href="https://claude-certified-architect-mock-exam-cyberskill.vercel.app/" target="_blank" rel="noopener noreferrer">
-      Start a Vercel mock <span class="meta">· free, no login</span>
+    <a class="btn-cta" href="https://claude-certified-architect-mock-exam-cyberskill.vercel.app/" target="_blank" rel="noopener noreferrer">
+      Vercel mock <span class="meta">· free, no login</span>
     </a>
     <a class="btn-cta" href="https://claudecertifications.com/" target="_blank" rel="noopener noreferrer">
       claudecertifications.com <span class="meta">· 25 questions</span>
@@ -373,403 +458,767 @@
   </div>
 </div>
 
-<div class="progress-grid">
-  <div class="progress-card">
-    <div class="label">Overall progress</div>
-    <div class="value"><span id="overallPct">0%</span> <span style="font-size:13px; color:#888; font-weight:400;">(<span id="overallCount">0 / 0</span> items)</span></div>
-    <div class="progress-bar"><div id="overallBar" style="width:0%"></div></div>
-  </div>
-  <div class="progress-card">
-    <div class="label">Core track (non-negotiable)</div>
-    <div class="value"><span id="corePct">0%</span> <span style="font-size:13px; color:#888; font-weight:400;">(<span id="coreCount">0 / 18</span> days)</span></div>
-    <div class="progress-bar"><div id="coreBar" style="width:0%"></div></div>
-  </div>
+<!-- Skill Graph (always visible) -->
+<div class="card skill-graph">
+  <h2>📊 Skill graph</h2>
+  <div class="summary" id="skillSummary">Take a quiz to start building your skill profile.</div>
+  <div id="weakCallout"></div>
+  <div id="domainBars"></div>
 </div>
 
-<div class="progress-card">
-  <div class="label">By domain focus</div>
-  <div class="domain-rows" id="domainRows"></div>
+<!-- Quiz View (default) -->
+<div id="quizView">
+
+  <div class="card quiz-card" id="quizContainer">
+    <!-- Quiz progress + active Q rendered here -->
+  </div>
+
+  <div class="card" id="quizSummary" style="display:none;">
+    <!-- End-of-quiz summary rendered here -->
+  </div>
+
 </div>
 
-<div id="weeksContainer"></div>
+<!-- Plan View (toggleable) -->
+<div id="planView" class="hidden">
+  <div id="weeksContainer"></div>
+</div>
 
-<div class="actions">
-  <button class="btn" id="expandAll">Expand all weeks</button>
-  <button class="btn" id="collapseAll">Collapse all</button>
-  <button class="btn" id="resetBtn">Reset my progress</button>
+<!-- Actions -->
+<div class="actions" style="margin-top: 18px;">
+  <button class="btn" id="exportBtn">💾 Export progress (JSON)</button>
+  <button class="btn" id="importBtn">📂 Import progress (JSON)</button>
+  <input type="file" id="importFile" accept="application/json" style="display:none;">
+  <button class="btn" id="resetBtn">🗑️ Reset my progress</button>
 </div>
 
 <details class="resources">
   <summary>Quick links — full resource list</summary>
   <ul>
-    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Authoritative — official Anthropic sources, start here. Required reading.">Tier 1</span>:</strong> <a href="https://anthropic.skilljar.com/claude-certified-architect-foundations-access-request" target="_blank" rel="noopener noreferrer">Exam Guide PDF (Skilljar portal)</a> — includes 12 sample questions and the official domain weights</li>
-    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Anthropic primary sources — official docs and Academy courses. The bulk of your study time should be here.">Tier 2</span>:</strong> <a href="https://anthropic.skilljar.com/" target="_blank" rel="noopener noreferrer">Anthropic Academy</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/agent-loop" target="_blank" rel="noopener noreferrer">Agent loop</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/subagents" target="_blank" rel="noopener noreferrer">Subagents</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/hooks" target="_blank" rel="noopener noreferrer">Hooks</a> · <a href="https://docs.claude.com/en/docs/agent-sdk/mcp" target="_blank" rel="noopener noreferrer">MCP in SDK</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">Structured outputs</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener noreferrer">Prompt caching</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" target="_blank" rel="noopener noreferrer">Stop reasons</a> · <a href="https://code.claude.com/docs/en/memory" target="_blank" rel="noopener noreferrer">Claude Code memory</a> · <a href="https://modelcontextprotocol.io/specification/2025-06-18/" target="_blank" rel="noopener noreferrer">MCP Spec</a> · <a href="https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener noreferrer">Agent SDK engineering post</a></li>
-    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Community resources — high-quality independent study guides and mock exams. Verify claims against Tier 1/2 primary sources before trusting them.">Tier 3</span>:</strong> <a href="https://github.com/daronyondem/claude-architect-exam-guide" target="_blank" rel="noopener noreferrer">Yondem guide</a> · <a href="https://github.com/paullarionov/claude-certified-architect" target="_blank" rel="noopener noreferrer">Larionov</a> · <a href="https://github.com/avidevelops/claude-architect-exam-prep" target="_blank" rel="noopener noreferrer">avidevelops</a> · <a href="https://claude-certified-architect-mock-exam-cyberskill.vercel.app/" target="_blank" rel="noopener noreferrer">Vercel mock</a></li>
-    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Optional breadth — supplementary practice questions and pacing guides. Skip these first if time gets tight.">Tier 4</span>:</strong> <a href="https://claudecertifications.com/" target="_blank" rel="noopener noreferrer">claudecertifications.com</a></li>
+    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Authoritative — official Anthropic sources, start here. Required reading.">Tier 1</span>:</strong> <a href="https://anthropic.skilljar.com/claude-certified-architect-foundations-access-request" target="_blank" rel="noopener noreferrer">Exam Guide PDF (Skilljar portal)</a> — 12 sample Q's + official domain weights</li>
+    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Anthropic primary sources — official docs and Academy courses.">Tier 2</span>:</strong> <a href="https://anthropic.skilljar.com/" target="_blank" rel="noopener noreferrer">Anthropic Academy</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/agent-loop" target="_blank" rel="noopener noreferrer">Agent loop</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/subagents" target="_blank" rel="noopener noreferrer">Subagents</a> · <a href="https://platform.claude.com/docs/en/agent-sdk/hooks" target="_blank" rel="noopener noreferrer">Hooks</a> · <a href="https://docs.claude.com/en/docs/agent-sdk/mcp" target="_blank" rel="noopener noreferrer">MCP in SDK</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/structured-outputs" target="_blank" rel="noopener noreferrer">Structured outputs</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noopener noreferrer">Prompt caching</a> · <a href="https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" target="_blank" rel="noopener noreferrer">Stop reasons</a> · <a href="https://code.claude.com/docs/en/memory" target="_blank" rel="noopener noreferrer">Claude Code memory</a> · <a href="https://modelcontextprotocol.io/specification/2025-06-18/" target="_blank" rel="noopener noreferrer">MCP Spec</a> · <a href="https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" target="_blank" rel="noopener noreferrer">Agent SDK engineering post</a></li>
+    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Community resources — independent study guides and mock exams. Verify against Tier 1/2 before trusting.">Tier 3</span>:</strong> <a href="https://github.com/daronyondem/claude-architect-exam-guide" target="_blank" rel="noopener noreferrer">Yondem guide</a> · <a href="https://github.com/paullarionov/claude-certified-architect" target="_blank" rel="noopener noreferrer">Larionov</a> · <a href="https://github.com/avidevelops/claude-architect-exam-prep" target="_blank" rel="noopener noreferrer">avidevelops</a> · <a href="https://claude-certified-architect-mock-exam-cyberskill.vercel.app/" target="_blank" rel="noopener noreferrer">Vercel mock</a></li>
+    <li><strong><span class="tier-label" tabindex="0" data-tooltip="Optional breadth — supplementary practice. Skip first if time is tight.">Tier 4</span>:</strong> <a href="https://claudecertifications.com/" target="_blank" rel="noopener noreferrer">claudecertifications.com</a></li>
   </ul>
 </details>
 
-<div class="footer">Each teammate's checkmarks live in this browser. Share the markdown plan in the repo for canonical reference.</div>
+<div class="footer">
+  Progress lives in this browser's localStorage. Use <strong>Export</strong> to save a JSON copy and <strong>Import</strong> to restore on another device.
+  · <a href="questions.md" target="_blank">View canonical question bank</a>
+</div>
 
+<script src="questions.js"></script>
 <script>
-  // -------- Resource URLs --------
-  const URLS = {
-    examGuidePdf: "https://everpath-course-content.s3-accelerate.amazonaws.com/instructor%2F8lsy243ftffjjy1cx9lm3o2bw%2Fpublic%2F1773274827%2FClaude+Certified+Architect+%E2%80%93+Foundations+Certification+Exam+Guide.pdf",
-    agentLoop: "https://platform.claude.com/docs/en/agent-sdk/agent-loop",
-    subagents: "https://platform.claude.com/docs/en/agent-sdk/subagents",
-    hooks: "https://platform.claude.com/docs/en/agent-sdk/hooks",
-    mcpSdk: "https://docs.claude.com/en/docs/agent-sdk/mcp",
-    structuredOutputs: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
-    promptCaching: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
-    stopReasons: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
-    ccMemory: "https://code.claude.com/docs/en/memory",
-    mcpSpec: "https://modelcontextprotocol.io/specification/2025-06-18/",
-    engBlog: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk",
-    yondem: "https://github.com/daronyondem/claude-architect-exam-guide",
-    yondemSec1: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#1-api-fundamentals-and-output-control",
-    yondemSec2: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#2-designing-tool-interfaces-for-llm-agents",
-    yondemSec3: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#3-error-handling-in-agent-tools",
-    yondemSec4: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#4-structured-data-extraction-and-validation",
-    yondemSec5: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#5-conversation-context-management",
-    yondemSec6: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#6-system-prompt-engineering-and-conversational-behavior",
-    yondemSec7: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#7-model-context-protocol-mcp",
-    yondemSec8: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#8-agentic-patterns-and-task-decomposition",
-    yondemSec9: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design",
-    yondemSec10: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows",
-    yondemSec11: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation",
-    yondemSec12: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#12-batch-processing-cost-and-latency",
-    yondemCheat: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#13-quick-reference-cheat-sheet",
-    larionov: "https://github.com/paullarionov/claude-certified-architect",
-    avi: "https://github.com/avidevelops/claude-architect-exam-prep",
-    vercel: "https://claude-certified-architect-mock-exam-cyberskill.vercel.app/",
-    claudeCerts: "https://claudecertifications.com/",
-    courseIntroMcp: "https://anthropic.skilljar.com/introduction-to-model-context-protocol",
-    courseMcpAdvanced: "https://anthropic.skilljar.com/model-context-protocol-advanced-topics",
-    courseSubagents: "https://anthropic.skilljar.com/introduction-to-subagents",
-    courseAgentSkills: "https://anthropic.skilljar.com/introduction-to-agent-skills",
+// =====================================================================
+// CCA-F Practice Tracker
+// =====================================================================
+
+// -------- Constants --------
+const EXAM_DATE = "2026-05-29";
+const QUESTIONS_PER_DAY = 30;
+const PER_DOMAIN_PER_DAY = 6;
+const DOMAIN_INFO = {
+  1: { name: "Agentic Architecture & Orchestration", weight: 0.27, short: "D1 Agentic", className: "d1", studyLink: "00-start-here/study-plan.md" },
+  2: { name: "Tool Design & MCP Integration",        weight: 0.18, short: "D2 MCP",     className: "d2", studyLink: "00-start-here/study-plan.md" },
+  3: { name: "Claude Code Configuration & Workflows", weight: 0.20, short: "D3 Claude Code", className: "d3", studyLink: "00-start-here/study-plan.md" },
+  4: { name: "Prompt Engineering & Structured Output", weight: 0.20, short: "D4 Prompt", className: "d4", studyLink: "00-start-here/study-plan.md" },
+  5: { name: "Context Management & Reliability",     weight: 0.15, short: "D5 Context", className: "d5", studyLink: "00-start-here/study-plan.md" },
+};
+const SCENARIO_NAMES = {
+  1: "Customer Support Resolution Agent",
+  2: "Code Generation with Claude Code",
+  3: "Multi-Agent Research System",
+  4: "Developer Productivity with Claude",
+  5: "Claude Code for Continuous Integration",
+  6: "Structured Data Extraction",
+};
+const STORAGE_PREFIX = "ccaf_tracker_v2_";
+
+// -------- Plan data (for Plan view fallback) --------
+const URLS = {
+  examGuidePdf: "https://everpath-course-content.s3-accelerate.amazonaws.com/instructor%2F8lsy243ftffjjy1cx9lm3o2bw%2Fpublic%2F1773274827%2FClaude+Certified+Architect+%E2%80%93+Foundations+Certification+Exam+Guide.pdf",
+  agentLoop: "https://platform.claude.com/docs/en/agent-sdk/agent-loop",
+  subagents: "https://platform.claude.com/docs/en/agent-sdk/subagents",
+  hooks: "https://platform.claude.com/docs/en/agent-sdk/hooks",
+  mcpSdk: "https://docs.claude.com/en/docs/agent-sdk/mcp",
+  structuredOutputs: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+  promptCaching: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching",
+  stopReasons: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
+  ccMemory: "https://code.claude.com/docs/en/memory",
+  mcpSpec: "https://modelcontextprotocol.io/specification/2025-06-18/",
+  engBlog: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk",
+  larionov: "https://github.com/paullarionov/claude-certified-architect",
+  vercel: "https://claude-certified-architect-mock-exam-cyberskill.vercel.app/",
+  claudeCerts: "https://claudecertifications.com/",
+  courseIntroMcp: "https://anthropic.skilljar.com/introduction-to-model-context-protocol",
+  courseMcpAdvanced: "https://anthropic.skilljar.com/model-context-protocol-advanced-topics",
+  courseSubagents: "https://anthropic.skilljar.com/introduction-to-subagents",
+  courseAgentSkills: "https://anthropic.skilljar.com/introduction-to-agent-skills",
+  yondemSec1: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#1-api-fundamentals-and-output-control",
+  yondemSec2: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#2-designing-tool-interfaces-for-llm-agents",
+  yondemSec3: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#3-error-handling-in-agent-tools",
+  yondemSec4: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#4-structured-data-extraction-and-validation",
+  yondemSec5: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#5-conversation-context-management",
+  yondemSec6: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#6-system-prompt-engineering-and-conversational-behavior",
+  yondemSec7: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#7-model-context-protocol-mcp",
+  yondemSec8: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#8-agentic-patterns-and-task-decomposition",
+  yondemSec9: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design",
+  yondemSec10: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows",
+  yondemSec11: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation",
+  yondemSec12: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#12-batch-processing-cost-and-latency",
+  yondemCheat: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#13-quick-reference-cheat-sheet",
+};
+const PLAN = [
+  { date:"2026-05-12", day:"Mon", week:1, domain:"Overview", domainClass:"",
+    core: [{t:"Read full "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:"; note gut weakest domain"}],
+    stretch: [{t:"Yondem §1 API Fundamentals", u:URLS.yondemSec1}] },
+  { date:"2026-05-13", day:"Tue", week:1, domain:"D1 Agentic", domainClass:"d1",
+    core: [{t:"Anthropic docs: "}, {t:"Agent loop", u:URLS.agentLoop}, {t:" + "}, {t:"Stop reasons", u:URLS.stopReasons}],
+    stretch: [{t:"Yondem §8 Agentic Patterns", u:URLS.yondemSec8}] },
+  { date:"2026-05-14", day:"Wed", week:1, domain:"D1 Agentic", domainClass:"d1",
+    core: [{t:"Anthropic docs: "}, {t:"Subagents", u:URLS.subagents}, {t:" + "}, {t:"engineering blog", u:URLS.engBlog}],
+    stretch: [{t:"Yondem §9 Customer Service Workflow", u:URLS.yondemSec9}] },
+  { date:"2026-05-15", day:"Thu", week:1, domain:"D2 Claude Code", domainClass:"d2",
+    core: [{t:"Anthropic docs: "}, {t:"Claude Code memory (CLAUDE.md)", u:URLS.ccMemory}],
+    stretch: [{t:"Yondem §10 Claude Code workflows", u:URLS.yondemSec10}] },
+  { date:"2026-05-16", day:"Fri", week:1, domain:"D1 Agentic", domainClass:"d1",
+    core: [{t:"Anthropic docs: "}, {t:"Hooks", u:URLS.hooks}],
+    stretch: [{t:"Yondem §6 System Prompt Engineering", u:URLS.yondemSec6}] },
+  { date:"2026-05-17", day:"Sat", week:1, domain:"D1 + D2", domainClass:"d1",
+    core: [{t:"Academy: "}, {t:"Intro to Subagents", u:URLS.courseSubagents}],
+    stretch: [{t:"Academy: "}, {t:"Intro to Agent Skills", u:URLS.courseAgentSkills}] },
+  { date:"2026-05-18", day:"Sun", week:1, domain:"Catch-up", domainClass:"",
+    core: [{t:"Re-read weakest area from week"}],
+    stretch: [{t:"Yondem §11 Iterative Refinement", u:URLS.yondemSec11}, {t:" + "}, {t:"§12 Batch / Cost / Latency", u:URLS.yondemSec12}] },
+  { date:"2026-05-19", day:"Mon", week:2, domain:"D3 MCP", domainClass:"d3",
+    core: [{t:"Anthropic docs: "}, {t:"MCP in SDK", u:URLS.mcpSdk}, {t:" + "}, {t:"MCP spec", u:URLS.mcpSpec}],
+    stretch: [{t:"Academy: "}, {t:"Intro to MCP", u:URLS.courseIntroMcp}] },
+  { date:"2026-05-20", day:"Tue", week:2, domain:"D4 Prompt", domainClass:"d4",
+    core: [{t:"Anthropic docs: "}, {t:"Structured outputs", u:URLS.structuredOutputs}],
+    stretch: [{t:"Academy: "}, {t:"MCP Advanced Topics", u:URLS.courseMcpAdvanced}] },
+  { date:"2026-05-21", day:"Wed", week:2, domain:"D5 Context", domainClass:"d5",
+    core: [{t:"Anthropic docs: "}, {t:"Prompt caching", u:URLS.promptCaching}],
+    stretch: [{t:"Yondem §5 Context Management", u:URLS.yondemSec5}] },
+  { date:"2026-05-22", day:"Thu", week:2, domain:"Scenarios", domainClass:"",
+    core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 1–3"}],
+    stretch: [{t:"Yondem §2 Tool Interfaces", u:URLS.yondemSec2}] },
+  { date:"2026-05-23", day:"Fri", week:2, domain:"Scenarios", domainClass:"",
+    core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 4–6"}],
+    stretch: [{t:"Yondem §3 Error Handling", u:URLS.yondemSec3}] },
+  { date:"2026-05-24", day:"Sat", week:2, domain:"All domains", domainClass:"",
+    core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 Q untimed, read explanations"}],
+    stretch: [{t:"Yondem §4 Structured Data Extraction", u:URLS.yondemSec4}] },
+  { date:"2026-05-25", day:"Sun", week:2, domain:"All domains", domainClass:"",
+    core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 more Q"}],
+    stretch: [{t:"Yondem §7 MCP", u:URLS.yondemSec7}] },
+  { date:"2026-05-26", day:"Mon", week:3, domain:"Diagnostic", domainClass:"",
+    core: [{t:"Timed mock — 120 min, no notes: "}, {t:"claudecertifications.com", u:URLS.claudeCerts}, {t:" (25 fresh Q) + "}, {t:"Vercel mock", u:URLS.vercel}, {t:" re-attempt under time"}],
+    stretch: [{t:"Score honestly, identify weakest domain"}] },
+  { date:"2026-05-27", day:"Tue", week:3, domain:"Targeted", domainClass:"",
+    core: [{t:"Review every wrong answer; map to a domain + primary doc; re-read"}],
+    stretch: [{t:"Re-read "}, {t:"engineering blog", u:URLS.engBlog}, {t:" if D1 weakest"}] },
+  { date:"2026-05-28", day:"Wed", week:3, domain:"Targeted", domainClass:"",
+    core: [{t:"Final pass on weakest docs; skim "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:" again"}],
+    stretch: [{t:"Yondem §13 Quick Reference Cheat Sheet", u:URLS.yondemCheat}] },
+  { date:"2026-05-29", day:"Thu", week:3, domain:"Exam", domainClass:"",
+    core: [{t:"EXAM DAY — light review only. Don't cram."}],
+    stretch: null },
+];
+const WEEK_META = {
+  1: { title: "Week 1 — Foundations + heavy domains", checkpoint: "Can you explain the 5-step loop, name every stop_reason value, and describe what a subagent inherits — without notes? If no, slow down." },
+  2: { title: "Week 2 — Remaining domains + scenarios", checkpoint: "Can you whiteboard the architecture for each of the six scenarios from memory? If a scenario is fuzzy, re-read its primary-doc references before Week 3." },
+  3: { title: "Week 3 — Diagnostic + targeted cleanup", checkpoint: "Red-flag rule: scoring below 65% on the May 26 diagnostic? Given the 6-month cooldown, talk to your coordinator before burning the May 29 attempt." },
+};
+
+// -------- State management --------
+function defaultState() {
+  return {
+    name: "",
+    currentWeekStart: weekStartOf(new Date()),
+    seenThisWeek: {},          // qid -> true
+    currentQuiz: null,         // { qids, answers, idx, focusDomain }
+    history: [],               // [{ qid, domain, scenario, ts, difficulty, chosen, correct, dateIso }]
+    core: {},                  // plan checkmarks
+    stretch: {},
+    collapsedWeeks: {},
+    view: "quiz",
   };
+}
+function storageKey(name) {
+  const safe = (name || "default").replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
+  return STORAGE_PREFIX + safe;
+}
+let state = defaultState();
+function loadState(name) {
+  try {
+    const raw = localStorage.getItem(storageKey(name));
+    if (raw) {
+      const s = JSON.parse(raw);
+      // Merge defaults for missing keys
+      return Object.assign(defaultState(), s);
+    }
+  } catch(e) { console.warn("loadState failed", e); }
+  const s = defaultState();
+  s.name = name || "";
+  return s;
+}
+function saveState() {
+  // Weekly reset check
+  const wkStart = weekStartOf(new Date());
+  if (wkStart > (state.currentWeekStart || "")) {
+    state.currentWeekStart = wkStart;
+    state.seenThisWeek = {};
+  }
+  try {
+    localStorage.setItem(storageKey(state.name), JSON.stringify(state));
+  } catch(e) { console.warn("saveState failed", e); }
+}
 
-  // -------- Data model --------
-  // core/stretch are arrays of segments. Each segment is {t: text} or {t: text, u: url}.
-  const PLAN = [
-    // Week 1
-    { date:"2026-05-12", day:"Mon", week:1, domain:"Overview", domainClass:"",
-      core: [
-        {t:"Read full "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf},
-        {t:"; note gut weakest domain"}
-      ],
-      stretch: [{t:"Yondem guide §1 API Fundamentals and Output Control", u:URLS.yondemSec1}]
-    },
-    { date:"2026-05-13", day:"Tue", week:1, domain:"D1 Agentic", domainClass:"d1",
-      core: [
-        {t:"Anthropic docs: "}, {t:"Agent loop", u:URLS.agentLoop},
-        {t:" + "}, {t:"Stop reasons", u:URLS.stopReasons}
-      ],
-      stretch: [{t:"Yondem guide §8 Agentic Patterns and Task Decomposition", u:URLS.yondemSec8}]
-    },
-    { date:"2026-05-14", day:"Wed", week:1, domain:"D1 Agentic", domainClass:"d1",
-      core: [
-        {t:"Anthropic docs: "}, {t:"Subagents", u:URLS.subagents},
-        {t:" + "}, {t:"engineering blog post", u:URLS.engBlog}
-      ],
-      stretch: [{t:"Yondem guide §9 Customer Service and Production Workflow Design", u:URLS.yondemSec9}]
-    },
-    { date:"2026-05-15", day:"Thu", week:1, domain:"D2 Claude Code", domainClass:"d2",
-      core: [
-        {t:"Anthropic docs: "}, {t:"Claude Code memory (CLAUDE.md hierarchy)", u:URLS.ccMemory}
-      ],
-      stretch: [{t:"Yondem guide §10 Claude Code and Claude Agent SDK Workflows", u:URLS.yondemSec10}]
-    },
-    { date:"2026-05-16", day:"Fri", week:1, domain:"D1 Agentic", domainClass:"d1",
-      core: [{t:"Anthropic docs: "}, {t:"Hooks", u:URLS.hooks}],
-      stretch: [{t:"Yondem guide §6 System Prompt Engineering and Conversational Behavior", u:URLS.yondemSec6}]
-    },
-    { date:"2026-05-17", day:"Sat", week:1, domain:"D1 + D2", domainClass:"d1",
-      core: [{t:"Academy course: "}, {t:"Intro to Subagents", u:URLS.courseSubagents}],
-      stretch: [{t:"Academy course: "}, {t:"Intro to Agent Skills", u:URLS.courseAgentSkills}]
-    },
-    { date:"2026-05-18", day:"Sun", week:1, domain:"Catch-up", domainClass:"",
-      core: [{t:"Re-read weakest area from week"}],
-      stretch: [
-        {t:"Yondem §11 Iterative Refinement, Testing, and Evaluation", u:URLS.yondemSec11},
-        {t:" + "},
-        {t:"§12 Batch Processing, Cost, and Latency", u:URLS.yondemSec12}
-      ]
-    },
-    // Week 2
-    { date:"2026-05-19", day:"Mon", week:2, domain:"D3 MCP", domainClass:"d3",
-      core: [
-        {t:"Anthropic docs: "}, {t:"MCP in the SDK", u:URLS.mcpSdk},
-        {t:" + "}, {t:"MCP spec server section", u:URLS.mcpSpec}
-      ],
-      stretch: [{t:"Academy course: "}, {t:"Intro to MCP", u:URLS.courseIntroMcp}]
-    },
-    { date:"2026-05-20", day:"Tue", week:2, domain:"D4 Prompt", domainClass:"d4",
-      core: [{t:"Anthropic docs: "}, {t:"Structured outputs", u:URLS.structuredOutputs}],
-      stretch: [{t:"Academy course: "}, {t:"MCP Advanced Topics", u:URLS.courseMcpAdvanced}]
-    },
-    { date:"2026-05-21", day:"Wed", week:2, domain:"D5 Context", domainClass:"d5",
-      core: [{t:"Anthropic docs: "}, {t:"Prompt caching", u:URLS.promptCaching}],
-      stretch: [{t:"Yondem guide §5 Conversation Context Management", u:URLS.yondemSec5}]
-    },
-    { date:"2026-05-22", day:"Thu", week:2, domain:"Scenarios", domainClass:"",
-      core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 1–3 walkthroughs"}],
-      stretch: [{t:"Yondem guide §2 Designing Tool Interfaces for LLM Agents", u:URLS.yondemSec2}]
-    },
-    { date:"2026-05-23", day:"Fri", week:2, domain:"Scenarios", domainClass:"",
-      core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 4–6 walkthroughs"}],
-      stretch: [{t:"Yondem guide §3 Error Handling in Agent Tools", u:URLS.yondemSec3}]
-    },
-    { date:"2026-05-24", day:"Sat", week:2, domain:"All domains", domainClass:"",
-      core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 questions, untimed, read explanations"}],
-      stretch: [{t:"Yondem guide §4 Structured Data Extraction and Validation", u:URLS.yondemSec4}]
-    },
-    { date:"2026-05-25", day:"Sun", week:2, domain:"All domains", domainClass:"",
-      core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 more questions"}],
-      stretch: [{t:"Yondem guide §7 Model Context Protocol (MCP)", u:URLS.yondemSec7}]
-    },
-    // Week 3
-    { date:"2026-05-26", day:"Mon", week:3, domain:"Diagnostic", domainClass:"",
-      core: [
-        {t:"Timed mock — 120 min, no notes, sit it like the real exam: "},
-        {t:"claudecertifications.com", u:URLS.claudeCerts}, {t:" (25 fresh Q) + "},
-        {t:"Vercel mock", u:URLS.vercel}, {t:" re-attempt under time pressure (some Q's are repeats from week 2 — focus on missed ones)"}
-      ],
-      stretch: [{t:"Score honestly, identify weakest domain"}]
-    },
-    { date:"2026-05-27", day:"Tue", week:3, domain:"Targeted", domainClass:"",
-      core: [{t:"Review every wrong answer; map each to a domain + primary doc; re-read those pages"}],
-      stretch: [{t:"Re-read "}, {t:"engineering blog", u:URLS.engBlog}, {t:" if D1 was weakest"}]
-    },
-    { date:"2026-05-28", day:"Wed", week:3, domain:"Targeted", domainClass:"",
-      core: [
-        {t:"Final pass on weakest domain's primary docs; skim "},
-        {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:" again"}
-      ],
-      stretch: [
-        {t:"Yondem guide §13 Quick Reference Cheat Sheet review", u:URLS.yondemCheat}
-      ]
-    },
-    { date:"2026-05-29", day:"Thu", week:3, domain:"Exam", domainClass:"",
-      core: [{t:"EXAM DAY — light cheat-sheet review in the morning only. Don't cram."}],
-      stretch: null
-    },
-  ];
+// -------- Date helpers --------
+function weekStartOf(date) {
+  // Returns ISO date of the Monday of the week containing `date`
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ...
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+function isoDateToday() {
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
 
-  const WEEK_META = {
-    1: { title: "Week 1 — Foundations + heavy domains", checkpoint: "Can you explain the 5-step loop, name every stop_reason value, and describe what a subagent inherits — without notes? If no, slow down." },
-    2: { title: "Week 2 — Remaining domains + scenarios", checkpoint: "Can you whiteboard the architecture for each of the six scenarios from memory? If a scenario is fuzzy, re-read its primary-doc references before Week 3." },
-    3: { title: "Week 3 — Diagnostic + targeted cleanup", checkpoint: "Red-flag rule: scoring below 65% on the May 26 diagnostic? Given the 6-month cooldown, talk to your coordinator before burning the May 29 attempt." },
+// -------- Quiz selection --------
+function questionsByDomain(domain) {
+  return window.QUESTIONS.filter(q => q.domain === domain);
+}
+function selectDailyQuiz(focusDomain = null) {
+  const seen = state.seenThisWeek || {};
+  const selected = [];
+  const domains = focusDomain ? [focusDomain] : [1,2,3,4,5];
+  const perDomain = focusDomain ? 10 : PER_DOMAIN_PER_DAY;
+  for (const d of domains) {
+    const pool = questionsByDomain(d);
+    const unseen = pool.filter(q => !seen[q.id]);
+    const candidates = unseen.length >= perDomain ? unseen : unseen.concat(pool.filter(q => seen[q.id]));
+    const shuffled = shuffle(candidates);
+    selected.push(...shuffled.slice(0, perDomain));
+  }
+  return shuffle(selected); // shuffle across domains too
+}
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function startQuiz(focusDomain = null) {
+  const picks = selectDailyQuiz(focusDomain);
+  state.currentQuiz = {
+    qids: picks.map(q => q.id),
+    answers: {},
+    idx: 0,
+    focusDomain,
+    startedAt: new Date().toISOString(),
   };
+  saveState();
+  renderQuiz();
+}
+function recordAnswer(qid, chosen) {
+  const q = window.QUESTIONS.find(x => x.id === qid);
+  if (!q) return;
+  const correct = chosen === q.correct;
+  state.currentQuiz.answers[qid] = chosen;
+  state.seenThisWeek[qid] = true;
+  state.history.push({
+    qid, domain: q.domain, scenario: q.scenario, ts: q.taskStatement,
+    difficulty: q.difficulty, chosen, correct, dateIso: isoDateToday()
+  });
+  saveState();
+}
 
-  const STORAGE_KEY = "ccaf_tracker_v1";
-
-  // -------- State --------
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch(e) {}
-    return { core:{}, stretch:{}, name:"", collapsed:{} };
+// -------- Stats --------
+function computeDomainStats() {
+  const stats = {};
+  for (const d of [1,2,3,4,5]) {
+    const hist = state.history.filter(h => h.domain === d);
+    const seen = hist.length;
+    const correct = hist.filter(h => h.correct).length;
+    const mastery = seen > 0 ? correct / seen : 0;
+    let band = "unproven";
+    if (seen >= 5) {
+      if (mastery >= 0.8) band = "strong";
+      else if (mastery >= 0.6) band = "developing";
+      else band = "weak";
+    }
+    stats[d] = { seen, correct, mastery, band, weight: DOMAIN_INFO[d].weight };
   }
-  function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {}
-  }
-  const state = loadState();
+  return stats;
+}
 
-  // -------- Render --------
-  function isToday(dateStr) {
-    const t = new Date();
-    const today = t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0");
-    return today === dateStr;
-  }
-  function isPast(dateStr) {
-    const t = new Date();
-    const today = t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0");
-    return dateStr < today;
-  }
+// -------- Rendering: skill graph --------
+function renderSkillGraph() {
+  const stats = computeDomainStats();
+  const totalSeen = Object.values(stats).reduce((a,s)=>a+s.seen, 0);
+  const totalCorrect = Object.values(stats).reduce((a,s)=>a+s.correct, 0);
 
-  function renderCountdown() {
-    const exam = new Date("2026-05-29T00:00:00");
-    const now = new Date();
-    const ms = exam - now;
-    const days = Math.ceil(ms / (1000*60*60*24));
-    const num = document.getElementById("cdNum");
-    const lbl = document.getElementById("cdLabel");
-    if (days > 1) { num.textContent = days; lbl.textContent = "days to exam"; }
-    else if (days === 1) { num.textContent = "1"; lbl.textContent = "day to exam"; }
-    else if (days === 0) { num.textContent = "Today"; lbl.textContent = "exam day"; }
-    else { num.textContent = "Done"; lbl.textContent = "exam passed"; }
-  }
-
-  function renderWeeks() {
-    const container = document.getElementById("weeksContainer");
-    container.innerHTML = "";
-    [1,2,3].forEach(w => {
-      const days = PLAN.filter(d => d.week === w);
-      const meta = WEEK_META[w];
-      const weekDiv = document.createElement("div");
-      weekDiv.className = "week" + (state.collapsed[w] ? " collapsed" : "");
-      const coreDone = days.filter(d => state.core[d.date]).length;
-      const stretchDone = days.filter(d => state.stretch[d.date]).length;
-      weekDiv.innerHTML = `
-        <div class="week-header" data-week="${w}">
-          <h2>${meta.title}</h2>
-          <span class="summary">${coreDone}/${days.length} core · ${stretchDone}/${days.length} stretch</span>
-        </div>
-        <div class="week-body">
-          <div class="week-checkpoint"><strong>Checkpoint:</strong> ${meta.checkpoint}</div>
-          ${days.map(d => renderDayRow(d)).join("")}
-        </div>
-      `;
-      container.appendChild(weekDiv);
-    });
-
-    // Wire up checkboxes
-    container.querySelectorAll("input[type=checkbox]").forEach(cb => {
-      cb.addEventListener("change", (e) => {
-        const date = cb.dataset.date;
-        const kind = cb.dataset.kind;
-        state[kind][date] = cb.checked;
-        saveState();
-        renderAll();
-      });
-    });
-
-    // Wire up week collapse
-    container.querySelectorAll(".week-header").forEach(h => {
-      h.addEventListener("click", () => {
-        const w = h.dataset.week;
-        state.collapsed[w] = !state.collapsed[w];
-        saveState();
-        renderWeeks();
-      });
-    });
+  const summaryEl = document.getElementById("skillSummary");
+  if (totalSeen === 0) {
+    summaryEl.textContent = "Take a quiz to start building your skill profile.";
+  } else {
+    const overall = Math.round(totalCorrect / totalSeen * 100);
+    summaryEl.innerHTML = `<strong>${totalCorrect} / ${totalSeen} correct overall (${overall}%)</strong> · ${Object.keys(state.seenThisWeek||{}).length} of 210 questions seen this week`;
   }
 
-  function renderSegments(segs) {
-    if (!segs) return "";
-    return segs.map(s => {
-      if (s.u) {
-        return `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.t)}</a>`;
-      }
-      return escapeHtml(s.t);
-    }).join("");
-  }
-
-  function renderDayRow(d) {
-    const coreClass = state.core[d.date] ? "done" : "";
-    const stretchClass = state.stretch[d.date] ? "done" : "";
-    const rowClass = isToday(d.date) ? "today" : (isPast(d.date) ? "past" : "");
-    const stretchCell = d.stretch
-      ? `<div class="checkitem stretch ${stretchClass}">
-           <input type="checkbox" data-date="${d.date}" data-kind="stretch" ${state.stretch[d.date] ? "checked" : ""}>
-           <div class="ctext">${renderSegments(d.stretch)}</div>
-         </div>`
-      : `<div></div>`;
-    return `
-      <div class="day-row ${rowClass}">
-        <div class="day-date">${formatDate(d.date)}<span class="small">${d.day}</span></div>
-        <div class="checkitem core ${coreClass}">
-          <input type="checkbox" data-date="${d.date}" data-kind="core" ${state.core[d.date] ? "checked" : ""}>
-          <div class="ctext">${renderSegments(d.core)}</div>
-        </div>
-        ${stretchCell}
-        <div><span class="domain-pill ${d.domainClass}">${escapeHtml(d.domain)}</span></div>
+  // Weak-domain callout
+  const weak = [1,2,3,4,5].filter(d => stats[d].band === "weak");
+  const callout = document.getElementById("weakCallout");
+  if (weak.length === 0) {
+    callout.innerHTML = "";
+  } else {
+    // Sort by priority = weight × (1 - mastery)
+    weak.sort((a,b) => (stats[b].weight * (1-stats[b].mastery)) - (stats[a].weight * (1-stats[a].mastery)));
+    const items = weak.map(d => `<strong>${DOMAIN_INFO[d].short}</strong> (${Math.round(stats[d].mastery*100)}%)`).join(", ");
+    callout.innerHTML = `
+      <div class="weak-callout">
+        <strong>Target these next:</strong> ${items}. Click "Practice this domain" on a bar below to focus your next quiz, or open the <a href="#" onclick="setView('plan'); return false;">Daily plan</a> to find which Anthropic doc covers it.
       </div>
     `;
   }
 
-  function formatDate(iso) {
-    const [y,m,day] = iso.split("-");
-    const months = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    return months[parseInt(m,10)] + " " + parseInt(day,10);
-  }
+  const barsHtml = [1,2,3,4,5].map(d => {
+    const s = stats[d];
+    const info = DOMAIN_INFO[d];
+    const pct = Math.round(s.mastery * 100);
+    const widthPct = s.seen === 0 ? 0 : Math.max(2, pct);
+    const seenLabel = s.seen === 0 ? "not started" : `${s.correct} / ${s.seen} correct`;
+    return `
+      <div class="domain-bar">
+        <div class="dname">
+          <span><span class="domain-pill ${info.className}">${info.short}</span></span>
+          <span class="weight">${Math.round(info.weight*100)}% of exam</span>
+        </div>
+        <div class="skill-bar-track"><div class="skill-bar-fill ${s.band}" style="width:${widthPct}%"></div></div>
+        <div class="stats"><strong>${s.seen > 0 ? pct + '%' : '—'}</strong><br>${seenLabel}</div>
+        <button class="practice-domain-btn" data-domain="${d}">Practice this domain</button>
+      </div>
+    `;
+  }).join("");
+  document.getElementById("domainBars").innerHTML = barsHtml;
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  }
-
-  function renderProgress() {
-    const total = PLAN.length * 2;  // core + stretch per day, but final day has no stretch
-    const totalAdjusted = PLAN.reduce((acc,d) => acc + 1 + (d.stretch ? 1 : 0), 0);
-    const coreDone = PLAN.filter(d => state.core[d.date]).length;
-    const stretchDone = PLAN.filter(d => state.stretch[d.date] && d.stretch).length;
-    const overallDone = coreDone + stretchDone;
-    const overallPct = Math.round((overallDone / totalAdjusted) * 100);
-    const corePct = Math.round((coreDone / PLAN.length) * 100);
-
-    document.getElementById("overallPct").textContent = overallPct + "%";
-    document.getElementById("overallCount").textContent = overallDone + " / " + totalAdjusted;
-    document.getElementById("overallBar").style.width = overallPct + "%";
-
-    document.getElementById("corePct").textContent = corePct + "%";
-    document.getElementById("coreCount").textContent = coreDone + " / " + PLAN.length;
-    document.getElementById("coreBar").style.width = corePct + "%";
-  }
-
-  function renderDomains() {
-    // Group by domain (using domain text, lumping catch-up / overview / scenarios / etc.)
-    const groups = {};
-    PLAN.forEach(d => {
-      if (!groups[d.domain]) groups[d.domain] = { items: [], done: 0, cls: d.domainClass };
-      // core item
-      groups[d.domain].items.push({ key:"core", date:d.date });
-      if (state.core[d.date]) groups[d.domain].done++;
-      // stretch item
-      if (d.stretch) {
-        groups[d.domain].items.push({ key:"stretch", date:d.date });
-        if (state.stretch[d.date]) groups[d.domain].done++;
+  document.querySelectorAll(".practice-domain-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const d = parseInt(btn.dataset.domain, 10);
+      if (confirm(`Start a 10-question focused quiz on ${DOMAIN_INFO[d].short}? (Replaces your current quiz, if any.)`)) {
+        startQuiz(d);
       }
     });
-    const container = document.getElementById("domainRows");
-    container.innerHTML = Object.entries(groups).map(([name, g]) => {
-      const pct = Math.round((g.done / g.items.length) * 100);
-      return `
-        <div class="domain-row">
-          <div class="dname"><span class="domain-pill ${g.cls}">${escapeHtml(name)}</span></div>
-          <div class="progress-bar"><div style="width:${pct}%"></div></div>
-          <div class="dpct">${pct}%</div>
+  });
+}
+
+// -------- Rendering: quiz --------
+function renderQuiz() {
+  const container = document.getElementById("quizContainer");
+  const summaryDiv = document.getElementById("quizSummary");
+  summaryDiv.style.display = "none";
+  const q = state.currentQuiz;
+  if (!q) {
+    container.innerHTML = `
+      <h2 style="margin-top:0;">Daily Quiz</h2>
+      <p style="color:#555; margin-bottom: 14px;">Each daily set is <strong>30 questions</strong>: 6 from each of the 5 exam domains. The same question won't appear twice in a 7-day cycle (210 unique questions / 30 per day = exactly one full week).</p>
+      <div class="quiz-actions" style="justify-content: flex-start;">
+        <button class="btn primary" id="startQuizBtn">Start today's quiz (30 Q)</button>
+      </div>
+    `;
+    document.getElementById("startQuizBtn").addEventListener("click", () => startQuiz());
+    return;
+  }
+  const total = q.qids.length;
+  const answered = Object.keys(q.answers).length;
+  const idx = q.idx;
+  if (idx >= total) {
+    renderQuizSummary();
+    return;
+  }
+  const qid = q.qids[idx];
+  const question = window.QUESTIONS.find(x => x.id === qid);
+  const chosen = q.answers[qid];
+  const showFeedback = !!chosen;
+  const info = DOMAIN_INFO[question.domain];
+
+  let html = `
+    <div class="quiz-progress">
+      <span>${q.focusDomain ? `Focused: ${info.short}` : "Daily Quiz"}</span>
+      <div class="progress-bar"><div style="width:${Math.round((idx+1)/total*100)}%"></div></div>
+      <span>Q ${idx+1} / ${total}</span>
+    </div>
+    <div class="q-tags">
+      <span class="q-tag" style="background: ${info.className === 'd1' ? '#ddeefc' : info.className === 'd2' ? '#e0eedb' : info.className === 'd3' ? '#fce3e8' : info.className === 'd4' ? '#f0e0fa' : '#fcefd6'}; color: ${info.className === 'd1' ? '#1e4a78' : info.className === 'd2' ? '#2f5a1f' : info.className === 'd3' ? '#842744' : info.className === 'd4' ? '#5e2289' : '#82530a'};">${info.short}</span>
+      <span class="q-tag">Scenario ${question.scenario}: ${escapeHtml(SCENARIO_NAMES[question.scenario])}</span>
+      <span class="q-tag">TS ${question.taskStatement}</span>
+      <span class="q-tag diff-${question.difficulty}">${question.difficulty}</span>
+    </div>
+    <div class="q-stem">${formatText(question.stem)}</div>
+    <div class="q-options">
+  `;
+  for (const letter of ["A","B","C","D"]) {
+    const optClass = showFeedback
+      ? (letter === question.correct ? "correct" : (chosen === letter ? "incorrect" : ""))
+      : (chosen === letter ? "selected" : "");
+    html += `
+      <div class="q-option ${optClass} ${showFeedback ? 'disabled' : ''}" data-letter="${letter}">
+        <span class="letter">${letter}</span>
+        <span class="otext">${formatText(question.options[letter])}</span>
+      </div>
+    `;
+  }
+  html += `</div>`;
+
+  if (showFeedback) {
+    html += `<div class="explanations">`;
+    for (const letter of ["A","B","C","D"]) {
+      const isCorrect = letter === question.correct;
+      html += `
+        <div class="expl-row">
+          <span class="expl-letter ${isCorrect ? 'correct' : 'wrong'}">${letter}</span>
+          <span>${isCorrect ? '<strong>(correct)</strong> ' : ''}${formatText(question.explanations[letter])}</span>
         </div>
       `;
-    }).join("");
+    }
+    html += `</div>`;
   }
 
-  function renderAll() {
-    renderWeeks();
-    renderProgress();
-    renderDomains();
+  html += `
+    <div class="quiz-actions">
+      ${idx > 0 ? '<button class="btn" id="prevBtn">← Previous</button>' : ''}
+      ${!showFeedback ? '<button class="btn primary" id="submitBtn" disabled>Submit answer</button>' : ''}
+      ${showFeedback && idx + 1 < total ? '<button class="btn primary" id="nextBtn">Next question →</button>' : ''}
+      ${showFeedback && idx + 1 >= total ? '<button class="btn primary" id="finishBtn">See results</button>' : ''}
+      <button class="btn" id="quitQuizBtn">End quiz</button>
+    </div>
+  `;
+  container.innerHTML = html;
+
+  // Wire option clicks
+  container.querySelectorAll(".q-option:not(.disabled)").forEach(el => {
+    el.addEventListener("click", () => {
+      const letter = el.dataset.letter;
+      // Temp-select (don't save yet)
+      container.querySelectorAll(".q-option").forEach(o => o.classList.remove("selected"));
+      el.classList.add("selected");
+      const sub = document.getElementById("submitBtn");
+      if (sub) { sub.disabled = false; sub.dataset.chosen = letter; }
+    });
+  });
+  const sub = document.getElementById("submitBtn");
+  if (sub) sub.addEventListener("click", () => {
+    const chosenLetter = sub.dataset.chosen;
+    if (!chosenLetter) return;
+    recordAnswer(qid, chosenLetter);
+    renderQuiz();
+    renderSkillGraph();
+  });
+  const nextBtn = document.getElementById("nextBtn");
+  if (nextBtn) nextBtn.addEventListener("click", () => {
+    state.currentQuiz.idx++;
+    saveState();
+    renderQuiz();
+  });
+  const finishBtn = document.getElementById("finishBtn");
+  if (finishBtn) finishBtn.addEventListener("click", () => {
+    state.currentQuiz.idx = total;
+    saveState();
+    renderQuizSummary();
+  });
+  const prevBtn = document.getElementById("prevBtn");
+  if (prevBtn) prevBtn.addEventListener("click", () => {
+    state.currentQuiz.idx--;
+    saveState();
+    renderQuiz();
+  });
+  const quitBtn = document.getElementById("quitQuizBtn");
+  if (quitBtn) quitBtn.addEventListener("click", () => {
+    if (confirm("End this quiz? Your answered questions stay in your history; unanswered ones become available again later this week.")) {
+      // Restore: questions answered are kept in seenThisWeek; unanswered are dropped
+      const answeredQids = Object.keys(state.currentQuiz.answers);
+      // Remove from seenThisWeek any qids that were in this quiz but not answered
+      for (const qid of state.currentQuiz.qids) {
+        if (!state.currentQuiz.answers[qid]) {
+          delete state.seenThisWeek[qid];
+        }
+      }
+      state.currentQuiz = null;
+      saveState();
+      renderQuiz();
+      renderSkillGraph();
+    }
+  });
+}
+
+function renderQuizSummary() {
+  const container = document.getElementById("quizContainer");
+  const summaryDiv = document.getElementById("quizSummary");
+  const q = state.currentQuiz;
+  const answered = Object.keys(q.answers);
+  const total = q.qids.length;
+  const correctIds = answered.filter(qid => {
+    const qq = window.QUESTIONS.find(x => x.id === qid);
+    return q.answers[qid] === qq.correct;
+  });
+  const overall = answered.length > 0 ? Math.round(correctIds.length / answered.length * 100) : 0;
+
+  // Per-domain breakdown
+  const byDomain = {};
+  for (const qid of answered) {
+    const qq = window.QUESTIONS.find(x => x.id === qid);
+    if (!byDomain[qq.domain]) byDomain[qq.domain] = { seen: 0, correct: 0 };
+    byDomain[qq.domain].seen++;
+    if (q.answers[qid] === qq.correct) byDomain[qq.domain].correct++;
   }
 
-  // -------- Buttons --------
-  document.getElementById("nameInput").value = state.name || "";
-  document.getElementById("nameInput").addEventListener("input", (e) => {
-    state.name = e.target.value;
+  container.innerHTML = `<h2 style="margin-top:0;">Quiz complete</h2><p style="color:#555;">Here's how you did. Scroll up for the skill graph to see your lifetime stats across all attempts.</p>`;
+  summaryDiv.style.display = "block";
+  summaryDiv.innerHTML = `
+    <div class="summary-grid">
+      <div class="summary-stat"><div class="label">Score</div><div class="value">${overall}%</div></div>
+      <div class="summary-stat"><div class="label">Correct</div><div class="value">${correctIds.length} / ${answered.length}</div></div>
+      <div class="summary-stat"><div class="label">Skipped</div><div class="value">${total - answered.length}</div></div>
+    </div>
+    <h3 style="margin-top:18px;">By domain</h3>
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      ${[1,2,3,4,5].filter(d => byDomain[d]).map(d => {
+        const b = byDomain[d];
+        const pct = Math.round(b.correct/b.seen*100);
+        return `<div class="domain-bar" style="grid-template-columns: 130px 1fr 80px;">
+          <span><span class="domain-pill ${DOMAIN_INFO[d].className}">${DOMAIN_INFO[d].short}</span></span>
+          <div class="skill-bar-track"><div class="skill-bar-fill ${pct >= 80 ? 'strong' : pct >= 60 ? 'developing' : 'weak'}" style="width:${Math.max(2,pct)}%"></div></div>
+          <span style="text-align:right; font-size:12px;">${b.correct}/${b.seen} (${pct}%)</span>
+        </div>`;
+      }).join("")}
+    </div>
+    <div class="quiz-actions" style="justify-content: flex-start; margin-top: 18px;">
+      <button class="btn primary" id="newQuizBtn">Start a new daily quiz</button>
+      <button class="btn" id="reviewMissedBtn">Review missed questions</button>
+    </div>
+  `;
+  document.getElementById("newQuizBtn").addEventListener("click", () => {
+    state.currentQuiz = null;
     saveState();
+    renderQuiz();
   });
+  document.getElementById("reviewMissedBtn").addEventListener("click", () => {
+    const missed = answered.filter(qid => {
+      const qq = window.QUESTIONS.find(x => x.id === qid);
+      return q.answers[qid] !== qq.correct;
+    });
+    if (missed.length === 0) {
+      alert("No missed questions to review. Great job!");
+      return;
+    }
+    // Replay these qids in a fresh review pass
+    state.currentQuiz = { qids: missed, answers: {}, idx: 0, focusDomain: null, startedAt: new Date().toISOString(), isReview: true };
+    // Don't double-count in seenThisWeek (they're already seen)
+    saveState();
+    renderQuiz();
+  });
+}
 
-  document.getElementById("expandAll").addEventListener("click", () => {
-    [1,2,3].forEach(w => state.collapsed[w] = false);
-    saveState();
-    renderWeeks();
+// -------- Rendering: plan view (unchanged from prior version) --------
+function isToday(d) { return isoDateToday() === d; }
+function isPast(d) { return d < isoDateToday(); }
+function renderPlan() {
+  const container = document.getElementById("weeksContainer");
+  if (!container) return;
+  container.innerHTML = "";
+  [1,2,3].forEach(w => {
+    const days = PLAN.filter(d => d.week === w);
+    const meta = WEEK_META[w];
+    const div = document.createElement("div");
+    div.className = "week" + (state.collapsedWeeks[w] ? " collapsed" : "");
+    const coreDone = days.filter(d => state.core[d.date]).length;
+    const stretchDone = days.filter(d => state.stretch[d.date] && d.stretch).length;
+    div.innerHTML = `
+      <div class="week-header" data-week="${w}">
+        <h2>${meta.title}</h2>
+        <span class="summary">${coreDone}/${days.length} core · ${stretchDone}/${days.length} stretch</span>
+      </div>
+      <div class="week-body">
+        <div class="week-checkpoint"><strong>Checkpoint:</strong> ${meta.checkpoint}</div>
+        ${days.map(d => renderDayRow(d)).join("")}
+      </div>
+    `;
+    container.appendChild(div);
   });
-  document.getElementById("collapseAll").addEventListener("click", () => {
-    [1,2,3].forEach(w => state.collapsed[w] = true);
-    saveState();
-    renderWeeks();
+  container.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      state[cb.dataset.kind][cb.dataset.date] = cb.checked;
+      saveState();
+      renderPlan();
+    });
   });
-  document.getElementById("resetBtn").addEventListener("click", () => {
-    if (!confirm("Reset all your checkmarks? This only affects your browser.")) return;
-    state.core = {};
-    state.stretch = {};
+  container.querySelectorAll(".week-header").forEach(h => {
+    h.addEventListener("click", () => {
+      const w = h.dataset.week;
+      state.collapsedWeeks[w] = !state.collapsedWeeks[w];
+      saveState();
+      renderPlan();
+    });
+  });
+}
+function renderDayRow(d) {
+  const coreClass = state.core[d.date] ? "done" : "";
+  const stretchClass = state.stretch[d.date] ? "done" : "";
+  const rowClass = isToday(d.date) ? "today" : (isPast(d.date) ? "past" : "");
+  const stretchCell = d.stretch
+    ? `<div class="checkitem stretch ${stretchClass}">
+         <input type="checkbox" data-date="${d.date}" data-kind="stretch" ${state.stretch[d.date] ? "checked" : ""}>
+         <div class="ctext">${renderSegments(d.stretch)}</div>
+       </div>`
+    : `<div></div>`;
+  return `
+    <div class="day-row ${rowClass}">
+      <div class="day-date">${formatDate(d.date)}<span class="small">${d.day}</span></div>
+      <div class="checkitem core ${coreClass}">
+        <input type="checkbox" data-date="${d.date}" data-kind="core" ${state.core[d.date] ? "checked" : ""}>
+        <div class="ctext">${renderSegments(d.core)}</div>
+      </div>
+      ${stretchCell}
+      <div><span class="domain-pill ${d.domainClass}">${escapeHtml(d.domain)}</span></div>
+    </div>
+  `;
+}
+function renderSegments(segs) {
+  if (!segs) return "";
+  return segs.map(s => s.u
+    ? `<a href="${escapeHtml(s.u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(s.t)}</a>`
+    : escapeHtml(s.t)
+  ).join("");
+}
+function formatDate(iso) {
+  const [, m, day] = iso.split("-");
+  const months = ["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return months[parseInt(m,10)] + " " + parseInt(day,10);
+}
+
+// -------- Countdown --------
+function renderCountdown() {
+  const exam = new Date(EXAM_DATE + "T00:00:00");
+  const now = new Date();
+  const days = Math.ceil((exam - now) / 86400000);
+  const num = document.getElementById("cdNum");
+  const lbl = document.getElementById("cdLabel");
+  if (days > 1) { num.textContent = days; lbl.textContent = "days to exam"; }
+  else if (days === 1) { num.textContent = "1"; lbl.textContent = "day to exam"; }
+  else if (days === 0) { num.textContent = "Today"; lbl.textContent = "exam day"; }
+  else { num.textContent = "Done"; lbl.textContent = "exam passed"; }
+}
+
+// -------- Util --------
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function formatText(s) {
+  // Light markdown-ish formatting: backtick `code`, **bold**, _italic_, line breaks
+  let t = escapeHtml(s);
+  t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+  t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\n/g, '<br>');
+  return t;
+}
+
+// -------- View switching --------
+function setView(v) {
+  state.view = v;
+  saveState();
+  document.querySelectorAll("#viewToggle button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  document.getElementById("quizView").classList.toggle("hidden", v !== "quiz");
+  document.getElementById("planView").classList.toggle("hidden", v !== "plan");
+  if (v === "plan") renderPlan();
+}
+
+// -------- Export/Import --------
+function exportProgress() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const today = isoDateToday();
+  const safeName = (state.name || "anon").replace(/[^a-zA-Z0-9_-]/g, "_");
+  a.href = url;
+  a.download = `ccaf-progress-${safeName}-${today}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importProgress(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data || typeof data !== "object") throw new Error("Invalid file");
+      if (!confirm("Replace your current progress with the imported data? Your current state will be overwritten.")) return;
+      state = Object.assign(defaultState(), data);
+      // Keep the user input name in sync
+      document.getElementById("nameInput").value = state.name || "";
+      saveState();
+      renderAll();
+      alert("Progress imported.");
+    } catch (err) {
+      alert("Could not import: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// -------- Init --------
+function renderAll() {
+  renderCountdown();
+  renderSkillGraph();
+  renderQuiz();
+  if (state.view === "plan") renderPlan();
+  setView(state.view || "quiz");
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Load existing state for the default slot, or whatever name is in the input
+  state = loadState("");
+  const nameInput = document.getElementById("nameInput");
+  nameInput.value = state.name || "";
+
+  // Name change → swap state slot
+  nameInput.addEventListener("change", () => {
+    const newName = nameInput.value.trim();
+    state = loadState(newName);
+    state.name = newName;
     saveState();
     renderAll();
   });
 
-  // -------- Init --------
-  renderCountdown();
+  // View toggle
+  document.querySelectorAll("#viewToggle button").forEach(b => {
+    b.addEventListener("click", () => setView(b.dataset.view));
+  });
+
+  // Actions
+  document.getElementById("exportBtn").addEventListener("click", exportProgress);
+  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", e => {
+    if (e.target.files[0]) importProgress(e.target.files[0]);
+    e.target.value = ""; // reset so re-selecting same file works
+  });
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("Reset all your progress (quiz history, weekly seen list, plan checkmarks)? This cannot be undone unless you've exported a JSON backup.")) return;
+    const name = state.name;
+    state = defaultState();
+    state.name = name;
+    saveState();
+    renderAll();
+  });
+
   renderAll();
-  setInterval(renderCountdown, 60 * 60 * 1000); // hourly
+  setInterval(renderCountdown, 60 * 60 * 1000);
+});
 </script>
 
 </body>

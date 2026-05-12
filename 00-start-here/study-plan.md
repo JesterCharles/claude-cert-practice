@@ -1,5 +1,7 @@
 # CCA-F daily study plan — May 12 to May 29, 2026
 
+> **There's also a quiz-driven alternative.** Open the [tracker](../index.html) and switch to **Quiz mode** for a self-directed approach: 30 fresh questions per day pulled from a 210-question bank, with a skill graph that highlights weak domains so you can target practice instead of following a fixed plan. This document is the **prescribed-plan fallback** for anyone who'd rather follow a fixed schedule.
+
 **Target exam date:** Thursday, May 29, 2026
 **Pace:** 1 hr/day core, +30 min stretch when available (~30 hrs total over 18 days)
 
