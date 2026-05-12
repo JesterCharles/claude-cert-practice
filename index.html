@@ -198,6 +198,33 @@
     background: linear-gradient(90deg, #d97757 0%, #b85a3a 100%);
     transition: width 0.3s ease;
   }
+  .quiz-timer {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #f7f4ec;
+    border: 1px solid #e7e4dc;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #5a4a1a;
+    font-variant-numeric: tabular-nums;
+  }
+  .quiz-timer .left { display: flex; gap: 8px; align-items: center; }
+  .quiz-timer .elapsed { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+  .quiz-timer .target { color: #888; }
+  .quiz-timer .pace-note { font-size: 11px; color: #888; }
+  .quiz-timer.over-pace .elapsed { color: #b85a3a; }
+  .quiz-timer.over-target .elapsed { color: #842029; }
+  .quiz-timer .timer-toggle {
+    background: white;
+    border: 1px solid #d6d2c4;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #555;
+  }
+  .quiz-timer .timer-toggle:hover { background: #f3efe5; }
   .q-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .q-tag {
     font-size: 11px;
@@ -577,6 +604,167 @@ const DOMAIN_INFO = {
   5: { name: "Context Management & Reliability",     weight: 0.15, short: "D5 Context", className: "d5" },
 };
 
+// Per-task-statement resources — used by the post-quiz "Review missed → resources" section
+// Each TS gets 2-3 high-yield resources (Anthropic primary docs, Yondem section, Academy course as relevant)
+const TS_RESOURCES = {
+  // D1 — Agentic Architecture & Orchestration
+  "1.1": [
+    { label: "Anthropic docs: Agent loop", url: "https://platform.claude.com/docs/en/agent-sdk/agent-loop" },
+    { label: "Anthropic docs: Stop reasons", url: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" },
+    { label: "Yondem §8 Agentic Patterns and Task Decomposition", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#8-agentic-patterns-and-task-decomposition" },
+  ],
+  "1.2": [
+    { label: "Anthropic docs: Subagents", url: "https://platform.claude.com/docs/en/agent-sdk/subagents" },
+    { label: "Engineering blog: Building agents with the Claude Agent SDK", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+    { label: "Yondem §9 Customer Service / Production Workflow", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design" },
+  ],
+  "1.3": [
+    { label: "Anthropic docs: Subagents", url: "https://platform.claude.com/docs/en/agent-sdk/subagents" },
+    { label: "Engineering blog (Task tool + AgentDefinition)", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+    { label: "Academy: Intro to Subagents", url: "https://anthropic.skilljar.com/introduction-to-subagents" },
+  ],
+  "1.4": [
+    { label: "Anthropic docs: Hooks", url: "https://platform.claude.com/docs/en/agent-sdk/hooks" },
+    { label: "Yondem §9 Production Workflow Design (escalation, handoffs)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design" },
+  ],
+  "1.5": [
+    { label: "Anthropic docs: Hooks", url: "https://platform.claude.com/docs/en/agent-sdk/hooks" },
+    { label: "Engineering blog: programmatic enforcement patterns", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+  ],
+  "1.6": [
+    { label: "Yondem §8 Agentic Patterns and Task Decomposition", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#8-agentic-patterns-and-task-decomposition" },
+    { label: "Engineering blog: chaining vs adaptive decomposition", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+  ],
+  "1.7": [
+    { label: "Yondem §10 Claude Code workflows (--resume, fork_session)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Anthropic docs: Claude Code memory", url: "https://code.claude.com/docs/en/memory" },
+  ],
+  // D2 — Tool Design & MCP Integration
+  "2.1": [
+    { label: "Yondem §2 Designing Tool Interfaces for LLM Agents", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#2-designing-tool-interfaces-for-llm-agents" },
+    { label: "MCP Specification (server section)", url: "https://modelcontextprotocol.io/specification/2025-06-18/" },
+  ],
+  "2.2": [
+    { label: "Yondem §3 Error Handling in Agent Tools", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#3-error-handling-in-agent-tools" },
+    { label: "MCP Specification (isError flag, error tiers)", url: "https://modelcontextprotocol.io/specification/2025-06-18/" },
+  ],
+  "2.3": [
+    { label: "Yondem §2 Tool Interfaces (tool_choice, distribution)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#2-designing-tool-interfaces-for-llm-agents" },
+    { label: "Anthropic docs: Structured outputs (tool_choice modes)", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
+  ],
+  "2.4": [
+    { label: "Anthropic docs: MCP in the SDK", url: "https://docs.claude.com/en/docs/agent-sdk/mcp" },
+    { label: "MCP Specification", url: "https://modelcontextprotocol.io/specification/2025-06-18/" },
+    { label: "Yondem §7 Model Context Protocol", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#7-model-context-protocol-mcp" },
+  ],
+  "2.5": [
+    { label: "Yondem §10 Claude Code workflows (Read, Write, Edit, Grep, Glob)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Academy: Claude Code 101", url: "https://anthropic.skilljar.com/claude-code-101" },
+  ],
+  // D3 — Claude Code Configuration & Workflows
+  "3.1": [
+    { label: "Anthropic docs: Claude Code memory (CLAUDE.md hierarchy)", url: "https://code.claude.com/docs/en/memory" },
+    { label: "Yondem §10 Claude Code workflows", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+  ],
+  "3.2": [
+    { label: "Yondem §10 Claude Code workflows (skills frontmatter, slash commands)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Academy: Intro to Agent Skills", url: "https://anthropic.skilljar.com/introduction-to-agent-skills" },
+  ],
+  "3.3": [
+    { label: "Yondem §10 Claude Code workflows (.claude/rules + YAML paths)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Anthropic docs: Claude Code memory", url: "https://code.claude.com/docs/en/memory" },
+  ],
+  "3.4": [
+    { label: "Yondem §10 (plan mode vs direct execution, Explore subagent)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Academy: Claude Code 101", url: "https://anthropic.skilljar.com/claude-code-101" },
+  ],
+  "3.5": [
+    { label: "Yondem §11 Iterative Refinement, Testing, and Evaluation", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+  ],
+  "3.6": [
+    { label: "Yondem §10 Claude Code workflows (-p flag, --output-format json)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+  ],
+  // D4 — Prompt Engineering & Structured Output
+  "4.1": [
+    { label: "Yondem §11 Iterative Refinement (explicit criteria, false positives)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+    { label: "Yondem §6 System Prompt Engineering", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#6-system-prompt-engineering-and-conversational-behavior" },
+  ],
+  "4.2": [
+    { label: "Yondem §6 System Prompt Engineering (few-shot patterns)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#6-system-prompt-engineering-and-conversational-behavior" },
+    { label: "Anthropic docs: Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
+  ],
+  "4.3": [
+    { label: "Anthropic docs: Structured outputs (tool_use + JSON schemas)", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
+    { label: "Yondem §4 Structured Data Extraction and Validation", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#4-structured-data-extraction-and-validation" },
+  ],
+  "4.4": [
+    { label: "Yondem §4 Structured Data Extraction (validation-retry loops)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#4-structured-data-extraction-and-validation" },
+    { label: "Yondem §11 Iterative Refinement", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+  ],
+  "4.5": [
+    { label: "Yondem §12 Batch Processing, Cost, and Latency", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#12-batch-processing-cost-and-latency" },
+  ],
+  "4.6": [
+    { label: "Yondem §11 Iterative Refinement (multi-pass review)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+  ],
+  // D5 — Context Management & Reliability
+  "5.1": [
+    { label: "Yondem §5 Conversation Context Management", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#5-conversation-context-management" },
+    { label: "Anthropic docs: Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
+  ],
+  "5.2": [
+    { label: "Yondem §9 Customer Service / Production Workflow (escalation criteria)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design" },
+  ],
+  "5.3": [
+    { label: "Yondem §3 Error Handling in Agent Tools", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#3-error-handling-in-agent-tools" },
+  ],
+  "5.4": [
+    { label: "Yondem §10 Claude Code workflows (scratchpad, /compact, subagents)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Anthropic docs: Claude Code memory", url: "https://code.claude.com/docs/en/memory" },
+  ],
+  "5.5": [
+    { label: "Yondem §11 Iterative Refinement (confidence calibration, sampling)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+  ],
+  "5.6": [
+    { label: "Yondem §13 Quick Reference Cheat Sheet (provenance + uncertainty)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#13-quick-reference-cheat-sheet" },
+    { label: "Yondem §5 Conversation Context Management", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#5-conversation-context-management" },
+  ],
+};
+
+// Task statement → short title for display
+const TS_TITLES = {
+  "1.1": "Agentic loops (stop_reason, tool_use vs end_turn)",
+  "1.2": "Multi-agent orchestration (coordinator-subagent)",
+  "1.3": "Subagent invocation & context passing",
+  "1.4": "Multi-step workflows + enforcement gates",
+  "1.5": "Agent SDK hooks (PostToolUse, blocking)",
+  "1.6": "Task decomposition strategies",
+  "1.7": "Session state, --resume, fork_session",
+  "2.1": "Tool interface design + descriptions",
+  "2.2": "Structured error responses (MCP isError)",
+  "2.3": "Tool distribution + tool_choice modes",
+  "2.4": "MCP server integration (.mcp.json, scope)",
+  "2.5": "Built-in tools (Read/Write/Edit/Grep/Glob/Bash)",
+  "3.1": "CLAUDE.md hierarchy + @import",
+  "3.2": "Custom slash commands + skills (frontmatter)",
+  "3.3": ".claude/rules with path-glob frontmatter",
+  "3.4": "Plan mode vs direct execution",
+  "3.5": "Iterative refinement (examples, TDD, interview)",
+  "3.6": "Claude Code in CI (-p, --output-format json)",
+  "4.1": "Explicit criteria to cut false positives",
+  "4.2": "Few-shot prompting (ambiguous-case targeting)",
+  "4.3": "tool_use + JSON schemas (tool_choice modes)",
+  "4.4": "Validation, retry, feedback loops",
+  "4.5": "Message Batches API + custom_id",
+  "4.6": "Multi-instance / multi-pass review",
+  "5.1": "Conversation context (case-facts, summarization)",
+  "5.2": "Escalation triggers (explicit vs heuristic)",
+  "5.3": "Error propagation in multi-agent systems",
+  "5.4": "Large codebase exploration (scratchpads, /compact)",
+  "5.5": "Human review workflows + confidence calibration",
+  "5.6": "Provenance + uncertainty in multi-source synthesis",
+};
+
 // Per-domain study resources for weak-area recommendations
 const DOMAIN_STUDY_RESOURCES = {
   1: [
@@ -686,65 +874,70 @@ const URLS = {
   yondemCheat: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#13-quick-reference-cheat-sheet",
 };
 const PLAN = [
-  { date:"2026-05-12", day:"Mon", week:1, domain:"Overview", domainClass:"",
+  // ───── Week 1: Orientation + foundations across all 5 domains ─────
+  { date:"2026-05-12", day:"Mon", week:1, domain:"Orientation", domainClass:"",
     core: [{t:"Read full "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:"; note gut weakest domain"}],
     stretch: [{t:"Yondem §1 API Fundamentals", u:URLS.yondemSec1}] },
   { date:"2026-05-13", day:"Tue", week:1, domain:"D1 Agentic", domainClass:"d1",
-    core: [{t:"Anthropic docs: "}, {t:"Agent loop", u:URLS.agentLoop}, {t:" + "}, {t:"Stop reasons", u:URLS.stopReasons}],
-    stretch: [{t:"Yondem §8 Agentic Patterns", u:URLS.yondemSec8}] },
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Agent loop", u:URLS.agentLoop}, {t:" + "}, {t:"Stop reasons", u:URLS.stopReasons}],
+    stretch: [{t:"Yondem §8 Agentic Patterns and Task Decomposition", u:URLS.yondemSec8}] },
   { date:"2026-05-14", day:"Wed", week:1, domain:"D1 Agentic", domainClass:"d1",
-    core: [{t:"Anthropic docs: "}, {t:"Subagents", u:URLS.subagents}, {t:" + "}, {t:"engineering blog", u:URLS.engBlog}],
-    stretch: [{t:"Yondem §9 Customer Service Workflow", u:URLS.yondemSec9}] },
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Subagents", u:URLS.subagents}, {t:" + "}, {t:"engineering blog", u:URLS.engBlog}],
+    stretch: [{t:"Yondem §9 Customer Service and Production Workflow", u:URLS.yondemSec9}] },
   { date:"2026-05-15", day:"Thu", week:1, domain:"D3 Claude Code", domainClass:"d3",
-    core: [{t:"Anthropic docs: "}, {t:"Claude Code memory (CLAUDE.md)", u:URLS.ccMemory}],
-    stretch: [{t:"Yondem §10 Claude Code workflows", u:URLS.yondemSec10}] },
-  { date:"2026-05-16", day:"Fri", week:1, domain:"D1 Agentic", domainClass:"d1",
-    core: [{t:"Anthropic docs: "}, {t:"Hooks", u:URLS.hooks}],
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Claude Code memory (CLAUDE.md)", u:URLS.ccMemory}, {t:" + "}, {t:"Yondem §10 Claude Code workflows", u:URLS.yondemSec10}],
+    stretch: [{t:"Academy: "}, {t:"Claude Code 101", u:"https://anthropic.skilljar.com/claude-code-101"}] },
+  { date:"2026-05-16", day:"Fri", week:1, domain:"D2 MCP", domainClass:"d2",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"MCP in the SDK", u:URLS.mcpSdk}, {t:" + "}, {t:"MCP spec server section", u:URLS.mcpSpec}],
+    stretch: [{t:"Yondem §2 Designing Tool Interfaces", u:URLS.yondemSec2}] },
+  { date:"2026-05-17", day:"Sat", week:1, domain:"D4 Prompt", domainClass:"d4",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Structured outputs", u:URLS.structuredOutputs}, {t:" + "}, {t:"Yondem §4 Structured Data Extraction", u:URLS.yondemSec4}],
     stretch: [{t:"Yondem §6 System Prompt Engineering", u:URLS.yondemSec6}] },
-  { date:"2026-05-17", day:"Sat", week:1, domain:"D1 + D3", domainClass:"d1",
-    core: [{t:"Academy: "}, {t:"Intro to Subagents", u:URLS.courseSubagents}],
+  { date:"2026-05-18", day:"Sun", week:1, domain:"🌱 Breathing", domainClass:"",
+    core: [{t:"Breathing day — no required quiz. Skim your skill graph; spend 20 min on whatever's weakest."}],
+    stretch: null },
+
+  // ───── Week 2: Domain depth + scenario integration ─────
+  { date:"2026-05-19", day:"Mon", week:2, domain:"D5 Context", domainClass:"d5",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Prompt caching", u:URLS.promptCaching}, {t:" + "}, {t:"Yondem §5 Conversation Context", u:URLS.yondemSec5}],
+    stretch: [{t:"Yondem §3 Error Handling in Agent Tools", u:URLS.yondemSec3}] },
+  { date:"2026-05-20", day:"Tue", week:2, domain:"D1 Agentic", domainClass:"d1",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Read: "}, {t:"Hooks", u:URLS.hooks}, {t:" — focus on programmatic enforcement vs prompt-based"}],
+    stretch: [{t:"Academy: "}, {t:"Intro to Subagents", u:URLS.courseSubagents}] },
+  { date:"2026-05-21", day:"Wed", week:2, domain:"D3 Claude Code", domainClass:"d3",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Drill: slash commands, plan mode, .claude/rules, path-scoped frontmatter"}],
     stretch: [{t:"Academy: "}, {t:"Intro to Agent Skills", u:URLS.courseAgentSkills}] },
-  { date:"2026-05-18", day:"Sun", week:1, domain:"Catch-up", domainClass:"",
-    core: [{t:"Re-read weakest area from week"}],
-    stretch: [{t:"Yondem §11 Iterative Refinement", u:URLS.yondemSec11}, {t:" + "}, {t:"§12 Batch / Cost / Latency", u:URLS.yondemSec12}] },
-  { date:"2026-05-19", day:"Mon", week:2, domain:"D2 MCP", domainClass:"d2",
-    core: [{t:"Anthropic docs: "}, {t:"MCP in SDK", u:URLS.mcpSdk}, {t:" + "}, {t:"MCP spec", u:URLS.mcpSpec}],
-    stretch: [{t:"Academy: "}, {t:"Intro to MCP", u:URLS.courseIntroMcp}] },
-  { date:"2026-05-20", day:"Tue", week:2, domain:"D4 Prompt", domainClass:"d4",
-    core: [{t:"Anthropic docs: "}, {t:"Structured outputs", u:URLS.structuredOutputs}],
+  { date:"2026-05-22", day:"Thu", week:2, domain:"D4 Prompt", domainClass:"d4",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Drill: tool_use + JSON schemas, validation/retry loops, few-shot examples. Read: "}, {t:"Yondem §11 Iterative Refinement", u:URLS.yondemSec11}],
+    stretch: [{t:"Yondem §12 Batch / Cost / Latency", u:URLS.yondemSec12}] },
+  { date:"2026-05-23", day:"Fri", week:2, domain:"D2 MCP", domainClass:"d2",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Drill: MCP error responses (isError, errorCategory), tool description quality, tool distribution. Read: "}, {t:"Yondem §7 MCP", u:URLS.yondemSec7}],
     stretch: [{t:"Academy: "}, {t:"MCP Advanced Topics", u:URLS.courseMcpAdvanced}] },
-  { date:"2026-05-21", day:"Wed", week:2, domain:"D5 Context", domainClass:"d5",
-    core: [{t:"Anthropic docs: "}, {t:"Prompt caching", u:URLS.promptCaching}],
-    stretch: [{t:"Yondem §5 Context Management", u:URLS.yondemSec5}] },
-  { date:"2026-05-22", day:"Thu", week:2, domain:"Scenarios", domainClass:"",
-    core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 1–3"}],
-    stretch: [{t:"Yondem §2 Tool Interfaces", u:URLS.yondemSec2}] },
-  { date:"2026-05-23", day:"Fri", week:2, domain:"Scenarios", domainClass:"",
-    core: [{t:"Larionov GitHub", u:URLS.larionov}, {t:": scenarios 4–6"}],
-    stretch: [{t:"Yondem §3 Error Handling", u:URLS.yondemSec3}] },
-  { date:"2026-05-24", day:"Sat", week:2, domain:"All domains", domainClass:"",
-    core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 Q untimed, read explanations"}],
-    stretch: [{t:"Yondem §4 Structured Data Extraction", u:URLS.yondemSec4}] },
-  { date:"2026-05-25", day:"Sun", week:2, domain:"All domains", domainClass:"",
-    core: [{t:"Vercel mock", u:URLS.vercel}, {t:": 20 more Q"}],
-    stretch: [{t:"Yondem §7 MCP", u:URLS.yondemSec7}] },
-  { date:"2026-05-26", day:"Mon", week:3, domain:"Diagnostic", domainClass:"",
-    core: [{t:"Timed mock — 120 min, no notes: "}, {t:"claudecertifications.com", u:URLS.claudeCerts}, {t:" (25 fresh Q) + "}, {t:"Vercel mock", u:URLS.vercel}, {t:" re-attempt under time"}],
-    stretch: [{t:"Score honestly, identify weakest domain"}] },
-  { date:"2026-05-27", day:"Tue", week:3, domain:"Targeted", domainClass:"",
-    core: [{t:"Review every wrong answer; map to a domain + primary doc; re-read"}],
-    stretch: [{t:"Re-read "}, {t:"engineering blog", u:URLS.engBlog}, {t:" if D1 weakest"}] },
-  { date:"2026-05-28", day:"Wed", week:3, domain:"Targeted", domainClass:"",
-    core: [{t:"Final pass on weakest docs; skim "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:" again"}],
+  { date:"2026-05-24", day:"Sat", week:2, domain:"D5 Context", domainClass:"d5",
+    core: [{t:"Take today's 30-Q quiz, then review misses. Drill: escalation criteria, error propagation, scratchpad files, provenance. Walk through "}, {t:"Larionov scenarios", u:URLS.larionov}],
     stretch: [{t:"Yondem §13 Quick Reference Cheat Sheet", u:URLS.yondemCheat}] },
+  { date:"2026-05-25", day:"Sun", week:2, domain:"🌱 Breathing", domainClass:"",
+    core: [{t:"Breathing day — no required quiz. Re-skim your skill graph; spend 20 min on whatever's weakest."}],
+    stretch: null },
+
+  // ───── Week 3: Diagnostic + targeted cleanup + exam ─────
+  { date:"2026-05-26", day:"Mon", week:3, domain:"Diagnostic", domainClass:"",
+    core: [{t:"Timed mock — 120 min, no notes, sit it like the real exam: "}, {t:"claudecertifications.com", u:URLS.claudeCerts}, {t:" (25 fresh Q) + "}, {t:"Vercel mock", u:URLS.vercel}, {t:" re-attempt under time pressure"}],
+    stretch: [{t:"Score honestly. Compare your diagnostic results against your tracker skill graph."}] },
+  { date:"2026-05-27", day:"Tue", week:3, domain:"Targeted", domainClass:"",
+    core: [{t:"Drill your weakest domain from the diagnostic: take a focused 10-Q quiz on it (from the skill graph), then re-read the relevant primary doc"}],
+    stretch: [{t:"Re-read "}, {t:"engineering blog", u:URLS.engBlog}, {t:" if D1 was weakest, or "}, {t:"MCP in SDK", u:URLS.mcpSdk}, {t:" if D2"}] },
+  { date:"2026-05-28", day:"Wed", week:3, domain:"Final review", domainClass:"",
+    core: [{t:"Final pass: skim "}, {t:"Exam Guide PDF", u:URLS.examGuidePdf}, {t:" once more + run through "}, {t:"Yondem §13 Cheat Sheet", u:URLS.yondemCheat}, {t:". Light 15-Q quiz to confirm readiness."}],
+    stretch: [{t:"Sleep early. Hydrate. Don't cram new material."}] },
   { date:"2026-05-29", day:"Thu", week:3, domain:"Exam", domainClass:"",
-    core: [{t:"EXAM DAY — light review only. Don't cram."}],
+    core: [{t:"EXAM DAY — light cheat-sheet glance in the morning only. Don't cram."}],
     stretch: null },
 ];
 const WEEK_META = {
-  1: { title: "Week 1 — Foundations + heavy domains", checkpoint: "Can you explain the 5-step loop, name every stop_reason value, and describe what a subagent inherits — without notes? If no, slow down." },
-  2: { title: "Week 2 — Remaining domains + scenarios", checkpoint: "Can you whiteboard the architecture for each of the six scenarios from memory? If a scenario is fuzzy, re-read its primary-doc references before Week 3." },
-  3: { title: "Week 3 — Diagnostic + targeted cleanup", checkpoint: "Red-flag rule: scoring below 65% on the May 26 diagnostic? Given the 6-month cooldown, talk to your coordinator before burning the May 29 attempt." },
+  1: { title: "Week 1 — Orientation + first pass through all 5 domains", checkpoint: "After this week you should have touched every domain once (D1 twice given its weight), with a daily quiz + targeted review pattern. If you're skipping the quiz, you're skipping the most valuable part." },
+  2: { title: "Week 2 — Domain depth + scenario integration", checkpoint: "Can you whiteboard the architecture for each of the six exam scenarios from memory? Are your domain bars all at 70%+? If not, this is the week to fix it." },
+  3: { title: "Week 3 — Diagnostic + targeted cleanup + exam", checkpoint: "Red-flag rule: scoring below 65% on the May 26 diagnostic? Given the 6-month cooldown on a fail, talk to whoever's coordinating before burning the May 29 attempt." },
 };
 
 // -------- State management --------
@@ -997,7 +1190,27 @@ function renderQuiz() {
   const showFeedback = !!chosen;
   const info = DOMAIN_INFO[question.domain];
 
+  // Timer block (optional, not enforced). Target = 60 min for 30 Q (matches exam's 2 min/Q).
+  const totalQs = q.qids.length;
+  const targetMin = q.focusDomain ? totalQs * 2 : 60;
+  const showTimer = state.showTimer !== false; // default on
+  const timerHtml = showTimer ? `
+    <div class="quiz-timer" id="quizTimer" data-started="${q.startedAt}" data-target-min="${targetMin}">
+      <div class="left">
+        <span class="elapsed" id="timerElapsed">0:00</span>
+        <span class="target">/ ${targetMin}:00 target</span>
+        <span class="pace-note">· matches exam's 2 min/Q pace, not enforced</span>
+      </div>
+      <button class="timer-toggle" id="timerToggle">Hide timer</button>
+    </div>
+  ` : `
+    <div class="quiz-timer" id="quizTimer" style="background:transparent; border:none; padding:4px 0; justify-content: flex-end;">
+      <button class="timer-toggle" id="timerToggle">Show timer</button>
+    </div>
+  `;
+
   let html = `
+    ${timerHtml}
     <div class="quiz-progress">
       <span>${q.focusDomain ? `Focused: ${info.short}` : "Daily Quiz"}</span>
       <div class="progress-bar"><div style="width:${Math.round((idx+1)/total*100)}%"></div></div>
@@ -1108,13 +1321,61 @@ function renderQuiz() {
       }
       state.currentQuiz = null;
       saveState();
+      stopTimerTicker();
       renderQuiz();
       renderSkillGraph();
     }
   });
+
+  // Timer toggle
+  const timerToggle = document.getElementById("timerToggle");
+  if (timerToggle) timerToggle.addEventListener("click", () => {
+    state.showTimer = state.showTimer === false; // toggle (default true → false)
+    saveState();
+    renderQuiz();
+  });
+
+  // Start ticker if timer is visible and quiz is active
+  if (state.showTimer !== false && q && q.startedAt) {
+    startTimerTicker(q.startedAt, targetMin);
+  } else {
+    stopTimerTicker();
+  }
+}
+
+// Timer ticker — updates the elapsed display every second without re-rendering the whole quiz card
+let _timerInterval = null;
+function startTimerTicker(startedAtIso, targetMin) {
+  stopTimerTicker();
+  const tick = () => {
+    const el = document.getElementById("timerElapsed");
+    const wrap = document.getElementById("quizTimer");
+    if (!el || !wrap) { stopTimerTicker(); return; }
+    const started = new Date(startedAtIso).getTime();
+    const secs = Math.max(0, Math.floor((Date.now() - started) / 1000));
+    const mm = Math.floor(secs / 60);
+    const ss = String(secs % 60).padStart(2, "0");
+    el.textContent = `${mm}:${ss}`;
+    // Pace tracking: how many questions deep should we be by now at the target pace?
+    const targetSecs = targetMin * 60;
+    wrap.classList.remove("over-pace", "over-target");
+    if (secs > targetSecs) wrap.classList.add("over-target");
+    else if (state.currentQuiz) {
+      const total = state.currentQuiz.qids.length;
+      const idx = state.currentQuiz.idx;
+      const expectedSecsAtThisQ = (idx / total) * targetSecs;
+      if (secs > expectedSecsAtThisQ + 60) wrap.classList.add("over-pace");
+    }
+  };
+  tick();
+  _timerInterval = setInterval(tick, 1000);
+}
+function stopTimerTicker() {
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
 }
 
 function renderQuizSummary() {
+  stopTimerTicker();
   const container = document.getElementById("quizContainer");
   const summaryDiv = document.getElementById("quizSummary");
   const q = state.currentQuiz;
@@ -1135,13 +1396,45 @@ function renderQuizSummary() {
     if (q.answers[qid] === qq.correct) byDomain[qq.domain].correct++;
   }
 
-  container.innerHTML = `<h2 style="margin-top:0;">Quiz complete</h2><p style="color:#555;">Here's how you did. Scroll up for the skill graph to see your lifetime stats across all attempts.</p>`;
+  // Compute "missed by TS" for the review-resources section
+  const missedByTs = {};
+  for (const qid of answered) {
+    const qq = window.QUESTIONS.find(x => x.id === qid);
+    if (q.answers[qid] !== qq.correct) {
+      const ts = qq.taskStatement;
+      if (!missedByTs[ts]) missedByTs[ts] = { count: 0, domain: qq.domain, qids: [] };
+      missedByTs[ts].count++;
+      missedByTs[ts].qids.push(qid);
+    }
+  }
+  // Sort by count desc, then by domain weight desc
+  const missedTsRanked = Object.entries(missedByTs).sort((a,b) => {
+    if (b[1].count !== a[1].count) return b[1].count - a[1].count;
+    return DOMAIN_INFO[b[1].domain].weight - DOMAIN_INFO[a[1].domain].weight;
+  });
+
+  // Total elapsed (if timer was running)
+  let elapsedHtml = "";
+  if (q.startedAt) {
+    const secs = Math.max(0, Math.floor((Date.now() - new Date(q.startedAt).getTime()) / 1000));
+    const mm = Math.floor(secs / 60);
+    const ss = String(secs % 60).padStart(2, "0");
+    const targetMin = q.focusDomain ? q.qids.length * 2 : 60;
+    const pace = secs / answered.length;
+    const paceMin = Math.floor(pace / 60), paceSec = String(Math.floor(pace % 60)).padStart(2,"0");
+    elapsedHtml = `
+      <div class="summary-stat"><div class="label">Elapsed</div><div class="value">${mm}:${ss}</div><div style="font-size:11px;color:#888;margin-top:2px;">${paceMin}:${paceSec}/Q · target ${targetMin}:00</div></div>
+    `;
+  }
+
+  container.innerHTML = `<h2 style="margin-top:0;">Quiz complete</h2><p style="color:#555;">Here's how you did. Scroll up to see your lifetime skill graph update with this attempt.</p>`;
   summaryDiv.style.display = "block";
   summaryDiv.innerHTML = `
     <div class="summary-grid">
       <div class="summary-stat"><div class="label">Score</div><div class="value">${overall}%</div></div>
       <div class="summary-stat"><div class="label">Correct</div><div class="value">${correctIds.length} / ${answered.length}</div></div>
       <div class="summary-stat"><div class="label">Skipped</div><div class="value">${total - answered.length}</div></div>
+      ${elapsedHtml}
     </div>
     <h3 style="margin-top:18px;">By domain</h3>
     <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -1155,9 +1448,40 @@ function renderQuizSummary() {
         </div>`;
       }).join("")}
     </div>
+
+    ${missedTsRanked.length > 0 ? `
+      <h3 style="margin-top:22px;">📚 Resources to review based on your misses</h3>
+      <div style="font-size:13px;color:#555;margin-bottom:10px;">
+        You missed ${answered.length - correctIds.length} question${answered.length - correctIds.length === 1 ? '' : 's'} across ${missedTsRanked.length} task statement${missedTsRanked.length === 1 ? '' : 's'}. Here are the resources that cover those specific topics — start with the highest-miss-count first:
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        ${missedTsRanked.map(([ts, info]) => {
+          const domainInfo = DOMAIN_INFO[info.domain];
+          const tsTitle = TS_TITLES[ts] || ts;
+          const resources = TS_RESOURCES[ts] || [];
+          return `
+            <div style="background:#fef3f3; border:1px solid #f0bbb6; border-radius:8px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-weight:600; font-size:13px; color:#5a1a14;">
+                  <span class="domain-pill ${domainInfo.className}">${domainInfo.short}</span>
+                  TS ${ts} — ${escapeHtml(tsTitle)}
+                </span>
+                <span style="font-size:12px; color:#888;">${info.count} miss${info.count === 1 ? '' : 'es'}</span>
+              </div>
+              ${resources.length > 0 ? `
+                <ul style="margin:4px 0 0 0; padding-left:18px; font-size:12px; color:#444;">
+                  ${resources.map(r => `<li style="margin:3px 0;"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer" style="color:#2752c4; border-bottom:1px dotted #93acdb; text-decoration:none;">${escapeHtml(r.label)}</a></li>`).join("")}
+                </ul>
+              ` : '<div style="font-size:12px;color:#888;font-style:italic;">No targeted resources mapped for this TS yet — check the Daily plan view.</div>'}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    ` : (answered.length > 0 ? '<div style="margin-top:18px;padding:12px;background:#ecf4ec;border:1px solid #b8d4b8;border-radius:8px;font-size:13px;color:#2f5a1f;">✓ Perfect score this round — nothing to review. Take another quiz when ready.</div>' : '')}
+
     <div class="quiz-actions" style="justify-content: flex-start; margin-top: 18px;">
       <button class="btn primary" id="newQuizBtn">Start a new daily quiz</button>
-      <button class="btn" id="reviewMissedBtn">Review missed questions</button>
+      <button class="btn" id="reviewMissedBtn">Replay missed questions</button>
     </div>
   `;
   document.getElementById("newQuizBtn").addEventListener("click", () => {

@@ -1,88 +1,100 @@
 # CCA-F daily study plan — May 12 to May 29, 2026
 
-> **There's also a quiz-driven alternative.** Open the [tracker](../index.html) and switch to **Quiz mode** for a self-directed approach: 30 fresh questions per day pulled from a 210-question bank, with a skill graph that highlights weak domains so you can target practice instead of following a fixed plan. This document is the **prescribed-plan fallback** for anyone who'd rather follow a fixed schedule.
+> **The recommended approach is Quiz mode in the [tracker](../index.html).** Open the tracker, take the daily 30-Q quiz (≤30 min, no enforced timer), and let the post-quiz "Review missed → resources" section tell you what to study. The skill graph builds itself as you go and highlights weak domains so you can target effort. This markdown file is the **backup plan** — if you'd rather follow a fixed daily schedule than self-direct via quizzes, follow what's below.
 
 **Target exam date:** Thursday, May 29, 2026
-**Pace:** 1 hr/day core, +30 min stretch when available (~30 hrs total over 18 days)
-
-**How to use:** do the core column every day, no exceptions. Add the stretch when you have time. Saturday and Sunday are the natural catch-up days if a weekday slips. Every resource is linked inline below — click through to read the canonical source as you go.
+**Daily pattern:** ~60-min quiz (30 Q at the real exam's 2-min/Q pace — timer is optional, not enforced) → targeted review of misses → optional stretch material
+**Pace:** ~1 hr/day, ~30 hrs total over 18 days. One breathing day per week — no quiz pressure.
 
 ---
 
-## 🎯 Practice Exam — test early, test often
+## 🎯 Practice mocks — test early, test often
 
-The dedicated practice slots in this plan are May 24, 25, and 26 — but you don't have to wait. Pick up a 10–20 question set any time you finish your core early. Each rep tightens the diagnostic and reduces exam-day variance.
+The 30-Q daily quiz in the tracker is the primary practice. Outside that, these are the community mocks:
 
 - **Quickest reps:** [Vercel mock exam][vercel] — free, no login (~40 Q)
 - **Short set:** [claudecertifications.com][certs] — 25 questions
 - **Smallest set, highest authority:** the 12 sample questions inside the [Exam Guide PDF][exam-pdf]
 
-A reasonable rhythm: one or two short rep sessions in week 1, light Vercel reps mixed in through week 2, then the formal timed diagnostic on May 26 combining both Vercel and claudecertifications.com.
+Use these for the May 26 timed diagnostic and any time you want variety beyond the tracker's bank.
 
 > **Note:** Anthropic's Skilljar portal hosts cert registration and the free Academy courses — **but does not provide a separate practice exam**. The diagnostic uses the community mocks above.
 
 ---
 
-## Week 1 — May 12–18 — Foundations + heavy domains (~10 hr)
+## Week 1 — May 12–18 — Orientation + first pass through all 5 domains
 
-**Goal:** get the underlying tech solid before touching practice questions.
+**Goal:** touch every domain once with the quiz-then-review pattern. D1 gets two days (it's 27% of the exam).
 
-| Date | Day | Core (1 hr) | Stretch (+30 min) | Domain |
-|------|-----|-------------|-------------------|--------|
-| May 12 | Mon | Read full [Exam Guide PDF][exam-pdf]; note gut weakest domain | [Yondem §1 API Fundamentals and Output Control][yondem-sec1] | Overview |
-| May 13 | Tue | Anthropic docs: [Agent loop][agent-loop] + [Stop reasons][stop-reasons] | [Yondem §8 Agentic Patterns and Task Decomposition][yondem-sec8] | D1 Agentic |
-| May 14 | Wed | Anthropic docs: [Subagents][subagents] + [engineering blog post][eng-blog] | [Yondem §9 Customer Service and Production Workflow Design][yondem-sec9] | D1 Agentic |
-| May 15 | Thu | Anthropic docs: [Claude Code memory (CLAUDE.md hierarchy)][cc-memory] | [Yondem §10 Claude Code and Claude Agent SDK Workflows][yondem-sec10] | D3 Claude Code |
-| May 16 | Fri | Anthropic docs: [Hooks][hooks] | [Yondem §6 System Prompt Engineering and Conversational Behavior][yondem-sec6] | D1 Agentic |
-| May 17 | Sat | Academy course: [Intro to Subagents][course-subagents] | Academy course: [Intro to Agent Skills][course-skills] | D1 + D3 |
-| May 18 | Sun | Re-read weakest area from week | [Yondem §11 Iterative Refinement][yondem-sec11] + [§12 Batch / Cost / Latency][yondem-sec12] | — |
+| Date | Day | Domain | Core (30-60 min) | Stretch (+30 min) |
+|------|-----|--------|------------------|-------------------|
+| May 12 | Mon | Orientation | Read full [Exam Guide PDF][exam-pdf]; note gut weakest domain. (No quiz yet — calibrate.) | [Yondem §1 API Fundamentals][yondem-sec1] |
+| May 13 | Tue | D1 Agentic | 30-Q quiz, then review misses. Read: [Agent loop][agent-loop] + [Stop reasons][stop-reasons] | [Yondem §8 Agentic Patterns][yondem-sec8] |
+| May 14 | Wed | D1 Agentic | 30-Q quiz, then review misses. Read: [Subagents][subagents] + [engineering blog][eng-blog] | [Yondem §9 Customer Service / Production Workflow][yondem-sec9] |
+| May 15 | Thu | D3 Claude Code | 30-Q quiz, then review misses. Read: [Claude Code memory (CLAUDE.md)][cc-memory] + [Yondem §10 Claude Code workflows][yondem-sec10] | Academy: [Claude Code 101][cc-101] |
+| May 16 | Fri | D2 MCP | 30-Q quiz, then review misses. Read: [MCP in the SDK][mcp-sdk] + [MCP spec server section][mcp-spec] | [Yondem §2 Designing Tool Interfaces][yondem-sec2] |
+| May 17 | Sat | D4 Prompt | 30-Q quiz, then review misses. Read: [Structured outputs][structured] + [Yondem §4 Structured Data Extraction][yondem-sec4] | [Yondem §6 System Prompt Engineering][yondem-sec6] |
+| May 18 | Sun | 🌱 Breathing | **No required quiz today.** Skim your skill graph; spend 20 min on whatever's weakest. | — |
 
-> **Checkpoint:** Can you explain the 5-step loop, name every `stop_reason` value, and describe what a subagent inherits — without notes? If no, slow down.
-
----
-
-## Week 2 — May 19–25 — Remaining domains + scenarios (~10 hr)
-
-**Goal:** cover MCP, prompt engineering, context management; start scenario thinking.
-
-| Date | Day | Core (1 hr) | Stretch (+30 min) | Domain |
-|------|-----|-------------|-------------------|--------|
-| May 19 | Mon | Anthropic docs: [MCP in the SDK][mcp-sdk] + [MCP spec server section][mcp-spec] | Academy course: [Intro to MCP][course-mcp] | D2 MCP |
-| May 20 | Tue | Anthropic docs: [Structured outputs][structured] | Academy course: [MCP Advanced Topics][course-mcp-adv] | D4 Prompt |
-| May 21 | Wed | Anthropic docs: [Prompt caching][prompt-cache] | [Yondem §5 Conversation Context Management][yondem-sec5] | D5 Context |
-| May 22 | Thu | [Larionov GitHub][larionov]: scenarios 1–3 walkthroughs | [Yondem §2 Designing Tool Interfaces for LLM Agents][yondem-sec2] | Scenarios |
-| May 23 | Fri | [Larionov GitHub][larionov]: scenarios 4–6 walkthroughs | [Yondem §3 Error Handling in Agent Tools][yondem-sec3] | Scenarios |
-| May 24 | Sat | [Vercel mock][vercel]: 20 questions, untimed, read explanations | [Yondem §4 Structured Data Extraction and Validation][yondem-sec4] | All domains |
-| May 25 | Sun | [Vercel mock][vercel]: 20 more questions | [Yondem §7 Model Context Protocol (MCP)][yondem-sec7] | All domains |
-
-> **Checkpoint:** Can you whiteboard the architecture for each of the six scenarios from memory? If a scenario feels fuzzy, re-read its primary-doc references before Week 3.
+> **Checkpoint:** Each domain should be ≥60% in your skill graph by Sunday. If not, the breathing day is for fixing that — not loafing.
 
 ---
 
-## Week 3 — May 26–29 — Diagnostic + targeted cleanup (~8 hr)
+## Week 2 — May 19–25 — Domain depth + scenario integration
 
-**Goal:** take a full timed mock, fix what it surfaces, walk in calm.
+**Goal:** second-pass each domain with the harder material (hooks, advanced MCP, validation/retry, escalation).
 
-| Date | Day | Core (1 hr) | Stretch (+30 min) | Domain |
-|------|-----|-------------|-------------------|--------|
-| May 26 | Mon | Timed mock — 120 min, no notes, sit it like the real exam: [claudecertifications.com][certs] (25 fresh Q) + [Vercel mock][vercel] re-attempt under time pressure (some Q's are repeats from week 2 — focus on missed ones) | Score honestly, identify weakest domain | Diagnostic |
-| May 27 | Tue | Review every wrong answer; map each to a domain + primary doc; re-read those pages | Re-read [engineering blog][eng-blog] if D1 was weakest | Targeted |
-| May 28 | Wed | Final pass on weakest domain's primary docs; skim [Exam Guide PDF][exam-pdf] again | [Yondem §13 Quick Reference Cheat Sheet][yondem-cheat] review | Targeted |
-| May 29 | Thu — Exam day | Light cheat-sheet review in the morning only. Don't cram. | — | — |
+| Date | Day | Domain | Core (30-60 min) | Stretch (+30 min) |
+|------|-----|--------|------------------|-------------------|
+| May 19 | Mon | D5 Context | 30-Q quiz, then review misses. Read: [Prompt caching][prompt-cache] + [Yondem §5 Conversation Context][yondem-sec5] | [Yondem §3 Error Handling][yondem-sec3] |
+| May 20 | Tue | D1 Agentic | 30-Q quiz, then review misses. Read: [Hooks][hooks] — focus on programmatic enforcement vs prompt-based guidance | Academy: [Intro to Subagents][course-subagents] |
+| May 21 | Wed | D3 Claude Code | 30-Q quiz, then review misses. Drill: slash commands, plan mode, `.claude/rules` with YAML frontmatter | Academy: [Intro to Agent Skills][course-skills] |
+| May 22 | Thu | D4 Prompt | 30-Q quiz, then review misses. Drill: `tool_use` + JSON schemas, validation/retry loops, few-shot examples. Read: [Yondem §11 Iterative Refinement][yondem-sec11] | [Yondem §12 Batch / Cost / Latency][yondem-sec12] |
+| May 23 | Fri | D2 MCP | 30-Q quiz, then review misses. Drill: MCP error responses (`isError`, `errorCategory`), tool description quality, tool distribution. Read: [Yondem §7 MCP][yondem-sec7] | Academy: [MCP Advanced Topics][course-mcp-adv] |
+| May 24 | Sat | D5 Context | 30-Q quiz, then review misses. Drill: escalation criteria, error propagation, scratchpad files, provenance. Walk through [Larionov scenarios][larionov] | [Yondem §13 Quick Reference Cheat Sheet][yondem-cheat] |
+| May 25 | Sun | 🌱 Breathing | **No required quiz today.** Re-skim your skill graph; spend 20 min on whatever's weakest. | — |
+
+> **Checkpoint:** Can you whiteboard the architecture for each of the six exam scenarios from memory? Are your domain bars all at 70%+? If not, this is the week to fix it.
+
+---
+
+## Week 3 — May 26–29 — Diagnostic + targeted cleanup + exam
+
+**Goal:** simulate exam conditions, fix what surfaces, walk in calm.
+
+| Date | Day | Domain | Core (30-60 min, except May 26 which is 120 min) | Stretch |
+|------|-----|--------|------------------------|----------|
+| May 26 | Mon | Diagnostic | **Timed mock — 120 min, no notes.** [claudecertifications.com][certs] (25 fresh Q) + [Vercel mock][vercel] re-attempt under time pressure (some are repeats from week 2 — focus on missed ones) | Score honestly. Compare against your tracker skill graph. |
+| May 27 | Tue | Targeted | Drill your weakest domain from May 26: take a focused 10-Q quiz on it (tracker → "Practice this domain"), then re-read the relevant primary doc | Re-read [engineering blog][eng-blog] if D1 was weakest, or [MCP in SDK][mcp-sdk] if D2 |
+| May 28 | Wed | Final review | Skim [Exam Guide PDF][exam-pdf] once more + run through [Yondem §13 Cheat Sheet][yondem-cheat]. Light 15-Q quiz to confirm readiness. | Sleep early. Hydrate. Don't cram new material. |
+| May 29 | Thu | Exam day | Light cheat-sheet glance in the morning only. **Don't cram.** | — |
 
 ---
 
 ## Adjustments if your week falls apart
 
-- **Behind by 1 day:** absorb it into the following Saturday/Sunday catch-up slot.
+- **Behind by 1 day:** absorb it into the next breathing day (Sun May 18 or Sun May 25).
 - **Behind by 3+ days:** drop the stretch column entirely and protect the core. Skip Tier 4 resources.
-- **Behind by a full week:** the non-negotiables in priority order are the [Exam Guide PDF][exam-pdf] (May 12), the 8 Anthropic doc pages (Tue–Wed of weeks 1 and 2), and the diagnostic on May 26. Everything else compresses around those.
+- **Behind by a full week:** non-negotiables in priority order are the [Exam Guide PDF][exam-pdf] (May 12), the daily 30-Q quizzes in the tracker (Tue–Sat of weeks 1 and 2), and the May 26 diagnostic. Everything else compresses around those.
 
 ---
 
 ## Red-flag rule
 
 If you score below **65%** on the May 26 diagnostic, given the 6-month cooldown on a fail, talk to whoever's coordinating before burning the attempt on May 29. A delayed sitting beats a failed one.
+
+---
+
+## Day-by-domain count (sanity)
+
+- **D1 Agentic** (27%): 3 days (May 13, 14, 20)
+- **D2 MCP** (18%): 2 days (May 16, 23)
+- **D3 Claude Code** (20%): 2 days (May 15, 21)
+- **D4 Prompt** (20%): 2 days (May 17, 22)
+- **D5 Context** (15%): 2 days (May 19, 24)
+- **Orientation / Breathing / Mock / Final / Exam:** 7 days
+
+Daily quiz is always mixed (6 Q from each domain), so even on D1 day you're touching every domain.
 
 ---
 
@@ -118,3 +130,4 @@ If you score below **65%** on the May 26 diagnostic, given the 6-month cooldown 
 [course-skills]: https://anthropic.skilljar.com/introduction-to-agent-skills
 [course-mcp]: https://anthropic.skilljar.com/introduction-to-model-context-protocol
 [course-mcp-adv]: https://anthropic.skilljar.com/model-context-protocol-advanced-topics
+[cc-101]: https://anthropic.skilljar.com/claude-code-101
