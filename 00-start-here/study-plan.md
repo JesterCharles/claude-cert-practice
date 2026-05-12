@@ -1,6 +1,10 @@
 # CCA-F daily study plan — May 12 to May 29, 2026
 
-> **The recommended approach is Quiz mode in the [tracker](../index.html).** Open the tracker, take the daily 30-Q quiz (≤30 min, no enforced timer), and let the post-quiz "Review missed → resources" section tell you what to study. The skill graph builds itself as you go and highlights weak domains so you can target effort. This markdown file is the **backup plan** — if you'd rather follow a fixed daily schedule than self-direct via quizzes, follow what's below.
+> ## ⚠️ The tracker's 210 questions are NOT official CCA-F questions
+>
+> They're LLM-generated from the official Exam Guide PDF's domain weights and scenarios, plus community study materials (Yondem, Larionov, avidevelops) and Anthropic's docs. They mirror the *format* of the real exam but are not drawn from the actual question pool. **Scoring 100% on the tracker bank does not guarantee passing the real exam.** Use it for drilling, weak-area identification, and exam-pace practice — and always cross-check with the [Exam Guide PDF](https://everpath-course-content.s3-accelerate.amazonaws.com/instructor%2F8lsy243ftffjjy1cx9lm3o2bw%2Fpublic%2F1773274827%2FClaude+Certified+Architect+%E2%80%93+Foundations+Certification+Exam+Guide.pdf) and Anthropic's canonical docs. When practice questions and docs disagree, trust the docs.
+
+> **The recommended approach is Quiz mode in the [tracker](../index.html).** Open the tracker, take the daily 30-Q quiz (≤60 min, no enforced timer), and let the post-quiz "Review missed → resources" section tell you what to study. The skill graph builds itself as you go and highlights weak domains so you can target effort. This markdown file is the **backup plan** — if you'd rather follow a fixed daily schedule than self-direct via quizzes, follow what's below.
 
 **Target exam date:** Thursday, May 29, 2026
 **Daily pattern:** ~60-min quiz (30 Q at the real exam's 2-min/Q pace — timer is optional, not enforced) → targeted review of misses → optional stretch material
