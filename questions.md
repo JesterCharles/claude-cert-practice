@@ -1,8 +1,8 @@
-# CCA-F Practice Question Bank (v2)
+# CCA-F Practice Question Bank (v3 — length-rebalanced)
 
 **Total: 210 questions** (42 per domain × 5 domains).
 
-Each question follows a 2+2 plausibility structure: 1 plausible-correct, 1 plausible-runner-up, 2 implausible distractors. Explanations are tiered — detailed for the correct answer and the runner-up (with 'where this approach IS valid'), concise for the two clearly-wrong options.
+Each question follows a 2+2 plausibility structure (1 plausible-correct, 1 plausible-runner-up, 2 implausible). Explanations are tiered. Option lengths balanced so the longest option is correct in ~25% of cases — no length-as-tell bias.
 
 ## Table of Contents
 
@@ -14,8 +14,8 @@ Each question follows a 2+2 plausibility structure: 1 plausible-correct, 1 plaus
 
 ---
 
-## Domain 1: Agentic Architecture & Orchestration
 
+## Domain 1: Agentic Architecture & Orchestration
 
 ### Q1 | Scenario 1 | TS 1.1 | difficulty: easy
 
@@ -29,14 +29,14 @@ D) Have the loop parse the assistant text for phrases like "I will now" to decid
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Stripping assistant text before re-sending can be appropriate in narrow cases where a downstream client requires a strict tool-only protocol, and at first glance it seems to remove the trigger for the buggy termination check. But it patches a symptom of the wrong control-flow signal rather than fixing it, and it throws away the model's reasoning that future iterations may legitimately need. The stem explicitly says the loop terminates based on text presence — that decision rule is the actual defect. The signal to rule this out is "loop terminates when text is present alongside tool_use," which points at the termination predicate, not the text itself.
 - **B (correct):** The canonical agentic loop control signal is the API's `stop_reason` field, not the textual content of the assistant turn. A `tool_use` stop_reason means the model wants to continue after seeing tool results; `end_turn` means it considers the task complete. Claude often emits explanatory prose alongside a tool_use block, and that text is informational — not a termination signal. You use this same pattern any time you build an SDK-based agent loop, regardless of how chatty the model is. It beats the runner-up because stripping text doesn't address the underlying decision logic and discards useful chain-of-thought reasoning.
-- **A (plausible runner-up):** Stripping assistant text before re-sending can be appropriate in narrow cases where a downstream client requires a strict tool-only protocol, and at first glance it seems to remove the trigger for the buggy termination check. But it patches a symptom of the wrong control-flow signal rather than fixing it, and it throws away the model's reasoning that future iterations may legitimately need. The stem explicitly says the loop terminates based on text presence — that decision rule is the actual defect. The signal to rule this out is "loop terminates when text is present alongside tool_use," which points at the termination predicate, not the text itself.
 - **C:** Iteration caps are a safety backstop, not a primary termination mechanism, and they would not prevent the agent from stopping early — they only prevent runaway loops. This pattern is appropriate as a guardrail against infinite loops, not as a fix for premature termination.
 - **D:** Parsing natural-language phrases to decide loop control is a documented anti-pattern; it's brittle and probabilistic. Phrase-matching could be useful for analytics or debugging dashboards, but never for control flow.
 
@@ -54,15 +54,15 @@ D) The `web_search` tool definition is missing a `cache_control` annotation; add
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Each API call to Claude is stateless; the model only "remembers" prior tool calls and results because *you* include them in the messages array. If you send only the newest tool_result, the model has no record that `web_search` was already executed and will re-plan from scratch. The fix is to maintain a growing conversation history where every assistant turn (including tool_use blocks) and every tool_result is appended in order. You apply this pattern any time you build an agentic loop on the Messages API. It beats the runner-up because the duplication isn't a server-side bug; it's a context-management bug in the loop itself.
-- **B (plausible runner-up):** Caching MCP results is genuinely useful for cost and latency, and idempotency does matter for tools with side effects. In a real production system, you'd often layer a results cache. But here the symptom is that Claude doesn't know the prior call happened — which is a context problem, not a server-call problem. Caching hides the bug at the transport layer rather than fixing the model's view of state. The tell in the stem is "as if the previous results never existed," pointing at the model's context, not the server.
 - **A:** Temperature and natural-language nudges are probabilistic and won't fix a structural omission in conversation history. This kind of guidance is appropriate when shaping stylistic behavior, not when the model has literally never been shown the prior result.
+- **B:** Caching MCP results is genuinely useful for cost and latency, and idempotency does matter for tools with side effects. In a real production system, you'd often layer a results cache. But here the symptom is that Claude doesn't know the prior call happened — which is a context problem, not a server-call problem. Caching hides the bug at the transport layer rather than fixing the model's view of state. The tell in the stem is "as if the previous results never existed," pointing at the model's context, not the server.
+- **C (correct):** Each API call to Claude is stateless; the model only "remembers" prior tool calls and results because *you* include them in the messages array. If you send only the newest tool_result, the model has no record that `web_search` was already executed and will re-plan from scratch. The fix is to maintain a growing conversation history where every assistant turn (including tool_use blocks) and every tool_result is appended in order. You apply this pattern any time you build an agentic loop on the Messages API. It beats the runner-up because the duplication isn't a server-side bug; it's a context-management bug in the loop itself.
 - **D:** `cache_control` is for prompt caching to reduce token costs on repeated prefixes, not for deduplicating semantic tool calls. It would be relevant for cost optimization on a stable long system prompt, not for fixing duplicate tool invocations.
 
 ---
@@ -71,7 +71,7 @@ D) The `web_search` tool definition is missing a `cache_control` annotation; add
 
 **Stem:** A junior teammate proposes terminating the support agent's loop "as soon as the assistant produces text content but no tool_use blocks, because that means it's done." You suspect this will misbehave. Which characterization best describes why relying on the presence-of-text-without-tool-use as the termination signal is fragile compared to checking `stop_reason`?
 
-A) `stop_reason` is the authoritative API field for turn termination, while text-vs-tool inference is a derived heuristic that can misclassify legitimate intermediate turns or edge cases.
+A) `stop_reason` is the authoritative API field for turn termination; text-vs-tool inference is a derived heuristic that can misclassify legitimate intermediate turns.
 B) Text without tool_use always implies completion, but the API can sometimes return malformed content blocks, so a defensive check on `stop_reason` is a useful redundancy on top of it.
 C) The Messages API can return either a text block or a tool_use block per turn but never both, so checking for text-only is equivalent to checking `stop_reason: end_turn` reliably.
 D) `stop_reason` is most useful for cost analytics, while loop termination should be driven by counting consecutive turns lacking new tool_use calls instead of API fields.
@@ -86,7 +86,7 @@ D) `stop_reason` is most useful for cost analytics, while loop termination shoul
 
 **Explanation:**
 - **A (correct):** `stop_reason` is the explicit, documented signal the API gives you to decide what to do next: `tool_use` means continue, `end_turn` means stop, and other values (like `max_tokens`) have specific meanings. Inferring termination by inspecting content blocks is a derived heuristic that can misread legitimate cases — for example, a turn that emits explanatory text and then a tool_use. You reach for `stop_reason` any time you build an agentic loop on the SDK or the Messages API directly. It beats the runner-up because the runner-up still treats text-presence as authoritative and just adds a "redundancy," whereas the principle is that `stop_reason` should be the *primary* control signal.
-- **B (plausible runner-up):** Adding defense-in-depth checks is a reasonable instinct in production code, and there's some truth that `stop_reason` is useful as a check. The issue is that this option still positions text-without-tool-use as the primary rule, which is exactly the fragile heuristic the question is testing. The correct framing inverts that: `stop_reason` is primary; text inspection is at best informational. The signal in the stem is the word "termination signal" — that's a control-flow decision, which belongs to `stop_reason`.
+- **B:** Adding defense-in-depth checks is a reasonable instinct in production code, and there's some truth that `stop_reason` is useful as a check. The issue is that this option still positions text-without-tool-use as the primary rule, which is exactly the fragile heuristic the question is testing. The correct framing inverts that: `stop_reason` is primary; text inspection is at best informational. The signal in the stem is the word "termination signal" — that's a control-flow decision, which belongs to `stop_reason`.
 - **C:** The Messages API can absolutely return both text and tool_use blocks in the same assistant turn. This claim is factually incorrect; it would only be true in a strict tool-only protocol.
 - **D:** `stop_reason` is precisely a control-flow field; consecutive-turn heuristics are anti-patterns documented in the Agent SDK guidance. Turn-counting heuristics might be appropriate as a safety cap, never as a primary loop predicate.
 
@@ -99,21 +99,21 @@ D) `stop_reason` is most useful for cost analytics, while loop termination shoul
 A) Truncate Grep output to the first 50 lines so the model focuses on the most relevant matches and is less likely to hallucinate downstream file paths.
 B) Add an explicit system prompt instruction that the agent must only Read files that appeared verbatim in the most recent Grep tool result block.
 C) Switch from Grep to Glob for file discovery so the tool returns paths only, removing the line-content noise that distracts the model's attention.
-D) Return the raw tool output as the tool_result so the model reasons over actual evidence; the summarization step strips the data it needs to act correctly.
+D) Return raw tool output as the `tool_result` so the model reasons over actual evidence; summarization strips the data it needs to act correctly.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Tool results are how the model accumulates real-world evidence to reason about the next step. When you pre-summarize, you replace concrete grounding (file paths, line numbers, content snippets) with your own paraphrase, which the model then has to "trust" or fabricate from. The agentic loop principle is to feed the model honest, structured tool output so it can incorporate it into its next reasoning step. You apply this any time you wire a tool result back into a Claude turn — preserve the structure unless there's a strong size or privacy reason to transform it. It beats the runner-up because prompt rules can't recover information you've already deleted.
-- **B (plausible runner-up):** A system-prompt rule constraining file access to prior Grep results is a reasonable hardening layer in many agents, and it's a real pattern. The catch is that it doesn't restore the information the model lost when you summarized; the model can only honor that rule if it can *see* the Grep paths in context. The principle being tested is "tool results inform next-action reasoning," and a prompt rule is downstream of that. The stem's tell is "we are summarizing the Grep output before appending it" — the bug is in the data pipeline, not the prompt.
 - **A:** Truncation can be appropriate for very large tool outputs, but truncating to 50 lines is unrelated to the cause described and could still drop relevant matches. Truncation is appropriate when context budget is the constraint, not when paraphrasing has erased the data.
+- **B:** A system-prompt rule constraining file access to prior Grep results is a reasonable hardening layer in many agents, and it's a real pattern. The catch is that it doesn't restore the information the model lost when you summarized; the model can only honor that rule if it can *see* the Grep paths in context. The principle being tested is "tool results inform next-action reasoning," and a prompt rule is downstream of that. The stem's tell is "we are summarizing the Grep output before appending it" — the bug is in the data pipeline, not the prompt.
 - **C:** Glob is appropriate when you want files by name pattern with no content, but the agent specifically needs content-bearing matches here. Glob fits file-discovery-only workflows, not content-search.
+- **D (correct):** Tool results are how the model accumulates real-world evidence to reason about the next step. When you pre-summarize, you replace concrete grounding (file paths, line numbers, content snippets) with your own paraphrase, which the model then has to "trust" or fabricate from. The agentic loop principle is to feed the model honest, structured tool output so it can incorporate it into its next reasoning step. You apply this any time you wire a tool result back into a Claude turn — preserve the structure unless there's a strong size or privacy reason to transform it. It beats the runner-up because prompt rules can't recover information you've already deleted.
 
 ---
 
@@ -129,16 +129,16 @@ D) The duplicate `web_search` call is non-deterministic API behavior at higher c
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** When Claude emits multiple tool_use blocks in a single assistant turn (parallel tool use), the SDK requires you to return *one* user message whose content array contains a tool_result block for each tool_use_id from that turn. Splitting them across three user messages breaks the conversation invariant: subsequent turns can see partial state where some tool_use_ids appear unresolved, which can cause Claude to retry them. You apply this same pattern any time you support parallel tool use. It beats the runner-up because parallel tool use is a supported, useful feature; disabling it works but sacrifices throughput rather than fixing the protocol error.
-- **D (plausible runner-up):** Disabling parallel tool use and serializing execution is a real, valid fallback — it does eliminate the symptom, and in some debugging contexts it's the right call. But it's a heavy-handed workaround that gives up the latency benefits of parallel calls, and the stem's symptoms point specifically at a message-shape problem, not at an API concurrency bug. The signal in the stem is "appends three separate user messages, each containing one tool_result" — that's the protocol mistake.
 - **A:** Randomizing execution order doesn't address how tool_results are packaged in messages and has no principled effect on the model's planning. Execution-order randomization belongs in load-balancing or fairness contexts, not agentic loop correctness.
+- **B (correct):** When Claude emits multiple tool_use blocks in a single assistant turn (parallel tool use), the SDK requires you to return *one* user message whose content array contains a tool_result block for each tool_use_id from that turn. Splitting them across three user messages breaks the conversation invariant: subsequent turns can see partial state where some tool_use_ids appear unresolved, which can cause Claude to retry them. You apply this same pattern any time you support parallel tool use. It beats the runner-up because parallel tool use is a supported, useful feature; disabling it works but sacrifices throughput rather than fixing the protocol error.
 - **C:** Throttling to one tool per turn is a workaround that ignores the supported parallel-tool-use protocol. This kind of throttle fits debugging scenarios where you want a clear linear trace, not production architecture.
+- **D:** Disabling parallel tool use and serializing execution is a real, valid fallback — it does eliminate the symptom, and in some debugging contexts it's the right call. But it's a heavy-handed workaround that gives up the latency benefits of parallel calls, and the stem's symptoms point specifically at a message-shape problem, not at an API concurrency bug. The signal in the stem is "appends three separate user messages, each containing one tool_result" — that's the protocol mistake.
 
 ---
 
@@ -154,15 +154,15 @@ D) Iteration count is canonical for support agents because customer interactions
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The agentic loop's correctness depends on faithfully executing what the model decided: `tool_use` means "I need more information, run this," and `end_turn` means "I'm done." Capping iterations is necessary as a safety net to prevent runaway loops or pathological cases, but it is not the *primary* termination mechanism — it's a backstop. Using caps as primary either ends conversations early (bad UX) or fails to stop genuinely stuck loops if set too high. You apply this hierarchy everywhere you build an SDK loop. It beats the runner-up because there's no documented reliability problem with `stop_reason`; the runner-up is misinformed about API behavior.
-- **A (plausible runner-up):** It's superficially reasonable to imagine `stop_reason` might be unreliable under stress, and defensive engineering does sometimes invert which signal is primary. But this isn't a documented failure mode of the Messages API — `stop_reason` is the authoritative termination signal. Treating iteration count as primary causes the agent to either truncate legitimate work or never honor the model's actual decision. The stem's framing — "canonical termination mechanism" — points at the principle being tested.
+- **A:** It's superficially reasonable to imagine `stop_reason` might be unreliable under stress, and defensive engineering does sometimes invert which signal is primary. But this isn't a documented failure mode of the Messages API — `stop_reason` is the authoritative termination signal. Treating iteration count as primary causes the agent to either truncate legitimate work or never honor the model's actual decision. The stem's framing — "canonical termination mechanism" — points at the principle being tested.
 - **B:** They are not functionally equivalent: one respects the model's intent, the other overrides it. Equivalence framing would only fit cosmetic implementation choices, not control flow.
+- **C (correct):** The agentic loop's correctness depends on faithfully executing what the model decided: `tool_use` means "I need more information, run this," and `end_turn` means "I'm done." Capping iterations is necessary as a safety net to prevent runaway loops or pathological cases, but it is not the *primary* termination mechanism — it's a backstop. Using caps as primary either ends conversations early (bad UX) or fails to stop genuinely stuck loops if set too high. You apply this hierarchy everywhere you build an SDK loop. It beats the runner-up because there's no documented reliability problem with `stop_reason`; the runner-up is misinformed about API behavior.
 - **D:** Conversation-length assumptions are brittle; some support cases legitimately involve more turns. Iteration caps tuned to interaction shape can be a useful UX guardrail, but not a substitute for `stop_reason`.
 
 ---
@@ -173,21 +173,21 @@ D) Iteration count is canonical for support agents because customer interactions
 
 A) Allow direct subagent-to-subagent calls but add a shared message bus so the coordinator can observe traffic and intervene when latency thresholds are breached.
 B) Keep direct subagent-to-subagent calls for performance, but require each subagent to emit structured trace events the coordinator can aggregate after the run completes.
-C) Route all inter-subagent communication through the coordinator (hub-and-spoke), so it owns task delegation, error handling, and information flow between subagents end-to-end.
+C) Route inter-subagent communication through the coordinator (hub-and-spoke), so it owns task delegation, error handling, and information flow between subagents.
 D) Use a peer-to-peer ring topology where each subagent forwards intermediate results to the next, with the coordinator acting only as a final aggregator at completion.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The standard multi-agent pattern is hub-and-spoke: the coordinator owns decomposition, delegation, error handling, and aggregation, and all subagent traffic flows through it. This gives you a single place to observe, retry, log, and reason about the whole investigation. Subagents stay focused on their narrow job and don't need to know about each other. You use this any time you have a coordinator-subagent system in the Agent SDK. It beats the runner-up because adding observability on top of a peer mesh still leaves you with brittle error semantics and information flow you can't easily reason about.
-- **A (plausible runner-up):** Adding a message bus is a real pattern in larger distributed systems and gives you observability, which is a legitimate goal. But it preserves the underlying topology problem — direct subagent-to-subagent calls means each agent has to handle others' failure modes, and the coordinator loses authoritative control over routing. The principle being tested is *centralized* control through the coordinator, not just *observability*. The stem's tell is "observability and error handling," which the coordinator naturally provides when it owns the wire.
+- **A:** Adding a message bus is a real pattern in larger distributed systems and gives you observability, which is a legitimate goal. But it preserves the underlying topology problem — direct subagent-to-subagent calls means each agent has to handle others' failure modes, and the coordinator loses authoritative control over routing. The principle being tested is *centralized* control through the coordinator, not just *observability*. The stem's tell is "observability and error handling," which the coordinator naturally provides when it owns the wire.
 - **B:** Structured traces are useful but don't address the coordination problem; the coordinator should be in the request path, not just consuming retrospective traces. Trace aggregation fits monitoring stacks more than control-flow design.
+- **C (correct):** The standard multi-agent pattern is hub-and-spoke: the coordinator owns decomposition, delegation, error handling, and aggregation, and all subagent traffic flows through it. This gives you a single place to observe, retry, log, and reason about the whole investigation. Subagents stay focused on their narrow job and don't need to know about each other. You use this any time you have a coordinator-subagent system in the Agent SDK. It beats the runner-up because adding observability on top of a peer mesh still leaves you with brittle error semantics and information flow you can't easily reason about.
 - **D:** Peer-to-peer rings introduce fragile ordering dependencies and unclear failure semantics. Ring topologies fit batch-processing pipelines with fixed stage order, not adaptive research workflows.
 
 ---
@@ -199,21 +199,21 @@ D) Use a peer-to-peer ring topology where each subagent forwards intermediate re
 A) Replace the coordinator with a single-shot Claude call for queries under 20 words, bypassing the multi-agent system entirely for short factual requests.
 B) Add a system-prompt rule instructing the coordinator to skip document_analysis when the synthesis subagent reports high confidence in the initial web_search results.
 C) Parallelize the existing pipeline so document_analysis and synthesis run concurrently after web_search, reducing wall-clock latency for these short factual queries.
-D) Have the coordinator analyze each query and dynamically choose which subagents to invoke, skipping subagents whose contribution is unnecessary for that query's complexity.
+D) Have the coordinator analyze each query and dynamically choose which subagents to invoke, skipping ones whose contribution is unnecessary for that query.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** A coordinator's job isn't to robotically run a fixed pipeline; it's to *analyze* query requirements and decide which subagents are needed. A short factual lookup may only need web_search and a brief synthesis; a deep research question may need every subagent and iteration. Dynamic delegation is a core skill in coordinator design. You apply this any time a multi-agent system has heterogeneous query shapes. It beats the runner-up because bypassing the coordinator entirely throws away the part you actually want (a smart router) instead of fixing it.
-- **A (plausible runner-up):** A short-query fast path is a real optimization pattern and would speed up the trivial case. The catch is that "20 words" is a crude proxy for complexity — a short query can still need deep research, and a long query might be trivially answerable. The principle being tested is *coordinator judgment*: build the smarts into the coordinator's decomposition logic, not into a length-based bypass. The stem's signal is "the coordinator's role should be reconsidered," directly pointing at how the coordinator decides.
-- **C:** Parallelizing helps latency but still executes unnecessary subagents, wasting cost and producing irrelevant citations. Parallelization is appropriate when all stages are needed, just not serially.
+- **A:** A short-query fast path is a real optimization pattern and would speed up the trivial case. The catch is that "20 words" is a crude proxy for complexity — a short query can still need deep research, and a long query might be trivially answerable. The principle being tested is *coordinator judgment*: build the smarts into the coordinator's decomposition logic, not into a length-based bypass. The stem's signal is "the coordinator's role should be reconsidered," directly pointing at how the coordinator decides.
 - **B:** Letting synthesis report "high confidence" to skip earlier stages reverses the pipeline order and relies on probabilistic compliance. That kind of confidence-driven shortcut belongs in retrieval-reranking systems, not in the planning stage of a coordinator.
+- **C:** Parallelizing helps latency but still executes unnecessary subagents, wasting cost and producing irrelevant citations. Parallelization is appropriate when all stages are needed, just not serially.
+- **D (correct):** A coordinator's job isn't to robotically run a fixed pipeline; it's to *analyze* query requirements and decide which subagents are needed. A short factual lookup may only need web_search and a brief synthesis; a deep research question may need every subagent and iteration. Dynamic delegation is a core skill in coordinator design. You apply this any time a multi-agent system has heterogeneous query shapes. It beats the runner-up because bypassing the coordinator entirely throws away the part you actually want (a smart router) instead of fixing it.
 
 ---
 
@@ -221,7 +221,7 @@ D) Have the coordinator analyze each query and dynamically choose which subagent
 
 **Stem:** You launch a multi-agent research run on "compare grid-scale battery chemistries for utilities in 2024." The coordinator decomposes into three subagent tasks: "summarize lithium-iron-phosphate," "summarize lithium-ion NMC," and "summarize sodium-ion." The final report ignores flow batteries and solid-state, which were active 2024 utility-scale topics. Which root-cause description fits and how should you address it?
 
-A) The coordinator decomposed too narrowly along a preconceived axis; redesign decomposition to first survey the space, then delegate by discovered subtopics, not assumed ones.
+A) The coordinator decomposed too narrowly along a preconceived axis; redesign decomposition to first survey the space, then delegate by discovered subtopics rather than assumed ones.
 B) The web_search subagent returned only the chemistries it was asked about; expand its toolset to include autonomous follow-up searches not authorized by the coordinator's prompt.
 C) The synthesis subagent filtered out chemistries with sparse evidence; relax its citation-threshold parameter so low-evidence chemistries still appear in the final report output.
 D) The report_generation subagent enforced a three-section template; modify the template to allow up to seven sections so additional chemistries can be included in output.
@@ -230,14 +230,14 @@ D) The report_generation subagent enforced a three-section template; modify the 
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** A documented risk in coordinator-led decomposition is enumerating subtasks from assumptions rather than from a discovery step. The coordinator listed three chemistries and missed others entirely. The fix is to insert a survey/scope step where a subagent first maps the topic space, then the coordinator delegates by *discovered* subtopics, not assumed ones — and iterates if the synthesis reveals gaps. You apply this for any open-ended research task. It beats the runner-up because no amount of synthesis-level filter tuning can surface a chemistry that was never searched for in the first place.
-- **C (plausible runner-up):** Citation-threshold tuning is a real lever in research synthesis pipelines, and there are real cases where strong evidence filters drop legitimate content. It almost fits because the *symptom* is missing chemistries in the final report. The issue is upstream of synthesis: those chemistries were never searched for or analyzed, so they couldn't have been filtered out. The stem's signal is that the decomposition produced exactly three named chemistries — the gap is at the decomposition stage.
 - **B:** Letting subagents make autonomous decisions outside the coordinator's plan undermines the hub-and-spoke pattern. Autonomous follow-up belongs to the coordinator's iterative refinement loop, not to the subagent.
+- **C:** Citation-threshold tuning is a real lever in research synthesis pipelines, and there are real cases where strong evidence filters drop legitimate content. It almost fits because the *symptom* is missing chemistries in the final report. The issue is upstream of synthesis: those chemistries were never searched for or analyzed, so they couldn't have been filtered out. The stem's signal is that the decomposition produced exactly three named chemistries — the gap is at the decomposition stage.
 - **D:** Template width has nothing to do with whether the underlying research surfaced the missing chemistries. Template tuning would fit a polishing-stage formatting issue, not a coverage gap.
 
 ---
@@ -247,23 +247,23 @@ D) The report_generation subagent enforced a three-section template; modify the 
 **Stem:** Your coordinator's first synthesis pass on "global semiconductor supply chain risk in 2024" produces a report that covers Taiwan and the US but says nothing about EU or ASEAN exposure. You want the coordinator to detect this gap and act on it. Which iterative-refinement design best matches the coordinator's role?
 
 A) Re-run the entire research pipeline from scratch with a longer system prompt enumerating every region the report should cover for completeness in the next iteration.
-B) The coordinator evaluates synthesis output for coverage gaps, re-delegates targeted searches and analyses for EU and ASEAN, and re-invokes synthesis until coverage is sufficient.
+B) The coordinator evaluates synthesis for coverage gaps, re-delegates targeted searches for EU and ASEAN, then re-invokes synthesis until coverage is sufficient.
 C) Hand the partial report to the report_generation subagent and have it pad the missing sections from its own model knowledge, bypassing further web_search calls entirely.
 D) Add a post-synthesis validation hook that rejects any report missing predefined regions and surfaces the error to the user to request a manual rerun of the run.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** Iterative refinement is a defining responsibility of a coordinator. After receiving a synthesis pass, it should evaluate the output against the original goal, identify specific gaps, formulate targeted follow-up tasks for the relevant subagents, and re-invoke synthesis. This is what makes a coordinator a *coordinator* rather than a one-shot router. You use this pattern in any research, investigation, or audit workflow with open-ended scope. It beats the runner-up because automated re-delegation closes the loop in real time, whereas a validation-hook + user rerun puts the loop on the human.
-- **D (plausible runner-up):** A validation hook is a real defensive pattern and can be useful when you want a human in the loop for critical reports. It almost fits because it does *detect* the gap. The issue is that it doesn't *resolve* the gap autonomously — it kicks the work back to the user. The stem asks how the coordinator should detect *and act on* the gap, signaling that the coordinator's responsibility is autonomous remediation when possible.
 - **A:** Rerunning from scratch wastes the work already done and isn't targeted at the actual gap. Full reruns fit only when the prior context is irrecoverably wrong.
+- **B (correct):** Iterative refinement is a defining responsibility of a coordinator. After receiving a synthesis pass, it should evaluate the output against the original goal, identify specific gaps, formulate targeted follow-up tasks for the relevant subagents, and re-invoke synthesis. This is what makes a coordinator a *coordinator* rather than a one-shot router. You use this pattern in any research, investigation, or audit workflow with open-ended scope. It beats the runner-up because automated re-delegation closes the loop in real time, whereas a validation-hook + user rerun puts the loop on the human.
 - **C:** Padding from model knowledge invites hallucinations and undermines the cited-report goal. Model-knowledge fill-in fits creative tasks, not evidence-grounded research.
+- **D:** A validation hook is a real defensive pattern and can be useful when you want a human in the loop for critical reports. It almost fits because it does *detect* the gap. The issue is that it doesn't *resolve* the gap autonomously — it kicks the work back to the user. The stem asks how the coordinator should detect *and act on* the gap, signaling that the coordinator's responsibility is autonomous remediation when possible.
 
 ---
 
@@ -274,21 +274,21 @@ D) Add a post-synthesis validation hook that rejects any report missing predefin
 A) Add a confidence-score reconciler that takes both subagent outputs and selects the higher-confidence response before returning a unified reply to the customer.
 B) Run subagents in series (billing first, then returns) so the second one can see the first one's output and avoid contradicting it in the final response to the customer.
 C) Remove the multi-agent setup and merge billing and returns into a single agent with both tool sets, since two subagents add cost without adding capability for this task.
-D) Have the coordinator classify the query intent and invoke only the relevant subagent, falling back to invoking both only when the query genuinely spans billing and returns.
+D) Have the coordinator classify query intent and invoke only the relevant subagent, falling back to both only when the query genuinely spans billing and returns.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Coordinator-driven dynamic delegation — analyzing the query, selecting the appropriate subagent(s), and only fanning out when the request genuinely spans domains — is the canonical fix. It addresses latency (one subagent runs instead of two), cost (fewer model calls), and consistency (no contradictory parallel responses to merge). You apply this whenever subagent invocation should depend on query characteristics. It beats the runner-up because the runner-up still invokes both subagents and only reconciles their outputs after the fact, which is more expensive and only papers over the contradictions.
-- **A (plausible runner-up):** Reconciling parallel outputs is a real pattern (think ensemble methods, or majority voting). It almost fits because it does produce a unified reply. The catch is that it doesn't solve the underlying inefficiency — you're still running two subagents for queries that only needed one — and the conflict-resolution logic adds its own complexity. The stem's signal is "regardless of intent," pointing at routing, not reconciliation.
-- **C:** Collapsing back to a single agent throws away the benefit of specialization (focused prompts, scoped tools). Single-agent designs fit narrow domains, not multi-skill scenarios where specialization helps.
+- **A:** Reconciling parallel outputs is a real pattern (think ensemble methods, or majority voting). It almost fits because it does produce a unified reply. The catch is that it doesn't solve the underlying inefficiency — you're still running two subagents for queries that only needed one — and the conflict-resolution logic adds its own complexity. The stem's signal is "regardless of intent," pointing at routing, not reconciliation.
 - **B:** Serial subagent calls increase latency further and impose ordering that may not match the query. Serial subagent chaining fits true pipelines (analyze → synthesize), not parallel-domain triage.
+- **C:** Collapsing back to a single agent throws away the benefit of specialization (focused prompts, scoped tools). Single-agent designs fit narrow domains, not multi-skill scenarios where specialization helps.
+- **D (correct):** Coordinator-driven dynamic delegation — analyzing the query, selecting the appropriate subagent(s), and only fanning out when the request genuinely spans domains — is the canonical fix. It addresses latency (one subagent runs instead of two), cost (fewer model calls), and consistency (no contradictory parallel responses to merge). You apply this whenever subagent invocation should depend on query characteristics. It beats the runner-up because the runner-up still invokes both subagents and only reconciles their outputs after the fact, which is more expensive and only papers over the contradictions.
 
 ---
 
@@ -298,22 +298,22 @@ D) Have the coordinator classify the query intent and invoke only the relevant s
 
 A) Subagents are stateless and cannot retry idempotently, so the coordinator must handle errors because only it persists state across subagent invocations and retries.
 B) Subagents are required by the SDK to bubble errors upward by default, and the coordinator simply receives them; this is enforced at the framework level automatically.
-C) Centralizing error handling in the coordinator gives one place to observe, retry, route around failures, and keep information flow controlled across all subagents consistently.
+C) Centralizing error handling in the coordinator gives one place to observe, retry, route around failures, and keep information flow controlled across all subagents.
 D) Subagents handle transient errors; the coordinator handles permanent ones; this split keeps responsibility clear and avoids duplicating retry logic in the codebase.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The hub-and-spoke pattern centralizes error handling, observability, retries, and information routing in the coordinator. That single seam makes the system easier to reason about: there is one place to add logging, one place to decide on retry policy, one place to fall back to an alternate subagent. Subagents stay focused on their domain task. You apply this whenever you orchestrate multiple specialized agents under one root. It beats the runner-up because splitting errors across "transient vs permanent" reintroduces the duplicated, scattered logic the centralization is meant to avoid.
-- **D (plausible runner-up):** A transient-vs-permanent split is a real pattern in distributed systems and has real merits — letting low-level retries happen close to the failure can reduce coordinator chatter. It almost fits because there's truth to "subagents know their tools best." The principle being tested, though, is *centralized* control as the default; a split design fragments observability and complicates the coordinator's view. The stem's signal is "the coordinator owns error handling," pointing at centralization.
 - **A:** Statelessness of subagents is partially true but is not the reason for centralized error handling; the reason is observability and control. State management is a different concern from error policy.
 - **B:** The SDK does not enforce upward error bubbling by default; how subagents handle errors is a design choice you make in the AgentDefinition and loop logic. Framework-level enforcement claims fit cases where there are genuine API constraints, which isn't the case here.
+- **C (correct):** The hub-and-spoke pattern centralizes error handling, observability, retries, and information routing in the coordinator. That single seam makes the system easier to reason about: there is one place to add logging, one place to decide on retry policy, one place to fall back to an alternate subagent. Subagents stay focused on their domain task. You apply this whenever you orchestrate multiple specialized agents under one root. It beats the runner-up because splitting errors across "transient vs permanent" reintroduces the duplicated, scattered logic the centralization is meant to avoid.
+- **D:** A transient-vs-permanent split is a real pattern in distributed systems and has real merits — letting low-level retries happen close to the failure can reduce coordinator chatter. It almost fits because there's truth to "subagents know their tools best." The principle being tested, though, is *centralized* control as the default; a split design fragments observability and complicates the coordinator's view. The stem's signal is "the coordinator owns error handling," pointing at centralization.
 
 ---
 
@@ -321,7 +321,7 @@ D) Subagents handle transient errors; the coordinator handles permanent ones; th
 
 **Stem:** Your coordinator agent invokes a synthesis subagent via the Task tool. The synthesis subagent's output omits citations entirely, even though the web_search subagent produced rich source URLs and the document_analysis subagent produced page numbers. Reviewing the Task tool call, you see the prompt sent to synthesis is "Synthesize the findings into a 400-word report" with no further context. What is the most direct fix?
 
-A) Pass the prior subagents' findings — including source URLs, document names, and page numbers — directly in the synthesis subagent's prompt so it has the evidence to cite.
+A) Pass the prior subagents' findings — including source URLs, document names, and page numbers — in the synthesis subagent's prompt so it has the evidence to cite.
 B) Add a system prompt to the synthesis subagent instructing it to always include citations, and rely on the model to recall sources from the parent conversation history.
 C) Configure the synthesis subagent's AgentDefinition to grant it access to the same web_search and document_analysis tools so it can re-fetch sources directly itself.
 D) Modify the report_generation subagent downstream to extract claim phrases and search for matching citations after synthesis has produced its draft output.
@@ -330,14 +330,14 @@ D) Modify the report_generation subagent downstream to extract claim phrases and
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Subagents don't inherit the coordinator's conversation history; their context is whatever you explicitly put in their prompt. If you want synthesis to cite sources, you have to hand it the source-bearing findings (URLs, document names, page numbers) in the prompt itself. This is a core principle of the Task tool / subagent invocation model: explicit context passing, not implicit inheritance. You apply this any time a downstream subagent needs upstream evidence. It beats the runner-up because granting synthesis its own search tools makes it re-fetch information it should have been handed, doubling cost and risking different sources than the analysis subagents used.
-- **C (plausible runner-up):** Giving synthesis its own tools is a real configuration choice and would technically let it find citations. It almost fits because the symptom is "no citations," and tools do produce citations. The problem is that it ignores the work already done by the prior subagents, inflates cost and latency, and risks divergent sources. The principle being tested is *context passing* — give synthesis what's already been gathered. The stem's signal is "no further context" in the synthesis prompt.
 - **B:** Subagents do not share memory with the parent; instructing them to "recall" inheritance that doesn't exist guarantees hallucinated citations. Recall-style instructions only work for content actually present in the prompt.
+- **C:** Giving synthesis its own tools is a real configuration choice and would technically let it find citations. It almost fits because the symptom is "no citations," and tools do produce citations. The problem is that it ignores the work already done by the prior subagents, inflates cost and latency, and risks divergent sources. The principle being tested is *context passing* — give synthesis what's already been gathered. The stem's signal is "no further context" in the synthesis prompt.
 - **D:** Post-hoc citation matching is a fragile retrofit and was never the source-of-truth path. That pattern fits when you're augmenting third-party LLM output that you can't influence at the source — not here.
 
 ---
@@ -354,16 +354,16 @@ D) Define each subagent's AgentDefinition with a matching `parentAgentId` pointi
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The Task tool is the mechanism by which a coordinator agent spawns subagents in the Agent SDK. If `"Task"` isn't in `allowedTools`, the model literally doesn't have a way to delegate — it can describe wanting to delegate, but the tool isn't exposed to it. Adding it is the necessary configuration. You apply this anywhere a parent agent needs to spawn child agents. It beats the runner-up because no `parentAgentId` linkage is required by the SDK — what's required is exposing the Task tool.
-- **D (plausible runner-up):** It's plausible to imagine an SDK that wires parent-child relationships through identifiers, and parent-child IDs are a real pattern in distributed systems. The catch is that the Agent SDK doesn't require this; subagent invocation goes through the Task tool with the subagent's AgentDefinition referenced in the call. The stem's tell is that `allowedTools` doesn't include `"Task"` — that's exactly the missing piece.
 - **A:** Temperature has nothing to do with whether the tool is exposed; even at temperature 0 the model can't call a tool it doesn't have. Temperature tuning fits content-style problems, not capability gating.
+- **B (correct):** The Task tool is the mechanism by which a coordinator agent spawns subagents in the Agent SDK. If `"Task"` isn't in `allowedTools`, the model literally doesn't have a way to delegate — it can describe wanting to delegate, but the tool isn't exposed to it. Adding it is the necessary configuration. You apply this anywhere a parent agent needs to spawn child agents. It beats the runner-up because no `parentAgentId` linkage is required by the SDK — what's required is exposing the Task tool.
 - **C:** System prompts in the Agent SDK are authoritative for behavior; moving descriptions to user messages wouldn't add the Task capability. Description placement is mostly about clarity, not capability.
+- **D:** It's plausible to imagine an SDK that wires parent-child relationships through identifiers, and parent-child IDs are a real pattern in distributed systems. The catch is that the Agent SDK doesn't require this; subagent invocation goes through the Task tool with the subagent's AgentDefinition referenced in the call. The stem's tell is that `allowedTools` doesn't include `"Task"` — that's exactly the missing piece.
 
 ---
 
@@ -374,21 +374,21 @@ D) Define each subagent's AgentDefinition with a matching `parentAgentId` pointi
 A) Cache subagent results across runs in a shared store keyed by topic so repeated queries skip the web_search and document_analysis subagents entirely on subsequent turns.
 B) Replace the three Task calls with a single combined subagent that internally performs web search, document analysis, and synthesis, reducing the round-trips to one Task call.
 C) Switch the coordinator to streaming mode so partial results from web_search and document_analysis can be forwarded to synthesis incrementally before completion.
-D) Emit both Task calls (web_search and document_analysis) in a single coordinator response so they run in parallel, then invoke synthesis in a follow-up turn with both results.
+D) Emit both Task calls (web_search and document_analysis) in a single coordinator response so they run in parallel, then invoke synthesis with both results.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** When subagents are independent, the coordinator should spawn them in parallel by emitting multiple Task tool calls in a *single* assistant response. The SDK can then dispatch them concurrently, and their tool_results return in one user message for the next turn. This is the standard parallelism pattern in coordinator design and directly attacks serial latency. You apply this any time two subagent tasks have no data dependency. It beats the runner-up because collapsing into one monolithic subagent erases the specialization (focused prompts, tool restrictions, separate observability) that motivated the multi-agent decomposition in the first place.
-- **B (plausible runner-up):** Combining work into one subagent is a real pattern and would reduce round-trips. It almost fits because three calls do become one. The problem is that the decomposition into specialized subagents exists for a reason — narrower tool sets, focused prompts, clearer evaluations. Folding them all together gives up those benefits. The stem's signal is "no dependency on each other," which is the textbook trigger for parallel Task calls.
 - **A:** Caching helps repeated queries but doesn't fix the latency of the *first* run, and the stem describes a per-run latency problem. Caching is appropriate for repetition, not for first-pass parallelism.
+- **B:** Combining work into one subagent is a real pattern and would reduce round-trips. It almost fits because three calls do become one. The problem is that the decomposition into specialized subagents exists for a reason — narrower tool sets, focused prompts, clearer evaluations. Folding them all together gives up those benefits. The stem's signal is "no dependency on each other," which is the textbook trigger for parallel Task calls.
 - **C:** Streaming is for incremental output to the user, not for inter-subagent dependency. Streaming fits long generative outputs where partial visibility helps the end user.
+- **D (correct):** When subagents are independent, the coordinator should spawn them in parallel by emitting multiple Task tool calls in a *single* assistant response. The SDK can then dispatch them concurrently, and their tool_results return in one user message for the next turn. This is the standard parallelism pattern in coordinator design and directly attacks serial latency. You apply this any time two subagent tasks have no data dependency. It beats the runner-up because collapsing into one monolithic subagent erases the specialization (focused prompts, tool restrictions, separate observability) that motivated the multi-agent decomposition in the first place.
 
 ---
 
@@ -398,22 +398,22 @@ D) Emit both Task calls (web_search and document_analysis) in a single coordinat
 
 A) Spawn two completely independent subagent sessions and prepend a copy-paste of the analysis to each new session's first user message, keeping their histories fully separate.
 B) Run a single subagent twice with different system prompts and average the recommendations from both runs to produce a combined final answer for the developer team.
-C) Use `fork_session` to create two divergent branches from the existing analysis baseline, letting each branch explore its strategy with full prior context already shared.
+C) Use `fork_session` to spin up two divergent branches from the existing analysis baseline, letting each branch explore its strategy with the full prior context already shared.
 D) Use `--resume <session-name>` twice on the same named session so each exploration continues from the prior state, then diff the resulting transcripts to compare results.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
-- D: implausible
 - B: implausible
+- C: plausible-correct
+- D: implausible
 
 **Explanation:**
-- **C (correct):** `fork_session` is purpose-built for this scenario: you have a shared analysis baseline and you want to explore two divergent paths without re-running the analysis or contaminating one branch with the other's choices. Each fork inherits the prior context and proceeds independently. You apply this any time you want to A/B explore from a common starting point — comparing refactoring approaches, testing strategies, or design alternatives. It beats the runner-up because copying-and-pasting the analysis is fragile, costly, and loses the structured history that the fork preserves.
-- **A (plausible runner-up):** Manual copy-paste of analysis into fresh sessions is a real workaround when forking isn't available, and the resulting branches *are* independent. The catch is that you re-tokenize the analysis into each new session and lose the structured prior turns; you also have to maintain the paste yourself when the baseline changes. The stem's signal is "shared analysis baseline" — the right tool is the one designed to fork from a baseline.
-- **D:** `--resume` continues a *single* session by name; running it twice doesn't create two parallel branches — it just resumes the same session. Resume is appropriate for picking up where you left off, not for parallel divergent exploration.
+- **A:** Manual copy-paste of analysis into fresh sessions is a real workaround when forking isn't available, and the resulting branches *are* independent. The catch is that you re-tokenize the analysis into each new session and lose the structured prior turns; you also have to maintain the paste yourself when the baseline changes. The stem's signal is "shared analysis baseline" — the right tool is the one designed to fork from a baseline.
 - **B:** Averaging recommendations from two runs of the same subagent doesn't preserve the "two divergent strategies" framing — both runs share a prompt with the same intent. Multi-run averaging fits noise reduction, not strategy comparison.
+- **C (correct):** `fork_session` is purpose-built for this scenario: you have a shared analysis baseline and you want to explore two divergent paths without re-running the analysis or contaminating one branch with the other's choices. Each fork inherits the prior context and proceeds independently. You apply this any time you want to A/B explore from a common starting point — comparing refactoring approaches, testing strategies, or design alternatives. It beats the runner-up because copying-and-pasting the analysis is fragile, costly, and loses the structured history that the fork preserves.
+- **D:** `--resume` continues a *single* session by name; running it twice doesn't create two parallel branches — it just resumes the same session. Resume is appropriate for picking up where you left off, not for parallel divergent exploration.
 
 ---
 
@@ -421,7 +421,7 @@ D) Use `--resume <session-name>` twice on the same named session so each explora
 
 **Stem:** Your coordinator's prompt to subagents is a 200-line procedural script: "Step 1: call web_search with query X. Step 2: if results contain Y, call document_analysis. Step 3: ..." Subagents perform reasonably on the cases that match the script but poorly on adjacent cases (e.g., when web_search returns unexpected source types). Your team is considering rewriting these prompts. What is the most effective rewrite strategy?
 
-A) Replace the step-by-step instructions with prompts that specify research goals and quality criteria, letting subagents adapt their tool choices to the inputs they actually receive.
+A) Replace the step-by-step procedural instructions with prompts that specify research goals and quality criteria, letting subagents adapt their tool choices to the inputs they actually receive.
 B) Keep the procedural script but add many more `if/else` branches to cover the adjacent cases, ensuring all observed input variations have explicit instructions to follow.
 C) Move the procedural script from the prompt into Python orchestration code that calls the subagent multiple times with single-action prompts for each step deterministically.
 D) Lower the model used by the subagent to a cheaper one and run the procedural script unchanged, since the script's brittleness was caused by the model second-guessing the instructions.
@@ -430,14 +430,14 @@ D) Lower the model used by the subagent to a cheaper one and run the procedural 
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Coordinator-to-subagent prompts should specify *goals and quality criteria* — what counts as a good result — rather than enumerating every step. Subagents are intelligent agents; given goals and constraints, they can adapt to inputs that the prompt author didn't anticipate. Procedural scripts force the subagent to follow a path that may not match reality, and they fail on adjacent cases by definition. You apply this in any multi-agent design where subagents face heterogeneous inputs. It beats the runner-up because pushing the script into Python code makes the system brittle in a different way — every new case requires code changes rather than letting the model adapt.
-- **C (plausible runner-up):** Moving control flow into deterministic code is a real pattern (and is the right call for *critical* compliance-bound logic). It almost fits because deterministic code does eliminate prompt brittleness. The catch is that this turns adaptive subagent reasoning into a rigid pipeline; you lose the very flexibility that makes subagents valuable on adjacent cases. The signal in the stem is "poorly on adjacent cases" — the fix is to *increase* adaptability, not to harden a script.
 - **B:** Branching out to many if/else cases just postpones the failure to the next unseen variation. Exhaustive branching fits truly enumerable domains, which research subagent inputs are not.
+- **C:** Moving control flow into deterministic code is a real pattern (and is the right call for *critical* compliance-bound logic). It almost fits because deterministic code does eliminate prompt brittleness. The catch is that this turns adaptive subagent reasoning into a rigid pipeline; you lose the very flexibility that makes subagents valuable on adjacent cases. The signal in the stem is "poorly on adjacent cases" — the fix is to *increase* adaptability, not to harden a script.
 - **D:** Cheaper models follow brittle scripts even less reliably; this misdiagnoses the cause. Model swaps are appropriate when capability is the bottleneck, not when the prompt design is the bottleneck.
 
 ---
@@ -447,21 +447,21 @@ D) Lower the model used by the subagent to a cheaper one and run the procedural 
 **Stem:** Your synthesis subagent receives a prompt containing the raw text from web_search and document_analysis concatenated together. The final report has citations like "according to one source" without specifying which source — even though the upstream subagents emitted URLs and page numbers. The team thinks this is a synthesis prompting issue. What is the most effective change to the way context is passed?
 
 A) Instruct the synthesis subagent in its system prompt to always include "According to [source]" before any factual claim, with a reminder example or two of correct format.
-B) Pass findings to synthesis as a structured payload — claims plus per-claim metadata fields for source URL, document name, and page number — so attribution is mechanical.
+B) Pass findings to synthesis as a structured payload — claims plus per-claim metadata fields for source URL, document name, and exact page number — so attribution is mechanical.
 C) Have synthesis re-call web_search to fetch the URLs by topic phrase after drafting, then post-process the draft to insert hyperlinks matching those rediscovered URLs.
 D) Switch synthesis to a model with larger context capacity so it can hold all source documents alongside the report draft and infer correct attributions from proximity.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Format instructions and few-shot examples are real techniques and would push synthesis toward better citation phrasing. It almost fits because the symptom is citation phrasing. The catch is that even if synthesis *wants* to attribute, the source isn't separable in concatenated raw text — the structural problem upstream makes the prompt-level fix unreliable. The signal in the stem is "the upstream subagents emitted URLs and page numbers" — they exist; pass them structured.
 - **B (correct):** When passing context between agents, structured data formats (e.g., a list of `{claim, source_url, document, page}` records) preserve attribution mechanically: synthesis can produce citations by referencing fields rather than by trying to remember which paragraph in a wall of text came from where. This is the canonical pattern for citation-bearing multi-agent systems. You apply this any time downstream agents need to preserve provenance from upstream agents. It beats the runner-up because prompt instructions can shape format but can't recover information that was lost in concatenation.
-- **A (plausible runner-up):** Format instructions and few-shot examples are real techniques and would push synthesis toward better citation phrasing. It almost fits because the symptom is citation phrasing. The catch is that even if synthesis *wants* to attribute, the source isn't separable in concatenated raw text — the structural problem upstream makes the prompt-level fix unreliable. The signal in the stem is "the upstream subagents emitted URLs and page numbers" — they exist; pass them structured.
 - **C:** Re-fetching after the fact and pattern-matching URLs back to claims is fragile and inflates cost. Post-hoc citation insertion fits cases where you don't control the upstream pipeline, which isn't the case here.
 - **D:** Larger context windows don't solve attribution problems — they just hold more undifferentiated text. Larger windows are appropriate when raw size is the constraint, not when structure is missing.
 
@@ -474,21 +474,21 @@ D) Switch synthesis to a model with larger context capacity so it can hold all s
 A) Strengthen the system prompt with stronger language and a few-shot example showing the agent escalating a $700 refund correctly, then retest the agent on the same inputs.
 B) Lower the model temperature and add a developer message that repeats the threshold rule, so the model is more deterministic when applying the $500 cutoff to refund requests.
 C) Train a custom intent classifier to detect refund-amount mentions and route those above $500 to a separate escalation pipeline, leaving the main agent untouched for the rest.
-D) Replace prompt-based enforcement with a programmatic gate — a hook that intercepts `process_refund` calls and blocks any with amount > $500, redirecting them to escalate_to_human.
+D) Replace prompt-based enforcement with a programmatic gate — a hook that intercepts `process_refund` and blocks any amount > $500, redirecting to escalate_to_human.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** When a business rule requires *deterministic* compliance — especially with financial consequences — prompt-based control is the wrong layer. Prompts have a non-zero failure rate. The right fix is a programmatic gate, typically a pre-tool-use hook that inspects the proposed `process_refund` arguments and either blocks or rewrites the call when the amount exceeds the threshold, redirecting to `escalate_to_human`. You apply this anywhere violations are unacceptable: identity verification, payment thresholds, scope restrictions. It beats the runner-up because no prompt change reduces the failure rate to zero; only programmatic enforcement does.
-- **A (plausible runner-up):** Strengthening prompts and adding examples is a real, useful technique and will reduce failure rates. It almost fits because failures will likely decrease after the prompt change. The catch is that "reduce" isn't "eliminate" — three monthly violations might become one, but financial compliance can't tolerate any. The signal in the stem is "legitimate failures under the prompt-based control" — the question is testing the limits of prompt-based enforcement.
-- **C:** A separate classifier shifts the gate to another probabilistic component; the same non-zero failure rate problem applies. Intent classifiers are appropriate for routing, not for compliance gates.
+- **A:** Strengthening prompts and adding examples is a real, useful technique and will reduce failure rates. It almost fits because failures will likely decrease after the prompt change. The catch is that "reduce" isn't "eliminate" — three monthly violations might become one, but financial compliance can't tolerate any. The signal in the stem is "legitimate failures under the prompt-based control" — the question is testing the limits of prompt-based enforcement.
 - **B:** Lower temperature reduces variance but does not guarantee compliance; deterministic rules don't belong in the sampler. Temperature tuning fits style and consistency goals, not policy enforcement.
+- **C:** A separate classifier shifts the gate to another probabilistic component; the same non-zero failure rate problem applies. Intent classifiers are appropriate for routing, not for compliance gates.
+- **D (correct):** When a business rule requires *deterministic* compliance — especially with financial consequences — prompt-based control is the wrong layer. Prompts have a non-zero failure rate. The right fix is a programmatic gate, typically a pre-tool-use hook that inspects the proposed `process_refund` arguments and either blocks or rewrites the call when the amount exceeds the threshold, redirecting to `escalate_to_human`. You apply this anywhere violations are unacceptable: identity verification, payment thresholds, scope restrictions. It beats the runner-up because no prompt change reduces the failure rate to zero; only programmatic enforcement does.
 
 ---
 
@@ -498,22 +498,22 @@ D) Replace prompt-based enforcement with a programmatic gate — a hook that int
 
 A) Train the agent with reinforcement examples where it handles two concerns serially, hoping the learned pattern generalizes to other multi-concern requests in production.
 B) Add a "did you have any other concerns?" closing prompt at the end of each conversation, relying on the customer to re-raise the dropped issue if it was missed initially.
-C) Decompose the message into distinct concerns, investigate each in parallel using shared customer context, then synthesize a unified resolution before responding to the customer.
+C) Decompose the message into distinct concerns, investigate each in parallel using shared customer context, then synthesize a unified resolution before responding.
 D) Route multi-concern messages to a human agent automatically, since multi-concern resolution is too unreliable to attempt with an autonomous agent in this kind of scenario.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
-- D: implausible
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
+- D: implausible
 
 **Explanation:**
-- **C (correct):** The canonical pattern for multi-concern customer requests is decomposition: identify the distinct items, run an investigation per item (often in parallel) sharing common context like customer ID, then synthesize a single coherent response. This avoids dropping items and gives the customer a unified resolution rather than fragmented back-and-forth. You apply this anywhere a single user turn can carry multiple intents. It beats the runner-up because relying on the customer to re-raise misses puts the failure mode back on them and damages first-contact resolution metrics.
-- **B (plausible runner-up):** A closing prompt is a real UX technique and does catch some dropped concerns. It almost fits because it's a low-effort safety net. The catch is that it's reactive, places burden on the customer, and won't address the 40% drop rate during the conversation itself — only afterward, conversationally. The signal in the stem is "design a multi-step workflow that handles" — implying proactive structure, not after-the-fact prompts.
-- **D:** Auto-escalating every multi-concern message contradicts the 80%+ first-contact resolution goal. Auto-escalation is appropriate when the agent lacks competence, not when decomposition can solve it.
 - **A:** Reinforcement-style hopes for generalization don't apply at the level of prompt design without fine-tuning, which is out of scope. Pattern learning of this kind requires training infrastructure not present here.
+- **B:** A closing prompt is a real UX technique and does catch some dropped concerns. It almost fits because it's a low-effort safety net. The catch is that it's reactive, places burden on the customer, and won't address the 40% drop rate during the conversation itself — only afterward, conversationally. The signal in the stem is "design a multi-step workflow that handles" — implying proactive structure, not after-the-fact prompts.
+- **C (correct):** The canonical pattern for multi-concern customer requests is decomposition: identify the distinct items, run an investigation per item (often in parallel) sharing common context like customer ID, then synthesize a single coherent response. This avoids dropping items and gives the customer a unified resolution rather than fragmented back-and-forth. You apply this anywhere a single user turn can carry multiple intents. It beats the runner-up because relying on the customer to re-raise misses puts the failure mode back on them and damages first-contact resolution metrics.
+- **D:** Auto-escalating every multi-concern message contradicts the 80%+ first-contact resolution goal. Auto-escalation is appropriate when the agent lacks competence, not when decomposition can solve it.
 
 ---
 
@@ -522,22 +522,22 @@ D) Route multi-concern messages to a human agent automatically, since multi-conc
 **Stem:** Your agent escalates difficult cases to human agents using a `handoff` MCP tool. You hear from the support team that humans receiving these handoffs are spending the first 5–10 minutes re-asking customers basic facts — customer ID, what they were trying to do, what was attempted, what failed. The human agents do not have access to the agent's transcript. Which improvement to the handoff has the greatest leverage?
 
 A) Give human agents read access to the underlying chat transcript via a viewer so they can scroll through the agent's prior turns themselves before responding.
-B) Compile a structured handoff summary — customer ID, root cause, attempted resolutions, refund or order details, and a recommended action — and send it as the handoff payload.
+B) Compile a structured handoff summary — customer ID, root cause, attempted resolutions, refund or order details, and a recommended action — as the handoff payload.
 C) Have the agent generate a brief "TLDR" sentence describing the issue at the moment of escalation, and pin that sentence to the top of the customer record for the human agent.
 D) Add a system-prompt instruction asking the agent to always restate the customer's issue in its own words before escalating, so the transcript ends on a clear summary.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Structured handoff summaries — customer ID, root cause analysis, refund or order details, attempted resolutions, recommended action — give human agents everything they need to take over without re-interrogating the customer. The structure (fields, not free text) makes the information scannable and consistent across handoffs. You apply this anywhere there's a mid-process handoff to a party without access to the conversation. It beats the runner-up because a single TLDR sentence isn't enough to drive a resolution — the human still has to chase down specifics like customer ID and refund amount.
-- **C (plausible runner-up):** A TLDR is a real, low-effort UX win and would help. It almost fits because it reduces re-asking. The catch is that human agents resolving a refund still need the specific facts (customer ID, exact dollar amount, what root cause was identified) — a single sentence can't carry all of that reliably. The signal in the stem is "basic facts" plural — customer ID, intent, attempts, failures — pointing at structured fields, not a single summary line.
 - **A:** Transcript access is useful but expensive: humans now have to read multi-turn conversations to extract structured facts. Raw transcript access fits forensic review, not real-time handoff.
+- **B (correct):** Structured handoff summaries — customer ID, root cause analysis, refund or order details, attempted resolutions, recommended action — give human agents everything they need to take over without re-interrogating the customer. The structure (fields, not free text) makes the information scannable and consistent across handoffs. You apply this anywhere there's a mid-process handoff to a party without access to the conversation. It beats the runner-up because a single TLDR sentence isn't enough to drive a resolution — the human still has to chase down specifics like customer ID and refund amount.
+- **C:** A TLDR is a real, low-effort UX win and would help. It almost fits because it reduces re-asking. The catch is that human agents resolving a refund still need the specific facts (customer ID, exact dollar amount, what root cause was identified) — a single sentence can't carry all of that reliably. The signal in the stem is "basic facts" plural — customer ID, intent, attempts, failures — pointing at structured fields, not a single summary line.
 - **D:** Restating the issue is a prompt-level habit and not nearly enough to convey root cause, refund amount, and recommended action. Restatement fits conversation flow, not handoff payloads.
 
 ---
@@ -546,7 +546,7 @@ D) Add a system-prompt instruction asking the agent to always restate the custom
 
 **Stem:** Your dev-productivity agent helps engineers run database migrations. The workflow requires three sequential steps: (1) `dry_run` reports what changes would happen, (2) the agent presents the dry-run output to the engineer, (3) only after explicit "yes, apply" does the agent call `apply_migration`. In testing, the agent sometimes calls `apply_migration` immediately after `dry_run` even without the user typing "yes, apply." What is the most reliable architectural change?
 
-A) Implement a programmatic gate that blocks `apply_migration` from being called unless a recorded "yes, apply" user turn exists between the most recent `dry_run` and the apply call.
+A) Implement a programmatic gate that prevents any `apply_migration` invocation unless a recorded "yes, apply" user turn exists between the most recent `dry_run` and the apply call itself.
 B) Add stronger system-prompt language: "Under no circumstances call apply_migration without explicit human confirmation," then run regression tests with a temperature-zero configuration.
 C) Replace the two MCP tools with a single `migrate(dry_run=bool)` tool, so the model is forced to first call with dry_run=true and then explicitly toggle to false in a second call.
 D) Add a custom slash command `/apply` that engineers must invoke manually after seeing the dry-run output; the agent itself never calls `apply_migration` directly anymore at all.
@@ -555,15 +555,15 @@ D) Add a custom slash command `/apply` that engineers must invoke manually after
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** Prerequisite gates that programmatically block downstream tool calls until upstream conditions are satisfied are the right pattern for high-stakes workflows. Here, the gate inspects history for an actual user confirmation turn between the dry_run and the apply call; if it's missing, the apply call is blocked. This is deterministic and doesn't depend on prompt compliance. You apply this anywhere a destructive action must follow an explicit step (identity verification, dry-run confirmation, approval workflows). It beats the runner-up because the slash-command approach removes the agent from the workflow entirely, sacrificing the agent's coordination value for safety; the gate keeps the agent useful while making the dangerous transition safe.
-- **D (plausible runner-up):** Pulling the destructive action out of the agent and into an engineer-invoked slash command is a real, valid safety choice — it definitively prevents the agent from misfiring. The catch is that it offloads the workflow choreography back to the human, sacrificing the agent's value as an end-to-end orchestrator. The signal in the stem is "the most reliable architectural change" combined with the agent doing the workflow today; the gate is more reliable *without* eliminating agent involvement.
 - **B:** "Under no circumstances" language is exactly the kind of prompt-based compliance that the agent has already violated; tightening words doesn't fix it. Strong language fits style and tone, not destructive-action gates.
 - **C:** A toggle parameter is still subject to the same probabilistic compliance: the model might flip dry_run=false too eagerly. Tool consolidation fits API ergonomics, not safety enforcement.
+- **D:** Pulling the destructive action out of the agent and into an engineer-invoked slash command is a real, valid safety choice — it definitively prevents the agent from misfiring. The catch is that it offloads the workflow choreography back to the human, sacrificing the agent's value as an end-to-end orchestrator. The signal in the stem is "the most reliable architectural change" combined with the agent doing the workflow today; the gate is more reliable *without* eliminating agent involvement.
 
 ---
 
@@ -574,21 +574,21 @@ D) Add a custom slash command `/apply` that engineers must invoke manually after
 A) Programmatic prerequisites are cheaper at runtime because they avoid one round-trip to the model, which is the dominant motivator here for adopting them over a prompt rule.
 B) Programmatic prerequisites and prompt rules are equivalent in correctness, so prefer whichever is easier for the engineering team to maintain in code review long-term.
 C) System prompts are slow to update in production, while programmatic prerequisites can be hot-reloaded, so the choice is about deployment velocity in the financial domain.
-D) Prompt rules have a non-zero failure rate; for financial operations with regulatory or fraud consequences, deterministic enforcement is required, which only programmatic gates provide.
+D) Prompt rules have a non-zero failure rate; for financial operations with regulatory or fraud consequences, only programmatic gates provide deterministic enforcement.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The core principle is that prompt instructions are probabilistic — they reduce the rate of violations but don't eliminate them. For business rules with material consequences (financial loss, regulatory exposure, fraud), the rate must be zero, and only programmatic enforcement can guarantee that. This trade-off shows up in identity verification, threshold checks, and any compliance-bound workflow. You apply this distinction whenever you're choosing between "tell the model" and "make it impossible." It beats the runner-up because cost differences aren't the motivator here — correctness is.
-- **A (plausible runner-up):** Cost and round-trip arguments are real considerations in agent architecture and *do* sometimes favor programmatic gates. It almost fits because hooks/gates do run locally without an extra model call. The problem is that the dominant reason in this scenario is *correctness*, not cost; framing it as a cost-optimization argument understates what's at stake. The signal in the stem is the policy framing — "verify customer before refund" — which is a correctness rule.
+- **A:** Cost and round-trip arguments are real considerations in agent architecture and *do* sometimes favor programmatic gates. It almost fits because hooks/gates do run locally without an extra model call. The problem is that the dominant reason in this scenario is *correctness*, not cost; framing it as a cost-optimization argument understates what's at stake. The signal in the stem is the policy framing — "verify customer before refund" — which is a correctness rule.
 - **B:** They are not equivalent in correctness; that's the whole point. Equivalence framing fits cosmetic choices, not enforcement choices.
 - **C:** Deployment velocity is a real concern but isn't the principle being tested. Velocity arguments fit operational discussions, not architectural choice between prompt and code.
+- **D (correct):** The core principle is that prompt instructions are probabilistic — they reduce the rate of violations but don't eliminate them. For business rules with material consequences (financial loss, regulatory exposure, fraud), the rate must be zero, and only programmatic enforcement can guarantee that. This trade-off shows up in identity verification, threshold checks, and any compliance-bound workflow. You apply this distinction whenever you're choosing between "tell the model" and "make it impossible." It beats the runner-up because cost differences aren't the motivator here — correctness is.
 
 ---
 
@@ -599,21 +599,21 @@ D) Prompt rules have a non-zero failure rate; for financial operations with regu
 A) Use few-shot examples in the system prompt showing the agent following the four steps in order across three realistic billing-dispute conversations, then redeploy.
 B) Switch to a chain-of-thought instruction that asks the agent to first write out the four-step plan in its own words at the start of each conversation, then execute it.
 C) Pre-decompose the workflow upfront via the coordinator's logic and present the agent with only the next-step tool at each stage, hiding tools that shouldn't be called yet.
-D) Implement programmatic prerequisites: lookup_order blocked until get_customer returns a verified ID; process_refund blocked until lookup_order has returned a matching charge.
+D) Implement programmatic prerequisites: lookup_order is blocked until get_customer returns a verified ID; process_refund stays blocked until lookup_order returns a matching charge.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Programmatic prerequisites give you deterministic ordering: each downstream tool is gated on the appropriate upstream completion, regardless of how the model reasons. This pattern eliminates the "inconsistent adherence" problem at the source — adherence becomes mechanical. You apply this anywhere business logic depends on tool order. It beats the runner-up because dynamically hiding tools stage-by-stage requires the orchestrator to know what stage the conversation is in, which reintroduces the same kind of probabilistic reasoning the prerequisites are meant to bypass.
-- **C (plausible runner-up):** Hiding tools at each stage is a real pattern in stateful workflow agents and would reduce the chance of out-of-order calls. It almost fits because the model literally can't call a hidden tool. The catch is that *deciding which stage we're in* still requires logic that mirrors the prerequisite check — you've moved the same condition to a different place. And it complicates UX because dynamic toolsets are harder to reason about than static toolsets with gates. The signal in the stem is "inconsistent adherence" — gates fix the order directly.
 - **A:** Few-shot examples are probabilistic; the consequences here favor deterministic enforcement. Few-shot fits format and style, not financial ordering.
 - **B:** Plan-writing chain-of-thought is a probabilistic improvement that still allows out-of-order execution. Plan prompts fit reasoning aid, not enforcement.
+- **C:** Hiding tools at each stage is a real pattern in stateful workflow agents and would reduce the chance of out-of-order calls. It almost fits because the model literally can't call a hidden tool. The catch is that *deciding which stage we're in* still requires logic that mirrors the prerequisite check — you've moved the same condition to a different place. And it complicates UX because dynamic toolsets are harder to reason about than static toolsets with gates. The signal in the stem is "inconsistent adherence" — gates fix the order directly.
+- **D (correct):** Programmatic prerequisites give you deterministic ordering: each downstream tool is gated on the appropriate upstream completion, regardless of how the model reasons. This pattern eliminates the "inconsistent adherence" problem at the source — adherence becomes mechanical. You apply this anywhere business logic depends on tool order. It beats the runner-up because dynamically hiding tools stage-by-stage requires the orchestrator to know what stage the conversation is in, which reintroduces the same kind of probabilistic reasoning the prerequisites are meant to bypass.
 
 ---
 
@@ -630,15 +630,15 @@ D) Modify each MCP server upstream to emit identical formats; until that's done,
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** PostToolUse hooks intercept tool results *before* the model processes them, which is exactly where data normalization belongs. You can convert all timestamps to a single canonical format (ISO 8601), map status codes to human-readable strings, and emit a consistent shape to the model — independent of how the underlying MCP servers happen to encode their outputs. You apply this any time you integrate heterogeneous backends through MCP. It beats the runner-up because modifying upstream servers is often impossible (third-party MCP services) or slow, and PostToolUse hooks let you normalize without touching the servers.
-- **D (plausible runner-up):** Upstream standardization is genuinely the cleanest *long-term* fix and is the right call when you own all the servers. It almost fits because it eliminates the heterogeneity at the source. The catch is that in practice you frequently don't own the MCP servers (third-party SaaS, legacy internal systems), and the disclaimer-and-verify workaround degrades the agent's autonomy in the meantime. The signal in the stem is the MCP-from-different-services framing.
 - **B:** Prompt enumeration is probabilistic and doesn't transform the data; the model still has to track formats in its head while reasoning. Prompt enumeration fits cases where you want to add light context, not enforce uniformity.
 - **C:** Wrapping with a separate pre-processing tool doubles tool calls and is brittle; the model has to remember to call the wrapper first. Wrappers fit cases where transformation needs are agent-decision-driven, not always-applied.
+- **D:** Upstream standardization is genuinely the cleanest *long-term* fix and is the right call when you own all the servers. It almost fits because it eliminates the heterogeneity at the source. The catch is that in practice you frequently don't own the MCP servers (third-party SaaS, legacy internal systems), and the disclaimer-and-verify workaround degrades the agent's autonomy in the meantime. The signal in the stem is the MCP-from-different-services framing.
 
 ---
 
@@ -647,23 +647,23 @@ D) Modify each MCP server upstream to emit identical formats; until that's done,
 **Stem:** A senior engineer asks for an explanation of why your team is implementing the "$500 refund cap" as a PreToolUse hook rather than as a prompt rule. Which framing best captures the principle behind this design choice for your stakeholders?
 
 A) Hooks run on the server side and are faster than prompt-based checks, so the latency win is the principal reason to prefer hooks for any business-rule enforcement.
-B) Hooks provide deterministic guarantees by intercepting tool calls in code, whereas prompt rules rely on probabilistic model compliance and can be violated under edge cases.
+B) Hooks provide deterministic guarantees by intercepting tool calls directly in code, whereas prompt rules rely on probabilistic model compliance and can be violated under edge cases.
 C) Hooks are easier to test than prompts because they are pure Python functions; therefore use hooks for all business rules to maximize coverage in CI test suites and pipelines.
 D) Hooks bypass the model entirely for the affected calls, so the model doesn't have to be aware of the $500 threshold rule and can be reused unchanged across other domains.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The core principle for choosing hooks over prompt rules is *deterministic compliance*. Hooks intercept tool calls in code — they will reject the call every time the condition matches, no exceptions, no probability. Prompt rules ask the model to comply, and even a well-tuned model has a non-zero violation rate. For rules whose violation is unacceptable (financial limits, identity verification, data access controls), you reach for hooks. You apply this distinction anywhere correctness matters more than flexibility. It beats the runner-up because the model still does need to be aware of the rule (to plan around it gracefully), so the "model doesn't have to know" framing is misleading.
-- **D (plausible runner-up):** It's true that hooks decouple some enforcement from the model, and that's a real benefit. It almost fits because the model is technically unaware of the *implementation* of the check. The catch is that for good UX, the model should still be told the rule ("refunds over $500 require escalation") so it can explain to the customer; the hook is the enforcement, the prompt is the awareness. The signal in the stem is "rather than as a prompt rule" — the principle being tested is determinism vs probabilism, not separation of concerns.
 - **A:** Latency isn't the principal reason; correctness is. Latency arguments fit performance discussions, not compliance ones.
+- **B (correct):** The core principle for choosing hooks over prompt rules is *deterministic compliance*. Hooks intercept tool calls in code — they will reject the call every time the condition matches, no exceptions, no probability. Prompt rules ask the model to comply, and even a well-tuned model has a non-zero violation rate. For rules whose violation is unacceptable (financial limits, identity verification, data access controls), you reach for hooks. You apply this distinction anywhere correctness matters more than flexibility. It beats the runner-up because the model still does need to be aware of the rule (to plan around it gracefully), so the "model doesn't have to know" framing is misleading.
 - **C:** Testability is a benefit, not the principle. Testability arguments fit engineering-process discussions, not architecture choice.
+- **D:** It's true that hooks decouple some enforcement from the model, and that's a real benefit. It almost fits because the model is technically unaware of the *implementation* of the check. The catch is that for good UX, the model should still be told the rule ("refunds over $500 require escalation") so it can explain to the customer; the hook is the enforcement, the prompt is the awareness. The signal in the stem is "rather than as a prompt rule" — the principle being tested is determinism vs probabilism, not separation of concerns.
 
 ---
 
@@ -679,16 +679,16 @@ D) Add a post-response regex check that scans the assistant's outgoing message f
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** When a hook blocks or rewrites a tool call, returning a structured tool_result (e.g., `{"blocked": true, "reason": "amount exceeds $500", "redirected_to": "escalate_to_human"}`) gives the model the information it needs to replan its customer-facing response. The model then knows escalation happened, not a refund, and can phrase its reply correctly. You apply this anywhere a hook diverges from the model's intent — give the model honest feedback. It beats the runner-up because regex post-processing is brittle (misses paraphrased completions, can over-rewrite, doesn't help the *next* turn) and the model never learns what actually happened.
-- **D (plausible runner-up):** Regex rewriting is a real defensive technique and would catch the obvious "refund processed" phrasing. It almost fits because it patches the visible symptom. The catch is that paraphrases like "your refund is being applied" slip past, and the model continues the conversation believing the refund succeeded — corrupting downstream turns. The signal in the stem is "drafted that response before the hook ran" — the right place to inform the model is via tool_result, not via output post-processing.
 - **A:** Accepting incorrect messaging to customers is unacceptable for a support agent and undermines the whole point of the hook. "Accept misleading wording" fits prototypes, not production.
 - **B:** Removing the hook reintroduces the original probabilistic compliance problem. Prompt-only enforcement fits cases where violations are tolerable, which financial limits are not.
+- **C (correct):** When a hook blocks or rewrites a tool call, returning a structured tool_result (e.g., `{"blocked": true, "reason": "amount exceeds $500", "redirected_to": "escalate_to_human"}`) gives the model the information it needs to replan its customer-facing response. The model then knows escalation happened, not a refund, and can phrase its reply correctly. You apply this anywhere a hook diverges from the model's intent — give the model honest feedback. It beats the runner-up because regex post-processing is brittle (misses paraphrased completions, can over-rewrite, doesn't help the *next* turn) and the model never learns what actually happened.
+- **D:** Regex rewriting is a real defensive technique and would catch the obvious "refund processed" phrasing. It almost fits because it patches the visible symptom. The catch is that paraphrases like "your refund is being applied" slip past, and the model continues the conversation believing the refund succeeded — corrupting downstream turns. The signal in the stem is "drafted that response before the hook ran" — the right place to inform the model is via tool_result, not via output post-processing.
 
 ---
 
@@ -704,16 +704,16 @@ D) Add a PostToolUse hook that extracts main-content text and key metadata from 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** PostToolUse hooks let you transform tool results before they ever reach the model. Stripping boilerplate HTML and returning structured `{title, main_content, metadata}` cuts tokens substantially while preserving the meaningful content for reasoning. The model never has to "spend tokens" parsing markup. You apply this any time tool output is verbose-and-largely-noise: HTML, JSON with deep nesting, transcripts with timecodes, etc. It beats the runner-up because rejecting large pages outright loses information; the goal is *compressed signal*, not *less data*.
-- **A (plausible runner-up):** A pre-call rejection based on content-length is a real cost-control technique and would prevent the largest pages from entering context. It almost fits because cost goes down. The catch is that it sacrifices coverage — the agent loses access to potentially important pages — rather than compressing them. The signal in the stem is "preserve the model's ability to reason over page content," which rejection doesn't do; compression via PostToolUse does.
+- **A:** A pre-call rejection based on content-length is a real cost-control technique and would prevent the largest pages from entering context. It almost fits because cost goes down. The catch is that it sacrifices coverage — the agent loses access to potentially important pages — rather than compressing them. The signal in the stem is "preserve the model's ability to reason over page content," which rejection doesn't do; compression via PostToolUse does.
 - **B:** Asking the model to summarize first burns the same tokens reading the markup; you've added cost, not saved it. Self-summarization fits content the model has already digested, not the digestion step itself.
 - **C:** max_tokens caps the *output*, not the input; HTML payload tokens are billed as input. max_tokens fits output-length control, not input cost.
+- **D (correct):** PostToolUse hooks let you transform tool results before they ever reach the model. Stripping boilerplate HTML and returning structured `{title, main_content, metadata}` cuts tokens substantially while preserving the meaningful content for reasoning. The model never has to "spend tokens" parsing markup. You apply this any time tool output is verbose-and-largely-noise: HTML, JSON with deep nesting, transcripts with timecodes, etc. It beats the runner-up because rejecting large pages outright loses information; the goal is *compressed signal*, not *less data*.
 
 ---
 
@@ -722,22 +722,22 @@ D) Add a PostToolUse hook that extracts main-content text and key metadata from 
 **Stem:** A teammate proposes that all data normalization (timestamps, status codes, currency formatting) be done inside each MCP server itself, eliminating the need for hooks. Discuss the trade-off: when is per-server normalization the right choice, and when do PostToolUse hooks fit better in a multi-tool agent?
 
 A) Per-server normalization is always better because hooks add latency on every call, and centralizing transformation inside the server is the lowest-cost option in any case.
-B) When you own all MCP servers and the canonical format is stable, per-server normalization is cleanest; PostToolUse hooks fit when servers are heterogeneous, third-party, or evolving.
+B) When you own all of the MCP servers and the canonical format is stable, per-server normalization is cleanest; PostToolUse hooks fit when servers are heterogeneous, third-party, or evolving.
 C) PostToolUse hooks are always better because they can be tested in isolation, while per-server changes require redeploying the MCP service for every format adjustment now and forever.
 D) Per-server normalization and PostToolUse hooks are functionally identical; the choice is a matter of team convention rather than a meaningful architectural distinction worth debating.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** The right framing balances ownership and stability. If you own all the MCP servers and the canonical format isn't going to drift, normalizing at the source is the cleanest pattern — every consumer benefits, and the agent stays simple. But when servers are third-party, heterogeneous, or evolving at different rates, PostToolUse hooks give you a single place in the agent to enforce uniformity without coordinating across teams or vendors. You apply this whenever you're choosing where in the stack to place a cross-cutting transformation. It beats the runner-up because hooks aren't *always* better; the answer is genuinely context-dependent.
-- **C (plausible runner-up):** Testability and deployment-independence are real advantages of hooks and do tilt the choice in some organizations. It almost fits because hooks really do isolate change. The catch is that the runner-up overgeneralizes to "always better," ignoring cases where server-side normalization is cleaner (uniform clients, stable contracts, performance-sensitive paths). The signal in the stem is "when ... and when," asking for a trade-off framing, not a one-rule-fits-all.
 - **A:** Hooks add minimal latency and the choice isn't purely about cost. Latency-only framings fit performance-critical edge cases, not architecture-level trade-offs.
+- **B (correct):** The right framing balances ownership and stability. If you own all the MCP servers and the canonical format isn't going to drift, normalizing at the source is the cleanest pattern — every consumer benefits, and the agent stays simple. But when servers are third-party, heterogeneous, or evolving at different rates, PostToolUse hooks give you a single place in the agent to enforce uniformity without coordinating across teams or vendors. You apply this whenever you're choosing where in the stack to place a cross-cutting transformation. It beats the runner-up because hooks aren't *always* better; the answer is genuinely context-dependent.
+- **C:** Testability and deployment-independence are real advantages of hooks and do tilt the choice in some organizations. It almost fits because hooks really do isolate change. The catch is that the runner-up overgeneralizes to "always better," ignoring cases where server-side normalization is cleaner (uniform clients, stable contracts, performance-sensitive paths). The signal in the stem is "when ... and when," asking for a trade-off framing, not a one-rule-fits-all.
 - **D:** They aren't identical — ownership boundaries, deployment cadences, and reusability differ. Equivalence framings fit cosmetic choices, not cross-cutting concerns.
 
 ---
@@ -746,7 +746,7 @@ D) Per-server normalization and PostToolUse hooks are functionally identical; th
 
 **Stem:** Your support agent has two competing requirements: (1) deterministically block refunds over $500, and (2) tell the customer in friendly language why the request is being escalated. The team is unsure whether the friendly explanation belongs in the hook or in the model. What is the right division of responsibility?
 
-A) The hook enforces the block and returns a structured `tool_result` describing the redirect; the model receives this and crafts the customer-facing explanation in its next turn.
+A) The hook enforces the block and returns a structured `tool_result` describing the redirect; the model crafts the customer-facing explanation in its next turn.
 B) Both responsibilities live in the hook: write the friendly explanation in Python inside the hook and emit it directly to the user, bypassing the model for refund-cap responses.
 C) Both responsibilities live in the model: drop the hook, and use a strong system prompt to ensure the model both blocks the refund and explains the redirect to the customer.
 D) The hook writes the friendly explanation; the model is told only that "escalation occurred" with no further detail and parrots that exact phrase back to the customer verbatim.
@@ -761,7 +761,7 @@ D) The hook writes the friendly explanation; the model is told only that "escala
 
 **Explanation:**
 - **A (correct):** The clean division is: hook enforces the rule (deterministic), model writes the customer-facing response (natural, context-aware). The hook emits a structured tool_result so the model knows what happened; the model then phrases the explanation in friendly language that fits the conversation. You apply this whenever you combine deterministic enforcement with natural-language UX. It beats the runner-up because moving phrasing into Python loses the model's strength at conversation-aware messaging — every customer gets the same canned line regardless of the case.
-- **B (plausible runner-up):** Writing the user message inside the hook is a real pattern in cases where you want guaranteed wording (e.g., regulatory disclosures). It almost fits because the hook can absolutely produce text. The catch is that you sacrifice the model's ability to tailor the explanation to the conversation (referencing the specific item, customer history, etc.). The signal in the stem is "friendly language," which favors model-authored phrasing.
+- **B:** Writing the user message inside the hook is a real pattern in cases where you want guaranteed wording (e.g., regulatory disclosures). It almost fits because the hook can absolutely produce text. The catch is that you sacrifice the model's ability to tailor the explanation to the conversation (referencing the specific item, customer history, etc.). The signal in the stem is "friendly language," which favors model-authored phrasing.
 - **C:** Dropping the hook reintroduces the probabilistic compliance problem the hook was added to solve. Prompt-only enforcement fits low-stakes rules, not financial caps.
 - **D:** Stripping context from the model produces robotic, repetitive customer messaging. Strict canned-text fits regulatory disclosures, not friendly explanations.
 
@@ -774,21 +774,21 @@ D) The hook writes the friendly explanation; the model is told only that "escala
 A) Run the same single-pass review three times and only flag issues raised by at least two of the three runs, using majority voting to filter false positives from each pass.
 B) Switch to plan mode: have Claude first emit a review plan listing each file and the integration concerns, then execute the plan in a single subsequent call with the full PR.
 C) Increase the model's reasoning budget and re-run a single all-files pass, since the underlying issue is the model not allocating enough thought to each file in the PR.
-D) Use prompt chaining: run a per-file local-review pass for each file, then run a separate cross-file integration pass that reads only the local-review outputs plus a high-level diff.
+D) Use prompt chaining: run a per-file local-review pass for each file, then a cross-file integration pass that reads only the local-review outputs plus a high-level diff.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Prompt chaining — breaking a complex review into sequential focused passes — directly addresses attention dilution. A per-file pass guarantees each file gets full attention; a separate cross-file pass then specializes in integration concerns, working off the local outputs plus a diff. This is the canonical decomposition for multi-file code review. You apply this anywhere a single pass struggles with breadth and depth simultaneously. It beats the runner-up because triple-run majority voting would suppress real bugs that legitimately appear in only one pass (which is common when attention is the bottleneck).
-- **A (plausible runner-up):** Ensembling and majority voting is a real technique and does reduce some classes of noise. It almost fits because it sounds rigorous. The catch is that it doesn't fix the attention-dilution root cause — each run is still a single overloaded pass — and majority voting actively *suppresses* real bugs that only one run catches. The signal in the stem is "some files get deep feedback, others get nothing," pointing at attention, not noise.
-- **C:** Larger reasoning budgets help some tasks but don't fix attention-dilution caused by trying to cover too many files in one context. Bigger budgets fit cases where depth-of-reasoning is the bottleneck, not breadth.
+- **A:** Ensembling and majority voting is a real technique and does reduce some classes of noise. It almost fits because it sounds rigorous. The catch is that it doesn't fix the attention-dilution root cause — each run is still a single overloaded pass — and majority voting actively *suppresses* real bugs that only one run catches. The signal in the stem is "some files get deep feedback, others get nothing," pointing at attention, not noise.
 - **B:** Plan mode produces a list of intents but still funnels execution into one overloaded pass. Plan mode fits exploratory tasks, not capacity bottlenecks.
+- **C:** Larger reasoning budgets help some tasks but don't fix attention-dilution caused by trying to cover too many files in one context. Bigger budgets fit cases where depth-of-reasoning is the bottleneck, not breadth.
+- **D (correct):** Prompt chaining — breaking a complex review into sequential focused passes — directly addresses attention dilution. A per-file pass guarantees each file gets full attention; a separate cross-file pass then specializes in integration concerns, working off the local outputs plus a diff. This is the canonical decomposition for multi-file code review. You apply this anywhere a single pass struggles with breadth and depth simultaneously. It beats the runner-up because triple-run majority voting would suppress real bugs that legitimately appear in only one pass (which is common when attention is the bottleneck).
 
 ---
 
@@ -796,7 +796,7 @@ D) Use prompt chaining: run a per-file local-review pass for each file, then run
 
 **Stem:** An engineer asks Claude to "add comprehensive tests to a 200K-line legacy codebase." A naive sequential pipeline (analyze structure → write tests file by file) takes days and produces low-value tests on rarely-used modules while missing critical paths. You want a smarter task decomposition. Which pattern fits best?
 
-A) Dynamic, adaptive decomposition: first map the codebase structure, identify high-impact areas (entrypoints, hot paths), then create a prioritized plan that adapts as dependencies surface.
+A) Dynamic, adaptive decomposition: map the codebase structure first, identify high-impact areas (entrypoints, hot paths), then build a prioritized plan that adapts as dependencies surface.
 B) Fixed pipeline with parallel fan-out: list every module, spawn parallel subagents to write tests for each, then merge. Speed wins matter most for a codebase this size and shape.
 C) Single-shot generation: provide the codebase root and ask Claude to "add comprehensive tests," relying on its judgment to prioritize without imposing an explicit decomposition pattern.
 D) Strict file-by-file sequential traversal in alphabetical order, with a checklist to ensure every file gets at least one unit test before moving on to the next file in the list.
@@ -811,7 +811,7 @@ D) Strict file-by-file sequential traversal in alphabetical order, with a checkl
 
 **Explanation:**
 - **A (correct):** Open-ended tasks like "add comprehensive tests" benefit from adaptive decomposition: first explore the structure (entrypoints, modules, dependencies), identify high-impact areas, build a prioritized plan, and let the plan evolve as new information surfaces (e.g., a dependency you didn't know about now needs testing first). This is the dynamic-decomposition pattern that suits investigation-style work. You apply this for any task where you don't know the right subtasks until you've looked. It beats the runner-up because parallel fan-out over every module wastes effort on low-impact code and misses prioritization entirely.
-- **B (plausible runner-up):** Parallel fan-out is a real pattern when subtasks are well-defined and independent, and it would indeed be faster than serial execution. It almost fits because parallelism is intuitively appealing for "200K lines." The catch is that the task is open-ended — *what* to test and in what order are the actual hard questions, and parallel fan-out skips the prioritization step. The signal in the stem is "low-value tests on rarely-used modules" — that's a prioritization failure, not a throughput failure.
+- **B:** Parallel fan-out is a real pattern when subtasks are well-defined and independent, and it would indeed be faster than serial execution. It almost fits because parallelism is intuitively appealing for "200K lines." The catch is that the task is open-ended — *what* to test and in what order are the actual hard questions, and parallel fan-out skips the prioritization step. The signal in the stem is "low-value tests on rarely-used modules" — that's a prioritization failure, not a throughput failure.
 - **C:** Single-shot on a 200K-line codebase exceeds practical context and offloads decomposition to the model with no structure. Single-shot fits well-scoped problems.
 - **D:** Alphabetical traversal is the textbook anti-pattern: no signal about impact, just lexical ordering. Strict traversal fits exhaustive bookkeeping, not value-driven testing.
 
@@ -823,22 +823,22 @@ D) Strict file-by-file sequential traversal in alphabetical order, with a checkl
 
 A) Dynamic plans are always preferable because they adapt to the input, so use a dynamic plan even for well-understood, predictable workflows like routine PR review without exception.
 B) Prompt chaining always wins on cost; the marginal value of an adaptive plan is not worth the additional model calls required to decide which passes to run in a given case.
-C) Use prompt chaining because the review concerns are well-defined and consistent across PRs; reserve dynamic decomposition for open-ended investigations whose subtasks aren't known upfront.
+C) Use prompt chaining because the review concerns are well-defined and consistent across every PR; reserve dynamic decomposition for open-ended investigations whose subtasks aren't known.
 D) Use dynamic decomposition because PRs vary, and a static prompt chain risks running unnecessary passes that produce false positives on the unchanged aspects of the codebase.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** Prompt chaining is the right pattern when the concerns are well-defined and stable across runs — PR review has predictable aspects (lint, security, style, integration). A fixed chain is simpler, more predictable, easier to evaluate, and cheaper to operate. Dynamic decomposition shines when you genuinely don't know the subtasks ahead of time (open-ended research, legacy investigation). You apply this distinction whenever you're choosing between a static and adaptive pipeline. It beats the runner-up because skipping passes by topic is a fine optimization but doesn't change the underlying fixed-pipeline judgment for routine review.
-- **D (plausible runner-up):** Routing passes based on what a PR touches is a real optimization (don't run the security scanner on docs-only changes), and there's genuine value in it. It almost fits because PRs do vary. The catch is that the *core review aspects* are still well-defined and consistent; you can layer cheap gates on top of a chain rather than throwing out the chain. The signal in the stem is "routine PR review" — routine implies the structure is known.
 - **A:** "Always preferable" overgeneralizes; the case-against is exactly predictable workflows like PR review. Always-prefer framings fit one-size discussions, not architectural choice.
 - **B:** Cost is real but not the dominant factor — chain vs plan is primarily a fit-to-workflow choice, not a cost choice. Cost-only framings fit budget discussions.
+- **C (correct):** Prompt chaining is the right pattern when the concerns are well-defined and stable across runs — PR review has predictable aspects (lint, security, style, integration). A fixed chain is simpler, more predictable, easier to evaluate, and cheaper to operate. Dynamic decomposition shines when you genuinely don't know the subtasks ahead of time (open-ended research, legacy investigation). You apply this distinction whenever you're choosing between a static and adaptive pipeline. It beats the runner-up because skipping passes by topic is a fine optimization but doesn't change the underlying fixed-pipeline judgment for routine review.
+- **D:** Routing passes based on what a PR touches is a real optimization (don't run the security scanner on docs-only changes), and there's genuine value in it. It almost fits because PRs do vary. The catch is that the *core review aspects* are still well-defined and consistent; you can layer cheap gates on top of a chain rather than throwing out the chain. The signal in the stem is "routine PR review" — routine implies the structure is known.
 
 ---
 
@@ -847,23 +847,23 @@ D) Use dynamic decomposition because PRs vary, and a static prompt chain risks r
 **Stem:** A junior engineer asks: "When should I use prompt chaining versus dynamic adaptive decomposition?" You want to give a one-paragraph rule of thumb that they can apply consistently across both PR-review and codebase-exploration tasks they encounter daily.
 
 A) Always use prompt chaining when speed matters; use dynamic decomposition only for high-stakes tasks where you can afford the extra model calls needed for adaptation.
-B) Use prompt chaining when the subtasks are predictable and the same for every input; use dynamic decomposition when subtasks emerge from intermediate findings during the task.
+B) Use prompt chaining when subtasks are predictable and identical for every PR or input; use dynamic decomposition when the subtasks emerge from intermediate findings mid-task.
 C) Always use dynamic decomposition; prompt chaining is a legacy pattern from before tool use became available and should be avoided in any newly designed agentic workflows.
 D) Use prompt chaining for tasks under 10 steps and dynamic decomposition for tasks over 10 steps; the threshold is the determining factor in choosing between these patterns.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** Speed-vs-cost is a real factor in design choice and there are scenarios where it tilts the decision. It almost fits because chain is generally faster. The catch is that speed isn't the *principled* criterion — it's the structure of the work. You can have a slow chain (many heavy steps) or a fast dynamic plan (few small adaptations). The signal in the stem is "rule of thumb ... consistently across" — the principled answer is more useful than the heuristic.
 - **B (correct):** The rule of thumb is whether subtasks are *predictable from the input* or *emerge during the task*. PR review and many code-gen tasks have predictable subtasks (lint, security, style, integration), so prompt chaining wins on simplicity. Legacy investigation and "add comprehensive tests" tasks discover their subtasks along the way, so dynamic decomposition wins. You apply this distinction across most agentic workflow design choices. It beats the runner-up because cost/speed framings miss the real driver — predictability of structure.
-- **A (plausible runner-up):** Speed-vs-cost is a real factor in design choice and there are scenarios where it tilts the decision. It almost fits because chain is generally faster. The catch is that speed isn't the *principled* criterion — it's the structure of the work. You can have a slow chain (many heavy steps) or a fast dynamic plan (few small adaptations). The signal in the stem is "rule of thumb ... consistently across" — the principled answer is more useful than the heuristic.
-- **D:** A step-count threshold isn't a real architectural criterion; some 5-step tasks need adaptation and some 20-step tasks are perfectly predictable. Count-based heuristics fit budgeting, not decomposition choice.
 - **C:** Prompt chaining is alive and well — it's the right pattern for many workflows. "Legacy" framings fit deprecated APIs, not active design patterns.
+- **D:** A step-count threshold isn't a real architectural criterion; some 5-step tasks need adaptation and some 20-step tasks are perfectly predictable. Count-based heuristics fit budgeting, not decomposition choice.
 
 ---
 
@@ -873,22 +873,22 @@ D) Use prompt chaining for tasks under 10 steps and dynamic decomposition for ta
 
 A) Drop the local passes and give the integration pass the entire raw PR diff so it has full context for both local and cross-file reasoning at integration time.
 B) Run the integration pass three times with different seed prompts and union the bugs found, increasing the chance that integration issues are caught at least once.
-C) Have the integration pass receive structured local-pass outputs (per-file summary + key signatures) plus a focused view of inter-file interfaces (function signatures, imports, schemas).
+C) Have the integration pass receive structured local-pass outputs (per-file summaries + key signatures) plus a focused view of inter-file interfaces.
 D) Add an LLM-judge stage after the integration pass that critiques the cross-file findings and re-prompts the integration pass to look for missed issues until convergence.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The integration pass needs enough cross-file context to reason about interactions, but not the entire codebase (that's what attention dilution looks like). The right input is a structured combination: per-file summaries from the local passes plus a focused view of the interfaces between files (function signatures, imports, schemas, types). This gives the integration pass the *minimum sufficient* context to reason about cross-file effects. You apply this whenever you're tuning a stage in a chain to have the right input scope. It beats the runner-up because LLM-judge loops add latency and cost without addressing the underlying input-completeness problem.
-- **D (plausible runner-up):** LLM-as-judge with reflection is a real, useful technique and would catch some additional bugs through iterative critique. It almost fits because more passes do find more bugs. The catch is that you're working around a missing-input problem with more reasoning over insufficient information; provide the right inputs and the first pass succeeds. The signal in the stem is "lacks context to reason about how files interact" — that's an input problem, not a reasoning-depth problem.
 - **A:** Dropping local passes regresses to the original attention-dilution problem on large PRs. Full-diff fits small PRs.
 - **B:** Multiple seeds union doesn't address the input-completeness gap; it just runs the same incomplete view repeatedly. Multi-seed unioning fits diverse-output generation, not coverage gaps.
+- **C (correct):** The integration pass needs enough cross-file context to reason about interactions, but not the entire codebase (that's what attention dilution looks like). The right input is a structured combination: per-file summaries from the local passes plus a focused view of the interfaces between files (function signatures, imports, schemas, types). This gives the integration pass the *minimum sufficient* context to reason about cross-file effects. You apply this whenever you're tuning a stage in a chain to have the right input scope. It beats the runner-up because LLM-judge loops add latency and cost without addressing the underlying input-completeness problem.
+- **D:** LLM-as-judge with reflection is a real, useful technique and would catch some additional bugs through iterative critique. It almost fits because more passes do find more bugs. The catch is that you're working around a missing-input problem with more reasoning over insufficient information; provide the right inputs and the first pass succeeds. The signal in the stem is "lacks context to reason about how files interact" — that's an input problem, not a reasoning-depth problem.
 
 ---
 
@@ -896,7 +896,7 @@ D) Add an LLM-judge stage after the integration pass that critiques the cross-fi
 
 **Stem:** An engineer asks Claude to "find all places in this codebase that handle authentication, summarize the patterns, and propose a refactor." The current single-pass approach gets bogged down: the model reads dozens of files but produces a shallow summary and a vague refactor proposal. Which task decomposition fits this open-ended exploration best?
 
-A) Decompose adaptively: (1) survey the codebase for auth-related touchpoints, (2) gather details per touchpoint, (3) synthesize patterns, (4) propose refactor, adapting as findings emerge.
+A) Decompose adaptively: (1) survey the codebase for auth touchpoints, (2) gather details per touchpoint, (3) synthesize patterns, (4) propose refactor, adapting as findings emerge.
 B) Run three parallel single-pass agents with different prompts ("find handlers," "summarize," "propose refactor") and merge their outputs into one final report at the end of the run.
 C) Use the same single-pass prompt but truncate the codebase input to the largest 30 files by line count, since the model is being distracted by lots of small irrelevant files in the input.
 D) Spawn one subagent per file in the repo to summarize each file's auth involvement, then aggregate all summaries into a single refactor proposal across the codebase as a whole.
@@ -905,15 +905,15 @@ D) Spawn one subagent per file in the repo to summarize each file's auth involve
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** This is a textbook case for adaptive, multi-stage decomposition: survey first (you don't know where auth lives), gather details (per touchpoint), then synthesize, then propose. Each stage adapts to what the previous stage found — a touchpoint surfaced in step 1 might lead to deeper investigation in step 2. You apply this whenever exploration must precede prescription. It beats the runner-up because spawning a per-file subagent over the entire repo wastes effort on files that have nothing to do with auth and misses the prioritization that surveying-first enables.
-- **D (plausible runner-up):** Per-file subagents over the whole repo is a real pattern when you know every file is relevant. It almost fits because it's parallelizable and thorough. The catch is that most files won't have auth touchpoints at all; you'd burn cost reading docs/, build configs, and unrelated modules. The signal in the stem is "find all places that handle authentication" — that's a *targeted* exploration, not an everything-everywhere pass.
 - **B:** Parallel agents with different prompts produces three disjoint views that don't compound; the refactor agent never sees enough findings. Disjoint parallel agents fit independent tasks, not sequential reasoning.
 - **C:** Largest-files-by-line-count is a heuristic uncorrelated with auth relevance. Size-based filtering fits performance, not relevance.
+- **D:** Per-file subagents over the whole repo is a real pattern when you know every file is relevant. It almost fits because it's parallelizable and thorough. The catch is that most files won't have auth touchpoints at all; you'd burn cost reading docs/, build configs, and unrelated modules. The signal in the stem is "find all places that handle authentication" — that's a *targeted* exploration, not an everything-everywhere pass.
 
 ---
 
@@ -922,21 +922,21 @@ D) Spawn one subagent per file in the repo to summarize each file's auth involve
 **Stem:** A developer is in the middle of a long refactoring session with Claude Code, has stepped away for the day, and wants to come back tomorrow and pick up exactly where they left off, with the same prior reasoning and tool history. Which mechanism best supports this workflow?
 
 A) Save the conversation transcript to a file, then paste the transcript into a brand-new Claude Code session tomorrow as the first user message to recreate full context.
-B) Use `--resume <session-name>` to continue the named investigation session tomorrow, picking up the prior reasoning, tool history, and context from where it left off.
+B) Use `--resume <session-name>` to continue the named investigation session tomorrow, picking up the prior reasoning, the tool history, and the context from where it left off.
 C) Use `fork_session` to spawn an independent branch from today's session at end-of-day, then return to that branch tomorrow as the continuation of the prior work.
 D) Use `/clear` to reset the session today, then re-run the entire refactor request tomorrow from scratch and rely on Claude to rebuild the same reasoning anew.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Transcript-paste-as-context is a real workaround when resume isn't available and is the right call when prior tool results are stale and need re-grounding. It almost fits because it does recreate *some* context. The catch is that you lose the structured history and pay tokens to re-introduce it; if the session-name mechanism works, it's strictly better. The signal in the stem is "pick up exactly where they left off, with the same prior reasoning and tool history" — that's resume's purpose.
 - **B (correct):** Named session resumption via `--resume <session-name>` is exactly the mechanism for this workflow: continuing a specific prior conversation across work sessions. The full prior context — tool history, reasoning, file analyses — comes back intact. You apply this any time you want to pick up a long-running task tomorrow without rebuilding state. It beats the runner-up because pasting a transcript is brittle (long pastes inflate cost, formatting can break, and structured prior turns don't fully translate to a single user message).
-- **A (plausible runner-up):** Transcript-paste-as-context is a real workaround when resume isn't available and is the right call when prior tool results are stale and need re-grounding. It almost fits because it does recreate *some* context. The catch is that you lose the structured history and pay tokens to re-introduce it; if the session-name mechanism works, it's strictly better. The signal in the stem is "pick up exactly where they left off, with the same prior reasoning and tool history" — that's resume's purpose.
 - **C:** `fork_session` creates a *new branch* from an existing point; it's for divergent exploration, not continuation of the same line of work. Forking fits A/B comparison.
 - **D:** `/clear` deletes state and re-running from scratch is the opposite of what's wanted. Clearing fits starting over deliberately, not resumption.
 
@@ -948,22 +948,22 @@ D) Use `/clear` to reset the session today, then re-run the entire refactor requ
 
 A) Resume the session and continue immediately, since Claude will detect file changes by re-running the original tool calls during its next reasoning step automatically anyway.
 B) Resume the session and add a short message saying "the codebase has changed," letting Claude figure out exactly what changed by exploring the repo with its existing tools.
-C) Resume the session and explicitly tell Claude which files have changed (module renames, auth refactor), so it can targeted-re-analyze only the affected files rather than full re-exploration.
+C) Resume the session and tell Claude which files changed (module renames, auth refactor), so it targeted-re-analyzes only the affected files instead of full re-exploration.
 D) Start a fresh session and paste yesterday's outline plus a summary of overnight changes; resume is unsafe whenever any file has been touched between work sessions of this kind.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** When resuming a session after code changes, the most reliable pattern is to *inform the agent about which specific files changed* so it can do targeted re-analysis. The prior context (outline, partial reasoning) is still valuable; you just need to invalidate the parts that touched the renamed modules and auth layer. You apply this whenever you resume after file modifications. It beats the runner-up because starting fresh is overkill when most prior analysis is still valid, and it loses the structured reasoning history.
-- **D (plausible runner-up):** Starting fresh with an injected summary is the right call when prior tool results are *substantially* stale or you don't trust the session state at all. It almost fits because it definitively avoids stale-state risk. The catch is that here only a portion of the code changed; throwing away yesterday's full analysis wastes work. The signal in the stem is the targeted scope of the change — three modules and the auth layer, not the whole codebase.
 - **A:** Claude won't re-run tool calls unless prompted to; resumed sessions carry prior tool_results as if they're current. Auto-re-analysis isn't a feature.
 - **B:** "Figure out what changed" forces full re-exploration and wastes cost; you already know the specifics. Open-ended discovery fits cases where you don't know the delta.
+- **C (correct):** When resuming a session after code changes, the most reliable pattern is to *inform the agent about which specific files changed* so it can do targeted re-analysis. The prior context (outline, partial reasoning) is still valuable; you just need to invalidate the parts that touched the renamed modules and auth layer. You apply this whenever you resume after file modifications. It beats the runner-up because starting fresh is overkill when most prior analysis is still valid, and it loses the structured reasoning history.
+- **D:** Starting fresh with an injected summary is the right call when prior tool results are *substantially* stale or you don't trust the session state at all. It almost fits because it definitively avoids stale-state risk. The catch is that here only a portion of the code changed; throwing away yesterday's full analysis wastes work. The signal in the stem is the targeted scope of the change — three modules and the auth layer, not the whole codebase.
 
 ---
 
@@ -974,21 +974,21 @@ D) Start a fresh session and paste yesterday's outline plus a summary of overnig
 A) Start two fresh sessions and paste the analysis into each first user message, then explore each strategy independently in its own fresh standalone Claude Code session.
 B) Resume the original session twice (once per strategy) and let Claude switch between approaches based on user prompts; rely on Claude to keep the strategies mentally separate.
 C) Use `--resume` on the original session, work through the caching strategy fully, then start fresh for the validation strategy after the first is complete and decided upon.
-D) Use `fork_session` to create two divergent branches from the shared analysis baseline, then explore each strategy independently in its own branch with the prior context intact.
+D) Use `fork_session` to create two divergent branches from the shared analysis baseline, then explore each strategy in its own branch with prior context intact.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** `fork_session` is purpose-built for divergent exploration from a shared baseline. You keep the codebase analysis once and branch into two independent threads that explore different fix strategies without contaminating each other or duplicating the analysis. You apply this anywhere you want to A/B explore from a common starting point — strategies, refactors, designs. It beats the runner-up because paste-based bootstrap retokenizes the analysis into each fresh session and loses the structured history.
-- **A (plausible runner-up):** Paste-into-fresh is the right workaround when fork isn't available, and it does isolate the branches. It almost fits because isolation is the goal. The catch is that pasting reintroduces the analysis as a user-message block rather than as the same structured history, costing more tokens and risking transcription gaps. The signal in the stem is "the same shared codebase analysis" — fork preserves that as state, paste recreates it as text.
+- **A:** Paste-into-fresh is the right workaround when fork isn't available, and it does isolate the branches. It almost fits because isolation is the goal. The catch is that pasting reintroduces the analysis as a user-message block rather than as the same structured history, costing more tokens and risking transcription gaps. The signal in the stem is "the same shared codebase analysis" — fork preserves that as state, paste recreates it as text.
 - **B:** Switching between strategies in the same session contaminates context — yesterday's caching reasoning bleeds into today's validation thinking. Single-thread switching fits sequential tasks.
 - **C:** Sequential exploration doesn't satisfy "in parallel" and gives up the comparison benefit of seeing both end-states. Sequential fits when one strategy must finish before the other can begin.
+- **D (correct):** `fork_session` is purpose-built for divergent exploration from a shared baseline. You keep the codebase analysis once and branch into two independent threads that explore different fix strategies without contaminating each other or duplicating the analysis. You apply this anywhere you want to A/B explore from a common starting point — strategies, refactors, designs. It beats the runner-up because paste-based bootstrap retokenizes the analysis into each fresh session and loses the structured history.
 
 ---
 
@@ -1005,14 +1005,14 @@ D) Switch to a smaller, faster model on the same session; smaller models will re
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** When prior tool results are stale enough to cause confusion — file contents the agent saw yesterday don't match today's code — starting a fresh session with a structured summary is more reliable than trying to patch the resumed session. The summary preserves the *conclusions* and current state; the fresh tool calls re-ground the agent in the current code. You apply this whenever staleness has already produced confused behavior, or when you anticipate it will. It beats the runner-up because re-Read'ing files inside a resumed session leaves the old tool_results in history, where they can still pollute reasoning even after fresh reads.
-- **C (plausible runner-up):** Re-running Read inside the resumed session is a real fix attempt and would provide updated content. It almost fits because the new tool_results do contain current data. The catch is that prior tool_results (from yesterday) remain in the conversation history; Claude can still "remember" the old signatures from those older turns. The signal in the stem is "production-affecting confusion is starting" — the higher-reliability move is to start fresh with a clean ground truth.
 - **B:** "Forget yesterday" is a natural-language nudge that the model can't honor — past turns are in the context, period. Pseudo-resets fit cosmetic preferences, not state hygiene.
+- **C:** Re-running Read inside the resumed session is a real fix attempt and would provide updated content. It almost fits because the new tool_results do contain current data. The catch is that prior tool_results (from yesterday) remain in the conversation history; Claude can still "remember" the old signatures from those older turns. The signal in the stem is "production-affecting confusion is starting" — the higher-reliability move is to start fresh with a clean ground truth.
 - **D:** Model size doesn't change what's in the conversation history. Smaller models would still see the stale tool_results.
 
 ---
@@ -1023,22 +1023,22 @@ D) Switch to a smaller, faster model on the same session; smaller models will re
 
 A) Always resume to preserve token cost and avoid rebuilding state; even when prior context is wrong, the model can correct itself within a few turns of the resumed session.
 B) Always start fresh to ensure a clean slate; resume is unreliable and can be confusing when prior reasoning intersects with current file state in any nontrivial way.
-C) Resume when prior context is mostly still valid; start fresh with a summary when prior tool results are substantially stale or the work direction has materially changed.
+C) Resume when the prior context is mostly still valid; start fresh with a summary when prior tool results are substantially stale or when the work direction has materially changed.
 D) Resume only if less than 24 hours have passed since the last session; after 24 hours, prior tool results should always be considered stale and a fresh session is required.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The clean criterion is staleness of prior context. If yesterday's analysis, tool results, and reasoning are still mostly valid, resume preserves valuable structured state and avoids rebuilding. If prior tool results no longer reflect reality (files moved/renamed/refactored) or the work direction has changed (you've decided to take a different approach), start fresh with a summary that captures the conclusions you want to keep. You apply this rule of thumb whenever you face the resume-vs-restart choice. It beats the runner-up because a time-based threshold (24 hours) is a proxy that misses the real question — what *actually changed* since last time.
-- **D (plausible runner-up):** A time-based rule is operationally simple and would push people toward freshness, which is mostly safe. It almost fits because most stale-context cases happen across long gaps. The catch is that *minutes* of file changes can invalidate a session, and *days* of pure thinking work can leave prior context perfectly valid. The signal in the stem is "rule of thumb ... long-running investigations" — the principled criterion is staleness, not elapsed time.
 - **A:** "Always resume" ignores cases where prior tool results are wrong, leading exactly to the failures discussed in TS 1.7. Always-prefer framings fit one-size discussions.
 - **B:** "Always start fresh" throws away the cost savings and structured reasoning that resume preserves. Always-restart fits volatile environments, not long investigations.
+- **C (correct):** The clean criterion is staleness of prior context. If yesterday's analysis, tool results, and reasoning are still mostly valid, resume preserves valuable structured state and avoids rebuilding. If prior tool results no longer reflect reality (files moved/renamed/refactored) or the work direction has changed (you've decided to take a different approach), start fresh with a summary that captures the conclusions you want to keep. You apply this rule of thumb whenever you face the resume-vs-restart choice. It beats the runner-up because a time-based threshold (24 hours) is a proxy that misses the real question — what *actually changed* since last time.
+- **D:** A time-based rule is operationally simple and would push people toward freshness, which is mostly safe. It almost fits because most stale-context cases happen across long gaps. The catch is that *minutes* of file changes can invalidate a session, and *days* of pure thinking work can leave prior context perfectly valid. The signal in the stem is "rule of thumb ... long-running investigations" — the principled criterion is staleness, not elapsed time.
 
 ---
 
@@ -1054,24 +1054,21 @@ D) Have the coordinator pick whichever fork's report is longer (more thorough) a
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Concatenate-and-merge is a real, common pattern in practice and works for low-stakes summarization. It almost fits because it does technically combine the two streams. The catch is that "merge findings" via free-text concatenation loses structure: which claim came from which fork, which evidence supports which claim, where the contradictions are. The signal in the stem is "preserves rigor" — that demands structure.
 - **B (correct):** Structured findings payloads — claims with evidence and confidence — make integration tractable. The coordinator can deduplicate, reconcile contradictions, flag disagreements for human review, and produce a single coherent report that *preserves* the value of having explored two hypotheses. You apply this any time you fan out and need to merge back rigorously. It beats the runner-up because raw-transcript concatenation forces the model to re-derive everything and is the textbook recipe for losing track of attribution, evidence, and contradictions.
-- **A (plausible runner-up):** Concatenate-and-merge is a real, common pattern in practice and works for low-stakes summarization. It almost fits because it does technically combine the two streams. The catch is that "merge findings" via free-text concatenation loses structure: which claim came from which fork, which evidence supports which claim, where the contradictions are. The signal in the stem is "preserves rigor" — that demands structure.
 - **C:** Discarding the lower-confidence fork throws away the divergent exploration the fork was meant to enable. Confidence-only selection fits ensemble winner-take-all, not exploratory branching.
 - **D:** Length is uncorrelated with quality; longer reports aren't more correct. Length-based selection isn't an architectural pattern, it's a heuristic gone wrong.
 
+---
+
 
 ## Domain 2: Tool Design & MCP Integration
-
-
-42 scenario-based questions across 5 task statements.
-
----
 
 ### Q1 | Scenario 3 | TS 2.1 | difficulty: medium
 
@@ -1085,16 +1082,16 @@ D) Wrap both tools in a single dispatcher tool that internally inspects the inpu
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** Tool descriptions are the primary signal Claude uses for selection, and overlapping descriptions are the root cause of misrouting here. Renaming one tool to reflect its actual specialty plus rewriting both descriptions with non-overlapping input contracts eliminates the ambiguity at its source. You reach for this pattern any time near-duplicate tools cause routing errors, since interface-level fixes are more durable than prompt-level patches. It beats the dispatcher option because it preserves direct, observable tool calls and keeps each analyzer's purpose visible to the model.
-- **D (plausible runner-up):** A dispatcher tool is a legitimate pattern when you genuinely want to hide implementation details or when input detection is non-trivial. It would also reduce selection errors here because the model only sees one tool. However, it adds a layer that obscures which analyzer ran, complicates error diagnosis, and does not fix the underlying design flaw of redundant tools. The stem emphasizes that selection reliability is the goal, which points toward clearer interfaces rather than hiding them.
 - **A:** Prompt rules cannot reliably override ambiguous tool descriptions because the model weights descriptions heavily during selection. This pattern fits cases where descriptions are already clear but you want to enforce sequencing.
 - **B:** Few-shot examples raise compliance probabilistically but do not eliminate selection errors when the tools themselves remain indistinguishable. Few-shots are appropriate when behavior nuances cannot be captured in descriptions.
+- **C (correct):** Tool descriptions are the primary signal Claude uses for selection, and overlapping descriptions are the root cause of misrouting here. Renaming one tool to reflect its actual specialty plus rewriting both descriptions with non-overlapping input contracts eliminates the ambiguity at its source. You reach for this pattern any time near-duplicate tools cause routing errors, since interface-level fixes are more durable than prompt-level patches. It beats the dispatcher option because it preserves direct, observable tool calls and keeps each analyzer's purpose visible to the model.
+- **D:** A dispatcher tool is a legitimate pattern when you genuinely want to hide implementation details or when input detection is non-trivial. It would also reduce selection errors here because the model only sees one tool. However, it adds a layer that obscures which analyzer ran, complicates error diagnosis, and does not fix the underlying design flaw of redundant tools. The stem emphasizes that selection reliability is the goal, which points toward clearer interfaces rather than hiding them.
 
 ---
 
@@ -1102,23 +1099,23 @@ D) Wrap both tools in a single dispatcher tool that internally inspects the inpu
 
 **Stem:** A new junior engineer added a tool called `process_refund` to your support agent with the description "Processes a refund." During QA you observe Claude calling it for store-credit requests, partial returns, and goodwill gestures — none of which the underlying API actually supports. The engineer asks what to change first before touching any code. What is the highest-leverage edit?
 
-A) Rewrite the tool description to specify input format, the exact refund types supported, when to use it versus `escalate_to_human`, and example cases.
-B) Add a runtime validator that rejects refund calls outside the supported types and returns a generic error message to the agent.
-C) Replace the tool with three new tools named `refund_full`, `refund_partial`, and `refund_store_credit` before doing any description work.
-D) Add a system prompt paragraph listing all the situations where refunds should and should not be processed by the support agent.
+A) Rewrite the tool description to specify the input format, the exact refund types supported, when to use it versus `escalate_to_human`, plus example cases for each path.
+B) Add a runtime validator that rejects refund calls outside the supported types and returns a generic error message to the agent without describing the supported set.
+C) Replace the tool with three new tools named `refund_full`, `refund_partial`, and `refund_store_credit` before doing any tool description or system prompt work.
+D) Add a system prompt paragraph listing all the situations where refunds should and should not be processed by the support agent for each customer case category.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Minimal tool descriptions are the primary cause of unreliable selection, so the first move is to give the description input formats, supported edge cases, and boundary explanations versus similar tools. This applies the principle that descriptions are the highest-leverage surface for steering selection. The same approach applies whenever an existing tool is being mis-selected and the underlying capability does not need to change. It beats splitting the tool because we have not yet established that the single tool cannot be made clear with a better description.
-- **C (plausible runner-up):** Splitting generic tools into purpose-specific tools is a real and valuable pattern when one tool serves multiple distinct workflows. It would in fact narrow misuse here. The reason it is not the first move is that the question asks for the highest-leverage edit before touching code, and tool splits require code changes plus contract redesign. A clearer description should be tried before a structural rewrite.
 - **B:** Runtime validators with generic errors give the agent no information to recover and waste a turn. Validators are useful, but only when paired with structured error metadata.
+- **C:** Splitting generic tools into purpose-specific tools is a real and valuable pattern when one tool serves multiple distinct workflows. It would in fact narrow misuse here. The reason it is not the first move is that the question asks for the highest-leverage edit before touching code, and tool splits require code changes plus contract redesign. A clearer description should be tried before a structural rewrite.
 - **D:** System prompt text about refund policy cannot reliably override a vague tool description that the model reads at selection time. Prompt rules supplement clear tools but cannot replace them.
 
 ---
@@ -1127,23 +1124,23 @@ D) Add a system prompt paragraph listing all the situations where refunds should
 
 **Stem:** Your developer-productivity agent has a `query_repo` tool with the description: "Use this tool whenever the user asks about anything in the repository, including code, history, configuration, or documentation." Engineers report that the agent calls `query_repo` even when a simple Read of a known file would suffice, slowing every interaction. The team suspects the description itself is the problem. What is the best fix?
 
-A) Reduce model temperature so that the agent makes more deterministic tool choices and reverts to Read when a path is supplied.
-B) Tighten `query_repo`'s description to a narrow purpose (e.g., natural-language repository search) and explicitly direct path-based reads to the Read tool.
-C) Remove `query_repo` from the agent's tool set entirely and rely only on Read, Grep, and Glob for all repository exploration tasks.
-D) Lower the priority of `query_repo` in the system prompt by listing it last and discouraging its use except as a last resort.
+A) Reduce model temperature so the agent makes more deterministic tool choices and reverts to Read whenever a path is supplied directly in the user message.
+B) Tighten `query_repo`'s description to a narrow purpose (natural-language repository search) and explicitly direct path-based reads to the Read tool.
+C) Remove `query_repo` from the agent's tool set entirely and rely only on Read, Grep, and Glob for all repository exploration tasks across the codebase.
+D) Lower the priority of `query_repo` in the system prompt by listing it last and discouraging its use except as a last resort when other tools fail.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (plausible-correct):** Overly broad tool descriptions cause overuse because the model interprets them as catch-alls. Narrowing the description to a specific purpose and pointing the model to the right alternative for adjacent cases is the canonical fix. You apply this any time a single tool is absorbing calls that should be handled by simpler tools. It beats the removal option because `query_repo` still has a legitimate niche for semantic search; the fix is to restore boundaries, not delete the capability.
-- **C (plausible runner-up):** Removing the tool would eliminate misuse and is a valid move when a tool offers nothing the built-ins cannot match. The reason it is not the right call here is that natural-language repository search is genuinely useful for ambiguous questions where Grep patterns are not obvious. The stem signals that the issue is over-triggering, not absence of value, so boundary-tightening preserves the capability where it earns its place.
 - **A:** Temperature changes do not meaningfully alter tool selection between clearly-described alternatives; the model still reads the broad description as inviting. Temperature tuning is appropriate for output diversity, not tool routing.
+- **B (correct):** Overly broad tool descriptions cause overuse because the model interprets them as catch-alls. Narrowing the description to a specific purpose and pointing the model to the right alternative for adjacent cases is the canonical fix. You apply this any time a single tool is absorbing calls that should be handled by simpler tools. It beats the removal option because `query_repo` still has a legitimate niche for semantic search; the fix is to restore boundaries, not delete the capability.
+- **C:** Removing the tool would eliminate misuse and is a valid move when a tool offers nothing the built-ins cannot match. The reason it is not the right call here is that natural-language repository search is genuinely useful for ambiguous questions where Grep patterns are not obvious. The stem signals that the issue is over-triggering, not absence of value, so boundary-tightening preserves the capability where it earns its place.
 - **D:** Ordering in the system prompt is a weak signal compared with the tool description itself. Reordering tools is a fine cosmetic step but does not solve description-driven over-selection.
 
 ---
@@ -1152,24 +1149,24 @@ D) Lower the priority of `query_repo` in the system prompt by listing it last an
 
 **Stem:** Your research coordinator's system prompt opens with: "Always search the web first for the most recent information." You later add an internal MCP tool `search_internal_kb` for proprietary documents. Logs show the agent now skips `search_internal_kb` even when the user asks about internal product specs. The tool description for `search_internal_kb` is well-written. What is the most likely cause and best mitigation?
 
-A) The MCP server response latency is too high, so Claude is silently timing out and falling back to the web search tool every time.
-B) Internal KB results have not been embedded for semantic search yet, so re-indexing the corpus will solve the routing issue.
-C) The system prompt's keyword-sensitive instruction is biasing tool selection toward web search; rewrite the prompt to route by question type.
-D) The MCP tool name should be prefixed with the server identifier so Claude treats it as a first-class option instead of an external tool.
+A) The MCP server response latency is too high, so Claude is silently timing out and falling back to the web search tool every time a question is asked.
+B) Internal KB results have not been embedded for semantic search yet, so re-indexing the corpus will solve the routing issue across the agent.
+C) The system prompt's keyword-sensitive instruction is biasing tool selection toward web search; rewrite it to route by question type.
+D) The MCP tool name should be prefixed with the server identifier so Claude treats it as a first-class option instead of an external tool source.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** System prompt wording can override well-written tool descriptions when it contains keyword-sensitive directives, and "always search the web first" is exactly such a directive. The fix is to revise the prompt to route by question type — internal product questions go to `search_internal_kb` and external/current-events questions go to the web tool. You apply this principle any time a strongly-worded prompt clause is shaping selection contrary to the available tool set. It beats the naming-prefix idea because Claude does not need namespacing cues to recognize an MCP tool; it needs the prompt to stop overriding the description.
-- **D (plausible runner-up):** Naming conventions and prefixes can sometimes improve discoverability when many tools share similar names. The reason it is not the answer here is that the description is already well-written, and Claude does not require prefixes to use MCP tools effectively. The stem points squarely at a prompt-vs-description conflict, which prefixes do not address.
 - **A:** No evidence in the stem suggests timeouts; the issue is selection bias, not connectivity. Timeout investigation is appropriate when calls fail rather than when they are never attempted.
 - **B:** Embedding/re-indexing is unrelated to whether Claude chooses to call the tool; that is a content-quality concern, not a routing concern.
+- **C (correct):** System prompt wording can override well-written tool descriptions when it contains keyword-sensitive directives, and "always search the web first" is exactly such a directive. The fix is to revise the prompt to route by question type — internal product questions go to `search_internal_kb` and external/current-events questions go to the web tool. You apply this principle any time a strongly-worded prompt clause is shaping selection contrary to the available tool set. It beats the naming-prefix idea because Claude does not need namespacing cues to recognize an MCP tool; it needs the prompt to stop overriding the description.
+- **D:** Naming conventions and prefixes can sometimes improve discoverability when many tools share similar names. The reason it is not the answer here is that the description is already well-written, and Claude does not require prefixes to use MCP tools effectively. The stem points squarely at a prompt-vs-description conflict, which prefixes do not address.
 
 ---
 
@@ -1177,23 +1174,23 @@ D) The MCP tool name should be prefixed with the server identifier so Claude tre
 
 **Stem:** Your support agent has a tool `verify_account` whose description reads "Verifies a customer account." Traces show the agent calling `verify_account` on every turn, even for greetings and general policy questions, padding latency. A reviewer suggests the description should also state when *not* to use the tool. Which revised description best applies this principle?
 
-A) "Verifies a customer account. Returns customer ID, status, and tier. The most reliable way to confirm caller identity in our system."
-B) "Verifies an account. Input: a customer email or phone number. Output: a verified customer record with ID, status, and account tier."
-C) "Verifies caller identity before account-modifying actions (refunds, address changes). Do not call for greetings, FAQs, or general policy questions."
-D) "Calls the verification microservice and returns a JSON object containing customer details. Use whenever account information might be relevant."
+A) "Verifies a customer account. Returns customer ID, status, and tier. The most reliable way to confirm caller identity in the support system."
+B) "Verifies an account. Input: a customer email or phone number. Output: a verified customer record with ID, status, account tier, and email."
+C) "Verifies caller identity before account-modifying actions (refunds, address changes). Do not call for greetings or general FAQ."
+D) "Calls the verification microservice and returns a JSON object containing customer details. Use whenever account information might be relevant to the turn."
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Good tool descriptions include not just *what* the tool does and its inputs/outputs but also explicit boundary explanations — when to call it and when not to. The "do not call for" clause directly addresses the over-triggering pattern. You apply this any time a tool is being invoked outside its intended scope and the cost of false positives is meaningful (latency, billing, side effects). It beats the input/output-only description because that revision teaches the model what the tool returns but not when invocation is appropriate.
-- **B (plausible runner-up):** Specifying inputs and outputs in a tool description is genuinely important and is part of a complete description. The reason this revision falls short is that it does not address the over-triggering issue at all; the model already knows what the tool returns. The stem specifically asks about a description that states when not to use the tool.
 - **A:** A confidence-boosting line like "the most reliable way" actually encourages more invocations, worsening the problem. This kind of phrasing belongs in marketing copy, not tool descriptions.
+- **B:** Specifying inputs and outputs in a tool description is genuinely important and is part of a complete description. The reason this revision falls short is that it does not address the over-triggering issue at all; the model already knows what the tool returns. The stem specifically asks about a description that states when not to use the tool.
+- **C (correct):** Good tool descriptions include not just *what* the tool does and its inputs/outputs but also explicit boundary explanations — when to call it and when not to. The "do not call for" clause directly addresses the over-triggering pattern. You apply this any time a tool is being invoked outside its intended scope and the cost of false positives is meaningful (latency, billing, side effects). It beats the input/output-only description because that revision teaches the model what the tool returns but not when invocation is appropriate.
 - **D:** This description tells the model to use the tool "whenever account information might be relevant" — the opposite of what we need. Implementation-detail descriptions like "calls the verification microservice" are also unhelpful for selection.
 
 ---
@@ -1202,22 +1199,22 @@ D) "Calls the verification microservice and returns a JSON object containing cus
 
 **Stem:** Your developer agent has a single `analyze_document` MCP tool used for three distinct workflows: extracting structured fields, summarizing for executives, and verifying claims against a source. Users report that summaries sometimes contain extracted-field artifacts, and field extraction occasionally returns prose. The team wants a structural fix that improves both reliability and observability. What change applies the right principle?
 
-A) Add a `mode` parameter to `analyze_document` that callers must set to "extract", "summarize", or "verify" before the agent invokes it.
-B) Split `analyze_document` into `extract_data_points`, `summarize_content`, and `verify_claim_against_source`, each with focused descriptions and contracts.
-C) Keep `analyze_document` but tune the underlying prompt to produce conditional output based on inferred user intent during execution.
-D) Add a routing rule in the system prompt that tells Claude which of the three workflows applies and how to phrase the tool call.
+A) Add a `mode` parameter to `analyze_document` that callers must set to "extract", "summarize", or "verify" before the agent invokes the tool.
+B) Split `analyze_document` into `extract_data_points`, `summarize_content`, and `verify_claim_against_source` with focused descriptions.
+C) Keep `analyze_document` but tune the underlying prompt to produce conditional output based on inferred user intent during execution at runtime.
+D) Add a routing rule in the system prompt that tells Claude which of the three workflows applies and how to phrase the resulting tool call.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** A mode parameter is a real refactoring option and is sometimes preferable when the three workflows share substantial setup or auth logic. It would partially solve the variability problem because the agent has to commit to a mode at call time. The reason it loses here is that it still presents one tool whose description must straddle three purposes, and selection-time signals stay muddied. Splitting yields cleaner descriptions and cleaner contracts.
 - **B (correct):** Splitting a generic tool into purpose-specific tools with defined input/output contracts is the canonical fix when one tool conflates multiple workflows. Each new tool gets a clear description and predictable output shape, which improves both selection and observability. You reach for this pattern whenever a single tool's outputs vary widely across invocations and the variability is driven by mode rather than data. It beats the mode-parameter approach because separate tools give the model clearer signals during selection and make traces easier to filter by intent.
-- **A (plausible runner-up):** A mode parameter is a real refactoring option and is sometimes preferable when the three workflows share substantial setup or auth logic. It would partially solve the variability problem because the agent has to commit to a mode at call time. The reason it loses here is that it still presents one tool whose description must straddle three purposes, and selection-time signals stay muddied. Splitting yields cleaner descriptions and cleaner contracts.
 - **C:** Inference-from-intent inside the tool just moves the ambiguity downstream and worsens observability, since logs no longer show what the agent intended.
 - **D:** Prompt rules to disambiguate workflows are weak compared to interface-level splits, since the model still sees one tool with overlapping uses.
 
@@ -1227,23 +1224,23 @@ D) Add a routing rule in the system prompt that tells Claude which of the three 
 
 **Stem:** You are designing a new MCP tool to load a research document by URL for the analysis subagent. A colleague drafts the description as "Loads a document." Your style guide requires every tool description to differentiate the tool's purpose from alternatives, specify expected inputs and outputs, and indicate when to use it. Which revised description best meets the guide?
 
-A) "Loads a document. Supports many URL types and many file formats. Use whenever the agent needs document content."
-B) "Loads documents efficiently from the web with retry logic and caching for improved performance during research workflows."
-C) "Fetches a document from an HTTPS URL (PDF, DOCX, HTML), returns parsed text plus metadata; use instead of web_search for known URLs."
-D) "Calls the document microservice and returns whatever it returns; the caller should handle any response shape that arrives."
+A) "Loads a document. Supports many URL types and many file formats. Use whenever the agent needs document content during a research workflow run."
+B) "Loads documents efficiently from the web with retry logic and caching for improved performance during research workflows that revisit pages."
+C) "Fetches a document from an HTTPS URL (PDF, DOCX, HTML), returns parsed text plus metadata; prefer over web_search for known URLs."
+D) "Calls the document microservice and returns whatever it returns; the caller should handle any response shape that arrives in the result body."
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** This description names the input format (HTTPS URL with specific document types), the output shape (parsed text plus metadata), and the boundary versus a similar tool (`web_search`), satisfying all three style-guide requirements. You apply this template any time you are writing a new tool description and want to maximize selection reliability. It beats the performance-flavored description because it differentiates the tool from `web_search`, which is the discriminating factor at selection time. Style guides for tool descriptions typically emphasize these three elements precisely because they map to how models choose between similar tools.
-- **B (plausible runner-up):** Mentioning retry logic and caching is fine background information and is sometimes useful to set expectations. The reason it falls short here is that it does not state inputs, outputs, or how the tool differs from `web_search`, which are the explicit guide requirements. Performance characteristics are secondary to selection criteria.
 - **A:** "Loads a document" with vague claims about supporting many types is exactly the kind of minimal description that causes selection errors. Avoid generic descriptions in production tool catalogs.
+- **B:** Mentioning retry logic and caching is fine background information and is sometimes useful to set expectations. The reason it falls short here is that it does not state inputs, outputs, or how the tool differs from `web_search`, which are the explicit guide requirements. Performance characteristics are secondary to selection criteria.
+- **C (correct):** This description names the input format (HTTPS URL with specific document types), the output shape (parsed text plus metadata), and the boundary versus a similar tool (`web_search`), satisfying all three style-guide requirements. You apply this template any time you are writing a new tool description and want to maximize selection reliability. It beats the performance-flavored description because it differentiates the tool from `web_search`, which is the discriminating factor at selection time. Style guides for tool descriptions typically emphasize these three elements precisely because they map to how models choose between similar tools.
 - **D:** Implementation-detail descriptions ("calls the microservice") are unhelpful for selection because the model has no signal about when to use the tool.
 
 ---
@@ -1252,24 +1249,24 @@ D) "Calls the document microservice and returns whatever it returns; the caller 
 
 **Stem:** Your support agent has `process_refund` (description specifies USD-denominated refunds up to $500) and `escalate_to_human` (well-described). Production logs show that for non-USD refund requests the agent invokes `process_refund` anyway, ignoring the currency boundary in the description. Engineers find a system prompt line: "Refund as quickly as possible — escalation should be a last resort." What is the best mitigation?
 
-A) Lower the refund threshold in `process_refund` to $100 so the agent escalates more often and avoids most non-USD cases by accident.
-B) Add a programmatic check inside `process_refund` that throws a non-retryable error for non-USD requests and tells the agent to escalate.
-C) Increase the prominence of currency information in the tool description by repeating "USD only" three times in the first sentence.
-D) Replace the keyword-sensitive system prompt line with neutral guidance and rely on the tool description plus a programmatic currency check.
+A) Lower the refund threshold in `process_refund` to $100 so the agent escalates more often and avoids most non-USD cases by accident in production.
+B) Add a programmatic check inside `process_refund` that throws a non-retryable error for non-USD requests and tells the agent to escalate to a human.
+C) Increase the prominence of currency information in the tool description by repeating "USD only" three times in the first sentence of the description text.
+D) Replace the keyword-sensitive system prompt line with neutral guidance and rely on the tool description and a programmatic currency check.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The root cause is a keyword-sensitive prompt instruction overriding a well-written tool description, exactly the pattern called out in the knowledge requirements. Removing the biasing language and keeping a programmatic backstop addresses both the cognitive bias and the safety net. You apply this combination whenever a prompt clause is steering the model away from correct tool selection and the underlying action has real-world consequences. It beats the programmatic-check-only option because programmatic checks alone leave the agent making a doomed call every time, wasting turns and creating bad UX.
-- **B (plausible runner-up):** Adding a programmatic check inside `process_refund` for non-USD requests is a legitimate defense-in-depth measure and is part of the right answer's package. The reason it is not the best standalone fix is that it does not address why the agent keeps choosing the wrong tool; it just makes failures more expressive. The biasing prompt remains and will continue to cause the misroute.
 - **A:** Lowering the threshold is an unrelated change that does not address the currency boundary at all. Threshold tuning is appropriate for risk control, not selection routing.
+- **B:** Adding a programmatic check inside `process_refund` for non-USD requests is a legitimate defense-in-depth measure and is part of the right answer's package. The reason it is not the best standalone fix is that it does not address why the agent keeps choosing the wrong tool; it just makes failures more expressive. The biasing prompt remains and will continue to cause the misroute.
 - **C:** Repeating "USD only" three times is a brittle hack and does not address the system-prompt bias that is actually causing the override.
+- **D (correct):** The root cause is a keyword-sensitive prompt instruction overriding a well-written tool description, exactly the pattern called out in the knowledge requirements. Removing the biasing language and keeping a programmatic backstop addresses both the cognitive bias and the safety net. You apply this combination whenever a prompt clause is steering the model away from correct tool selection and the underlying action has real-world consequences. It beats the programmatic-check-only option because programmatic checks alone leave the agent making a doomed call every time, wasting turns and creating bad UX.
 
 ---
 
@@ -1277,10 +1274,10 @@ D) Replace the keyword-sensitive system prompt line with neutral guidance and re
 
 **Stem:** You are reviewing tool descriptions for your developer agent. The MCP tools `search_jira_issues` and `search_github_issues` are routinely confused — the agent sometimes queries Jira when the user clearly mentioned a GitHub PR. The current descriptions are: "Searches Jira issues." and "Searches GitHub issues." What is the single most important addition to make to both descriptions?
 
-A) Add concrete input format and example queries that show the kinds of natural-language requests each tool should and should not handle.
-B) Add the MCP server URL and authentication scope so the agent can verify which backend each tool is actually targeting before calling.
-C) Add an explicit cost-per-call estimate so the agent can prefer the cheaper option when the user's question is ambiguous.
-D) Add a sentence to each description praising the relative strengths of the underlying issue tracker to help the agent rank them.
+A) Add concrete input format and example queries showing the kinds of natural-language requests each tool should and should not handle.
+B) Add the MCP server URL and authentication scope so the agent can verify which backend each tool is actually targeting before issuing the call.
+C) Add an explicit cost-per-call estimate so the agent can prefer the cheaper option when the user's question is ambiguous in its tool intent.
+D) Add a sentence to each description praising the relative strengths of the underlying issue tracker to help the agent rank the available tools.
 
 **Correct:** A
 
@@ -1292,7 +1289,7 @@ D) Add a sentence to each description praising the relative strengths of the und
 
 **Explanation:**
 - **A (correct):** The single most important addition is example queries showing exactly the kinds of natural-language inputs each tool is designed to handle, plus the boundaries between them. Examples create durable signals for selection that one-line summaries cannot. You apply this whenever near-identical tools cause routing confusion and the differentiating factor is in the *content* of typical user requests. It beats the auth-scope option because authentication details do not help the model decide which tool the user wants; they help the system verify access.
-- **B (plausible runner-up):** Documenting server URLs and auth scopes is useful operational metadata and helps administrators reason about the integration. The reason it does not solve this problem is that the model selects tools based on description semantics, not server identity. Adding URLs to descriptions just adds noise that does not differentiate purpose.
+- **B:** Documenting server URLs and auth scopes is useful operational metadata and helps administrators reason about the integration. The reason it does not solve this problem is that the model selects tools based on description semantics, not server identity. Adding URLs to descriptions just adds noise that does not differentiate purpose.
 - **C:** Cost-per-call is not a property the agent should weigh when deciding which tracker the user actually means; semantic correctness must come first.
 - **D:** Subjective praise ("Jira is better for...") is editorializing, not specification, and will confuse rather than clarify selection.
 
@@ -1302,22 +1299,22 @@ D) Add a sentence to each description praising the relative strengths of the und
 
 **Stem:** Your `lookup_order` MCP tool currently returns the string "Operation failed" with `isError: true` whenever anything goes wrong — whether the order ID format is invalid, the backend is temporarily unreachable, or the order does not exist. The agent retries blindly in all cases, sometimes spamming the backend. What structural change to the error response best improves recovery behavior?
 
-A) Replace `isError: true` with a numeric HTTP-style status code so the agent can branch on retry semantics using familiar conventions.
-B) Return structured error metadata including `errorCategory` (transient/validation/permission) and `isRetryable` so the agent can decide appropriately.
-C) Append a stack trace to the existing error string so the agent has more context to reason about whether to retry the failed call.
-D) Switch the entire response to a free-form natural-language explanation that the agent can read and reason about with no schema constraints.
+A) Replace `isError: true` with a numeric HTTP-style status code so the agent can branch on retry semantics using familiar web conventions from training.
+B) Return structured error metadata including `errorCategory` (transient/validation/permission) and `isRetryable` so the agent can decide.
+C) Append a stack trace to the existing error string so the agent has more context to reason about whether to retry the failed call at all.
+D) Switch the entire response to a free-form natural-language explanation that the agent can read and reason about with no schema constraints on the shape.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** HTTP-style status codes are familiar and would be an improvement over the current generic string. They are a reasonable convention in many APIs. The reason MCP structured errors are preferred is that they encode agent-relevant semantics directly — `isRetryable` and category — rather than asking the agent to interpret codes whose meanings vary across services.
 - **B (correct):** Structured error metadata with explicit `errorCategory` and `isRetryable` is the canonical MCP pattern for letting the agent make appropriate recovery decisions. Categorization tells the agent whether to retry, validate input, escalate, or surface to the user. You apply this any time uniform "operation failed" responses are causing wasted retries or wrong recovery paths. It beats numeric status codes because the MCP convention provides richer semantics (transient vs validation vs business vs permission) than HTTP codes were designed for.
-- **A (plausible runner-up):** HTTP-style status codes are familiar and would be an improvement over the current generic string. They are a reasonable convention in many APIs. The reason MCP structured errors are preferred is that they encode agent-relevant semantics directly — `isRetryable` and category — rather than asking the agent to interpret codes whose meanings vary across services.
 - **C:** Stack traces are noise to the agent and pollute the context window without giving recovery guidance. They belong in server-side logs, not tool responses.
 - **D:** Free-form natural language forces the agent to parse error semantics it should be able to read from structured fields. Schemas are the point here.
 
@@ -1327,23 +1324,23 @@ D) Switch the entire response to a free-form natural-language explanation that t
 
 **Stem:** A document analysis subagent calls an MCP tool `fetch_pdf` that intermittently returns timeouts when the source CDN is under load. Currently the coordinator sees a generic timeout and aborts the whole research task. The team wants the failure to be recovered locally where possible and escalated to the coordinator only when truly unrecoverable. Which design best achieves this?
 
-A) Move retry logic to the coordinator so it can decide centrally when to abort the whole research task or move on to the next URL.
-B) Have the subagent immediately propagate the timeout to the coordinator along with no partial results and let the coordinator decide.
+A) Move retry logic to the coordinator so it can decide centrally when to abort the whole research task or move on to the next URL in the queue.
+B) Have the subagent immediately propagate the timeout to the coordinator along with no partial results and let the coordinator decide on next steps.
 C) Implement local retry with backoff inside the subagent for transient errors, and only propagate to the coordinator if retries exhaust.
-D) Replace `fetch_pdf` with a version that always swallows timeouts silently and returns an empty document so research can continue.
+D) Replace `fetch_pdf` with a version that always swallows timeouts silently and returns an empty document so research can continue without errors.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Local error recovery within subagents for transient failures is the recommended pattern, with propagation reserved for errors that cannot be resolved locally. Including backoff prevents thundering-herd retries against a struggling CDN, and propagating only after retries exhaust keeps the coordinator focused on real failures. You apply this any time a subagent has both the context and the means to recover and the coordinator would otherwise see noise. It beats coordinator-only retry because the coordinator lacks the local context (e.g., which URL, which attempt count, partial results so far).
-- **A (plausible runner-up):** Centralizing retry in the coordinator is a valid pattern when subagents are stateless or when retry policy must be globally enforced. The reason it is not the best fit is that the subagent has the immediate context to retry cheaply and produce partial results, while pushing retry up to the coordinator inflates its decision burden. Centralized retry shines for cross-subagent coordination, not single-tool transient failures.
+- **A:** Centralizing retry in the coordinator is a valid pattern when subagents are stateless or when retry policy must be globally enforced. The reason it is not the best fit is that the subagent has the immediate context to retry cheaply and produce partial results, while pushing retry up to the coordinator inflates its decision burden. Centralized retry shines for cross-subagent coordination, not single-tool transient failures.
 - **B:** Immediate propagation with no partial results is exactly what the team wants to stop doing.
+- **C (correct):** Local error recovery within subagents for transient failures is the recommended pattern, with propagation reserved for errors that cannot be resolved locally. Including backoff prevents thundering-herd retries against a struggling CDN, and propagating only after retries exhaust keeps the coordinator focused on real failures. You apply this any time a subagent has both the context and the means to recover and the coordinator would otherwise see noise. It beats coordinator-only retry because the coordinator lacks the local context (e.g., which URL, which attempt count, partial results so far).
 - **D:** Silently swallowing timeouts and returning empty documents loses signal and turns transient errors into permanent data-quality bugs.
 
 ---
@@ -1352,24 +1349,24 @@ D) Replace `fetch_pdf` with a version that always swallows timeouts silently and
 
 **Stem:** Your support agent calls `process_refund`, which fails because the customer's account is past due. The current response is `{ isError: true, content: "Refund denied." }`. The agent sometimes retries the same refund, sometimes confidently tells the customer "your refund is processing," and sometimes hangs. What is the most effective change to the error response?
 
-A) Return `{ isError: true, errorCategory: "business", isRetryable: false, message: "Refunds blocked while account is past due; advise customer to settle balance first." }`.
-B) Return `{ isError: true, errorCategory: "transient", isRetryable: true, message: "Refund failed, please try again in a few seconds." }`.
-C) Return a successful response with `refundId: null` so the agent treats it as completed with no further action and moves on to the next user turn.
-D) Return `{ isError: true, content: "ERR_42" }` and provide a separate developer-only document that maps error codes to recovery actions.
+A) Return `{ isError: true, errorCategory: "business", isRetryable: false, message: "Refunds blocked while account past due; tell customer to settle outstanding balance." }`.
+B) `Return `{ isError: true, errorCategory: "transient", isRetryable: true, message: "Refund failed, please try again in a few seconds or wait briefly." }`.
+C) Return a successful response with `refundId: null` so the agent treats it as completed with no further action and moves on to the next user turn in the conversation.
+D) Return `{ isError: true, content: "ERR_42" }` and provide a separate developer-only document that maps each error code to the appropriate recovery action.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** This is a business-rule violation, not a transient failure, so the response must carry `errorCategory: "business"`, `isRetryable: false`, and a customer-friendly explanation the agent can paraphrase. That combination prevents wasted retries and gives the agent enough context to communicate appropriately. You reach for this whenever a policy blocks an action and the user needs a coherent next step. It beats the error-code approach because the message is in-band and immediately usable by the agent without an out-of-band lookup.
-- **D (plausible runner-up):** Error codes mapped to documentation are a legitimate pattern in traditional API design and have their place when codes are stable and clients are humans. The reason this falls short is that the agent does not have practical access to a separate document at runtime; the message itself must carry recovery guidance. Out-of-band docs are a tooling pattern, not an agent pattern.
 - **B:** Marking this as transient/retryable is exactly the wrong category and will cause continued retry attempts against a permanent policy block.
 - **C:** Returning success with `refundId: null` is a silent failure pattern that causes the agent to lie to the customer about refund status.
+- **D:** Error codes mapped to documentation are a legitimate pattern in traditional API design and have their place when codes are stable and clients are humans. The reason this falls short is that the agent does not have practical access to a separate document at runtime; the message itself must carry recovery guidance. Out-of-band docs are a tooling pattern, not an agent pattern.
 
 ---
 
@@ -1385,16 +1382,16 @@ D) Return `{ isError: false, results: [] }` for genuine zero-match queries and u
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Valid empty results and access failures are categorically different; an empty result is a successful query whose result happens to be the empty set. Returning `isError: false` with an empty array preserves that distinction and lets the agent move on without retrying. You apply this any time a tool's "nothing matched" outcome is being conflated with errors. It beats the validation-error framing because validation errors imply something is wrong with the input, whereas zero matches is just data.
-- **A (plausible runner-up):** Categorizing as validation seems reasonable on first read because the parameters did not produce matches. The reason this is wrong is that the parameters were valid; the database simply contains no matching records. Treating valid input as a validation error misleads the agent and corrupts metrics that track real validation problems.
-- **C:** Suggesting a broader query as part of an error response invites speculative retries that may corrupt extraction provenance. Query-widening should be an agent decision based on real signal, not a server suggestion.
+- **A:** Categorizing as validation seems reasonable on first read because the parameters did not produce matches. The reason this is wrong is that the parameters were valid; the database simply contains no matching records. Treating valid input as a validation error misleads the agent and corrupts metrics that track real validation problems.
 - **B:** A bare boolean strips the agent of the contextual information it needs (the empty array, success status) and forces brittle inference.
+- **C:** Suggesting a broader query as part of an error response invites speculative retries that may corrupt extraction provenance. Query-widening should be an agent decision based on real signal, not a server suggestion.
+- **D (correct):** Valid empty results and access failures are categorically different; an empty result is a successful query whose result happens to be the empty set. Returning `isError: false` with an empty array preserves that distinction and lets the agent move on without retrying. You apply this any time a tool's "nothing matched" outcome is being conflated with errors. It beats the validation-error framing because validation errors imply something is wrong with the input, whereas zero matches is just data.
 
 ---
 
@@ -1402,22 +1399,22 @@ D) Return `{ isError: false, results: [] }` for genuine zero-match queries and u
 
 **Stem:** Your `escalate_to_human` MCP tool fails with `{ isError: true, errorCategory: "permission", isRetryable: false, message: "Agent does not have escalation rights for VIP queue." }`. The support agent is in the middle of an escalation for a high-value customer. What should the agent's next action be, and what error-design lesson does this enforce?
 
-A) Retry `escalate_to_human` twice more in case it was a transient permission cache miss, then surface a generic apology message to the customer.
-B) Stop retrying, communicate the limitation to the customer, and surface the incident; design lesson: permission errors must be marked non-retryable.
-C) Call `process_refund` immediately as a fallback action, since refunds compensate the customer and avoid the need for escalation entirely.
-D) Switch to a different tool name that the agent guesses might bypass the permission boundary, since names are sometimes interchangeable.
+A) Retry `escalate_to_human` twice more in case it was a transient permission cache miss, then surface a generic apology message to the customer at the end.
+B) Stop retrying, communicate the limitation to the customer, and surface the incident; lesson: permission errors must be non-retryable.
+C) Call `process_refund` immediately as a fallback action, since refunds compensate the customer and avoid the need for escalation entirely in this scenario.
+D) Switch to a different tool name that the agent guesses might bypass the permission boundary, since names are sometimes interchangeable in the tool catalog.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Retrying transient permission issues is a real pattern in distributed systems with eventually-consistent permission caches. The reason it is not appropriate here is that the server explicitly marked the response non-retryable, and the agent must honor that signal. Retrying despite `isRetryable: false` defeats the purpose of structured error responses.
 - **B (correct):** Permission errors are categorically non-retryable because the constraint is structural, not transient, and the agent should communicate the limitation rather than spin. The design lesson is that error responses must carry both the category and `isRetryable: false` so the agent does not waste turns retrying immutable failures. You apply this any time access is denied by policy or scope. It beats the retry option because the metadata explicitly signals that retrying will not change the outcome.
-- **A (plausible runner-up):** Retrying transient permission issues is a real pattern in distributed systems with eventually-consistent permission caches. The reason it is not appropriate here is that the server explicitly marked the response non-retryable, and the agent must honor that signal. Retrying despite `isRetryable: false` defeats the purpose of structured error responses.
 - **C:** Substituting a refund for an escalation is a policy decision well outside the agent's scope and could create financial liability.
 - **D:** Tool names do not bypass permission boundaries; this is wishful thinking, not a recovery pattern.
 
@@ -1427,24 +1424,24 @@ D) Switch to a different tool name that the agent guesses might bypass the permi
 
 **Stem:** A web-search subagent successfully fetches three of five URLs requested by the coordinator; two URLs return 503 errors that are likely transient. The subagent's retry budget is exhausted. What should it return to the coordinator to apply the right principle for propagated errors?
 
-A) Return only the three successful results and omit any mention of the two failed URLs, since the coordinator should focus on what worked.
-B) Return a free-form summary describing roughly which URLs worked and which did not, in prose form, for the coordinator to parse.
-C) Return `isError: true` for the whole request, discarding the three successful results so the coordinator can retry the entire batch cleanly.
-D) Return all three successful results plus structured metadata listing the failed URLs, the error category, and what retry attempts were already made.
+A) Return only the three successful results and omit any mention of the two failed URLs, since the coordinator should focus on what worked in this batch run.
+B) Return a free-form summary describing roughly which URLs worked and which did not, in prose form, for the coordinator to parse and interpret as needed.
+C) Return `isError: true` for the whole request, discarding the three successful results so the coordinator can retry the entire batch cleanly without partial state.
+D) Return the three successful results plus structured metadata listing the failed URLs, the error category, and retry attempts made.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** When propagating failures the subagent cannot resolve locally, it should include partial results plus structured metadata about what was attempted and what failed, so the coordinator can decide intelligently (escalate, retry later, or proceed without the missing URLs). You apply this any time a subagent's work is partly complete and the coordinator needs visibility into both halves. It beats the whole-batch failure because discarding successful results wastes work and reduces system throughput.
-- **C (plausible runner-up):** Returning a clean failure for atomic-batch semantics is appropriate when the coordinator genuinely needs all-or-nothing results (e.g., a multi-step transaction). The reason it is wrong here is that the research workflow can proceed with partial information, and discarding the successful fetches is wasted effort. All-or-nothing semantics should be explicit in the task contract, not the default.
 - **A:** Hiding the failed URLs from the coordinator means decisions are made on incomplete information; the coordinator must know what is missing to compensate.
 - **B:** Free-form prose is harder for the coordinator to parse and act on; structured metadata is the standard for inter-agent communication.
+- **C:** Returning a clean failure for atomic-batch semantics is appropriate when the coordinator genuinely needs all-or-nothing results (e.g., a multi-step transaction). The reason it is wrong here is that the research workflow can proceed with partial information, and discarding the successful fetches is wasted effort. All-or-nothing semantics should be explicit in the task contract, not the default.
+- **D (correct):** When propagating failures the subagent cannot resolve locally, it should include partial results plus structured metadata about what was attempted and what failed, so the coordinator can decide intelligently (escalate, retry later, or proceed without the missing URLs). You apply this any time a subagent's work is partly complete and the coordinator needs visibility into both halves. It beats the whole-batch failure because discarding successful results wastes work and reduces system throughput.
 
 ---
 
@@ -1452,7 +1449,7 @@ D) Return all three successful results plus structured metadata listing the fail
 
 **Stem:** Your team is auditing error responses. A reviewer points out that `lookup_order` returns the same generic `isError: true, message: "Failed."` for these four distinct cases: malformed order ID, backend timeout, customer not authorized for that order, and order genuinely not found. Which categorization should the team adopt for these four cases respectively?
 
-A) Validation, transient, permission, and a non-error empty result, each with the corresponding `isRetryable` value set appropriately.
+A) Validation, transient, permission, and a non-error empty result, each labeled with the matching `isRetryable` flag the agent loop honors.
 B) Validation, validation, permission, and validation — treating all four as input correctness problems for consistency in the agent loop.
 C) Transient for all four cases, because retrying often resolves the issue regardless of the underlying cause of the failure mode.
 D) Permission, permission, permission, transient — since most production failures ultimately trace back to permission cache misses anyway.
@@ -1467,7 +1464,7 @@ D) Permission, permission, permission, transient — since most production failu
 
 **Explanation:**
 - **A (correct):** The four cases map cleanly to distinct categories: malformed input is validation, backend timeout is transient, unauthorized access is permission, and "order not found" is a successful query returning zero matches (not an error at all). You apply this categorization every time error responses are designed so the agent can decide retry vs validate-input vs escalate vs treat-as-data. It beats the validation-for-everything answer because conflating categories defeats the purpose of structured errors.
-- **B (plausible runner-up):** Treating multiple categories as validation for "consistency" is superficially attractive because it simplifies the agent loop. The reason it is wrong is that the agent cannot apply the correct recovery strategy if all errors look the same — backend timeouts need retry, not input correction. Consistency of category should reflect actual cause, not convenience.
+- **B:** Treating multiple categories as validation for "consistency" is superficially attractive because it simplifies the agent loop. The reason it is wrong is that the agent cannot apply the correct recovery strategy if all errors look the same — backend timeouts need retry, not input correction. Consistency of category should reflect actual cause, not convenience.
 - **C:** Marking everything as transient causes infinite retries against permanent failures and wastes backend resources.
 - **D:** Permission is a specific concept and should not be applied to validation or transient cases; this answer reflects a misunderstanding of the categories.
 
@@ -1485,15 +1482,15 @@ D) Treat the encrypted page as a validation error, return an empty result for th
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** A permission error with `isRetryable: false` means the agent should not retry; it should record the failure with enough structured context for the review queue and continue with the rest of the work. This honors the error contract, preserves partial results, and creates the human-in-the-loop signal that the scenario demands. You apply this pattern whenever a per-item failure is non-retryable but the overall task can still succeed for other items. It beats the whole-document-fail option because losing valid extracted pages is unnecessary cost.
-- **A (plausible runner-up):** All-or-nothing failure semantics are appropriate for highly-coupled extraction tasks where partial output would be misleading (e.g., financial filings that must be complete). The reason it is not right here is that the scenario explicitly wants the agent to continue extracting other pages, indicating per-page independence. Atomicity should match the data model.
+- **A:** All-or-nothing failure semantics are appropriate for highly-coupled extraction tasks where partial output would be misleading (e.g., financial filings that must be complete). The reason it is not right here is that the scenario explicitly wants the agent to continue extracting other pages, indicating per-page independence. Atomicity should match the data model.
 - **B:** Retrying despite `isRetryable: false` ignores the structured error contract and burns budget against an immutable failure.
+- **C (correct):** A permission error with `isRetryable: false` means the agent should not retry; it should record the failure with enough structured context for the review queue and continue with the rest of the work. This honors the error contract, preserves partial results, and creates the human-in-the-loop signal that the scenario demands. You apply this pattern whenever a per-item failure is non-retryable but the overall task can still succeed for other items. It beats the whole-document-fail option because losing valid extracted pages is unnecessary cost.
 - **D:** Silent treatment as a validation error hides a permission problem and skips the required human-review flagging.
 
 ---
@@ -1502,23 +1499,23 @@ D) Treat the encrypted page as a validation error, return an empty result for th
 
 **Stem:** Your research coordinator gives every subagent the same set of 18 tools, including web search, file write, PDF parser, code interpreter, image describer, math solver, citation formatter, translation, sentiment, and several niche services. Synthesis-agent traces show it calling web search and the code interpreter when it should only be combining sub-results. What principle is being violated and how do you fix it?
 
-A) Tools should be scoped per subagent to its role; restrict the synthesis agent to a small set of citation and combining tools and remove the rest.
-B) Tool selection reliability is a model-size problem; upgrade synthesis to a larger model that can choose well among 18 tools.
-C) Increase the tool descriptions' length to several paragraphs each so the model has more signal when choosing among the 18 tools.
-D) Lower the temperature dramatically so the model becomes more conservative about tool calls and is less likely to wander off-spec.
+A) Tools should be scoped per subagent to its role; restrict synthesis to a small set of citation and combining tools and remove the rest.
+B) Tool selection reliability is purely a model-size problem; upgrade synthesis to a larger model that can choose well among the existing eighteen tools.
+C) Increase the tool descriptions' length to several paragraphs each so the model has more signal when choosing among the eighteen tools at hand.
+D) Lower the temperature dramatically so the model becomes more conservative about tool calls and is less likely to wander off-spec during the run.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Giving every subagent the same broad tool catalog increases decision complexity and degrades selection reliability — synthesis agents end up trying tools far outside their specialization. The fix is scoped tool access: each subagent gets only the tools relevant to its role, with limited cross-role tools only for specific high-frequency needs. You apply this any time a subagent is misusing tools that have nothing to do with its core responsibility. It beats the description-padding option because adding text to descriptions does not reduce the choice set the model considers.
-- **C (plausible runner-up):** Improving tool descriptions is a real lever and helps when ambiguous descriptions cause misrouting. The reason it does not fix this scenario is that the problem is decision complexity, not description ambiguity; even perfect descriptions across 18 tools dilute attention. Description quality matters most after you have already scoped the set.
 - **B:** Model scale does not reliably fix tool sprawl; even strong models degrade as the catalog grows.
+- **C:** Improving tool descriptions is a real lever and helps when ambiguous descriptions cause misrouting. The reason it does not fix this scenario is that the problem is decision complexity, not description ambiguity; even perfect descriptions across 18 tools dilute attention. Description quality matters most after you have already scoped the set.
 - **D:** Temperature changes do not address the fact that the model has been given irrelevant tools to choose from.
 
 ---
@@ -1527,22 +1524,22 @@ D) Lower the temperature dramatically so the model becomes more conservative abo
 
 **Stem:** Your support agent must always call a `validate_session` tool first on every conversation turn before any business logic runs. Today the agent sometimes skips it because the model decides session information is already in context. The team wants a deterministic guarantee, not a probabilistic one, for the first tool call. Which configuration applies the right principle?
 
-A) Use `tool_choice: "any"` so the model is guaranteed to call some tool first, even though the specific tool is not guaranteed.
-B) Use `tool_choice: { "type": "tool", "name": "validate_session" }` on the first turn to force the specific tool, then revert to `auto` afterwards.
-C) Use `tool_choice: "auto"` and add a sentence to the system prompt asking the model to always validate the session before doing anything else.
-D) Use `tool_choice: "any"` and configure the model to retry the turn if it did not happen to pick `validate_session` first.
+A) Use `tool_choice: "any"` so the model is guaranteed to call some tool first, even though the specific tool selected is not guaranteed each time.
+B) Use `tool_choice: { "type": "tool", "name": "validate_session" }` on the first turn to force the tool, then revert to `auto`.
+C) Use `tool_choice: "auto"` and add a sentence to the system prompt asking the model to always validate the session before doing anything else first.
+D) Use `tool_choice: "any"` and configure the model to retry the turn if it did not happen to pick `validate_session` first on its initial attempt.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** `tool_choice: "any"` is a valid setting and prevents the model from returning conversational text instead of a tool call. The reason it is not the right fit is that it does not constrain *which* tool — the model could still call `lookup_order` first and skip `validate_session`. Use `any` when you need *a* tool but not a specific one.
 - **B (correct):** Forced tool selection (`tool_choice: { "type": "tool", "name": "..." }`) gives a deterministic guarantee that a specific tool runs first, after which you revert to `auto` for normal flow. This is the canonical pattern for required first-step tools like extract-then-enrich or validate-then-act. You apply forced selection any time a specific tool *must* run before others and probabilistic compliance is insufficient. It beats `tool_choice: "any"` because `any` only guarantees *some* tool gets called, not the specific one you need.
-- **A (plausible runner-up):** `tool_choice: "any"` is a valid setting and prevents the model from returning conversational text instead of a tool call. The reason it is not the right fit is that it does not constrain *which* tool — the model could still call `lookup_order` first and skip `validate_session`. Use `any` when you need *a* tool but not a specific one.
 - **C:** Prompt rules give probabilistic compliance, exactly what the team wants to avoid.
 - **D:** Retrying turns when the model picks the wrong tool wastes tokens and latency; force selection up front instead.
 
@@ -1552,24 +1549,24 @@ D) Use `tool_choice: "any"` and configure the model to retry the turn if it did 
 
 **Stem:** Your synthesis subagent occasionally needs to verify a single fact against a trusted source mid-synthesis. Today, the only way is to escalate back to the coordinator, which then dispatches the verification subagent, doubling latency on common cases. The team wants the synthesis agent to handle simple fact checks locally but still route hard cases through the coordinator. What is the best change?
 
-A) Give the synthesis agent the full set of web search and document tools so it can verify anything without involving the coordinator.
-B) Add a scoped `verify_fact` tool to the synthesis agent for single-claim checks; complex verifications still escalate to the coordinator.
-C) Remove the verification subagent entirely and let the coordinator perform all fact checks inline before passing work to synthesis.
-D) Configure `tool_choice: "any"` on the synthesis agent so it must call some tool before producing any synthesized output.
+A) Give the synthesis agent the full set of web search and document tools so it can verify anything without involving the coordinator at all from then on.
+B) Add a scoped `verify_fact` tool to the synthesis agent for single-claim checks; complex verifications still escalate to the coordinator path.
+C) Remove the verification subagent entirely and let the coordinator perform all fact checks inline before passing work to synthesis on every turn.
+D) Configure `tool_choice: "any"` on the synthesis agent so it must call some tool before producing any synthesized output for each request.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** Granting the synthesis agent full access to verification tooling would speed up fact checks and is sometimes a legitimate tradeoff. The reason it is not the best answer is that broader access erodes specialization and increases the chance the synthesis agent calls web search when it should be synthesizing. Scoped access is the principle here.
 - **B (correct):** Scoped cross-role tools for high-frequency needs are exactly the pattern: give the synthesis agent a narrow `verify_fact` capability for single-claim checks, while routing complex multi-source verification through the coordinator. This balances latency against specialization. You apply this whenever a subagent has a narrow recurring need that crossing the coordinator would over-serve. It beats giving the synthesis agent the full web/document toolset because that re-introduces the tool-sprawl problem and breaks specialization.
-- **A (plausible runner-up):** Granting the synthesis agent full access to verification tooling would speed up fact checks and is sometimes a legitimate tradeoff. The reason it is not the best answer is that broader access erodes specialization and increases the chance the synthesis agent calls web search when it should be synthesizing. Scoped access is the principle here.
-- **D:** Forcing any tool call does not give the synthesis agent verification capability; it just compels a call.
 - **C:** Coordinator-only fact checking centralizes work but worsens latency, which is the original complaint.
+- **D:** Forcing any tool call does not give the synthesis agent verification capability; it just compels a call.
 
 ---
 
@@ -1577,24 +1574,24 @@ D) Configure `tool_choice: "any"` on the synthesis agent so it must call some to
 
 **Stem:** Your developer-productivity agent has access to a `fetch_url` tool used to load reference pages. Engineers report that the agent sometimes uses it to download arbitrary tarballs from random domains while trying to "explore." Security wants to constrain this without removing the ability to load known documentation. What is the best replacement?
 
-A) Add a runtime allowlist filter inside `fetch_url` that returns a generic error when the URL is outside an approved set of domains for the agent.
-B) Keep `fetch_url` and instrument the network layer to drop downloads larger than a fixed size to prevent the agent from pulling tarballs accidentally.
-C) Keep `fetch_url` and add a system prompt sentence asking the agent to only fetch URLs that look like documentation pages from approved sources.
-D) Replace `fetch_url` with `load_document` that validates document URLs (PDF/HTML/MD) and rejects non-document or non-allowlisted endpoints structurally.
+A) Add a runtime allowlist filter inside `fetch_url` that returns a generic error when the URL is outside the approved set of domains used by the agent today.
+B) Keep `fetch_url` and instrument the network layer to drop downloads larger than a fixed size to prevent the agent from pulling tarballs accidentally over time.
+C) Keep `fetch_url` and add a system prompt sentence asking the agent to only fetch URLs that look like documentation pages from a list of approved sources.
+D) Replace `fetch_url` with `load_document` that validates URLs (PDF/HTML/MD) and rejects non-document or non-allowlisted endpoints.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Replacing a generic tool with a constrained alternative is the canonical pattern: `load_document` advertises a narrower purpose, validates inputs structurally, and rejects out-of-scope URLs at the contract level. Both selection (the model sees a document-specific tool) and safety (input validation) improve. You apply this any time a generic tool is being misused and a narrower tool can serve the legitimate use cases. It beats the runtime-allowlist approach because the allowlist hides intent — the model still thinks `fetch_url` is general-purpose and will keep trying disallowed URLs.
-- **A (plausible runner-up):** Runtime allowlist filtering is a valid defense and is often used alongside narrower tools. The reason it is not the best primary fix is that the tool's description and contract still advertise general-purpose fetching, so the agent will keep generating off-policy calls that get rejected. Restructuring the tool itself is cleaner.
-- **C:** Prompt-only constraints on URL selection are unreliable against a model that has been told `fetch_url` is general-purpose.
+- **A:** Runtime allowlist filtering is a valid defense and is often used alongside narrower tools. The reason it is not the best primary fix is that the tool's description and contract still advertise general-purpose fetching, so the agent will keep generating off-policy calls that get rejected. Restructuring the tool itself is cleaner.
 - **B:** Size-based filtering does not address non-document URLs that happen to be small; it is a weak proxy for intent.
+- **C:** Prompt-only constraints on URL selection are unreliable against a model that has been told `fetch_url` is general-purpose.
+- **D (correct):** Replacing a generic tool with a constrained alternative is the canonical pattern: `load_document` advertises a narrower purpose, validates inputs structurally, and rejects out-of-scope URLs at the contract level. Both selection (the model sees a document-specific tool) and safety (input validation) improve. You apply this any time a generic tool is being misused and a narrower tool can serve the legitimate use cases. It beats the runtime-allowlist approach because the allowlist hides intent — the model still thinks `fetch_url` is general-purpose and will keep trying disallowed URLs.
 
 ---
 
@@ -1602,23 +1599,23 @@ D) Replace `fetch_url` with `load_document` that validates document URLs (PDF/HT
 
 **Stem:** Your structured-extraction pipeline requires `extract_metadata` to run before any enrichment tools, because enrichment depends on the metadata schema. Currently the prompt politely asks the model to call `extract_metadata` first, but in about 7% of runs it skips straight to enrichment, which then produces malformed outputs. You need a deterministic guarantee for the first turn. What configuration is most appropriate?
 
-A) Use `tool_choice: { "type": "tool", "name": "extract_metadata" }` on the first turn, then process enrichment tools in follow-up turns with `auto`.
-B) Use `tool_choice: "any"` on the first turn so that the model is forced to call a tool, even though it might still pick an enrichment tool.
-C) Add three different few-shot examples showing the correct ordering in the system prompt to bring compliance closer to 100%.
-D) Run the extraction twice in parallel and keep only the run that happened to call `extract_metadata` first, discarding the other.
+A) Use `tool_choice: { "type": "tool", "name": "extract_metadata" }` on the first turn, then run enrichment tools in follow-up turns with `auto`.
+B) Use `tool_choice: "any"` on the first turn so the model is forced to call a tool, even though it might still pick an enrichment tool by chance.
+C) Add three different few-shot examples showing the correct ordering in the system prompt to bring extraction-first compliance closer to one hundred percent.
+D) Run the extraction twice in parallel and keep only the run that happened to call `extract_metadata` first, discarding the other run's outputs in full.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Forced tool selection on the first turn guarantees `extract_metadata` runs before any enrichment, then reverting to `auto` lets the model pick the right enrichment tools downstream. This is the canonical "force a specific first tool, then process subsequent steps in follow-up turns" pattern. You apply this whenever sequence matters and probabilistic compliance is insufficient. It beats few-shot reinforcement because few-shots only nudge probability while forced selection is deterministic.
-- **C (plausible runner-up):** Few-shot examples can raise compliance significantly and are reasonable when there is no way to force selection. The reason this is not the best answer is that the team explicitly needs a deterministic guarantee, and few-shot examples cannot eliminate the residual 7% failure rate. Use few-shots for nuance, not for sequencing requirements.
 - **B:** `tool_choice: "any"` only guarantees some tool, not the specific tool you need first; the model could still pick an enrichment tool.
+- **C:** Few-shot examples can raise compliance significantly and are reasonable when there is no way to force selection. The reason this is not the best answer is that the team explicitly needs a deterministic guarantee, and few-shot examples cannot eliminate the residual 7% failure rate. Use few-shots for nuance, not for sequencing requirements.
 - **D:** Running twice and discarding is wasteful and still does not guarantee at least one run succeeds.
 
 ---
@@ -1627,23 +1624,23 @@ D) Run the extraction twice in parallel and keep only the run that happened to c
 
 **Stem:** A team member proposes letting the support agent call `process_refund` without any tool restriction whenever the model thinks it would help. The agent's current tools are well-scoped to billing/account/return operations. You worry the change will cause the agent to issue refunds proactively in ambiguous situations. Which principle best supports keeping the existing scoped configuration?
 
-A) Restricting each agent's tool set to those relevant to its role prevents cross-specialization misuse and keeps action authority aligned with intent.
-B) Adding more tools to an agent always helps because larger catalogs raise the chance the right tool is available when needed for a user request.
-C) Forcing tool selection with `tool_choice: "any"` on every turn would eliminate the risk by ensuring the model never has discretion at all.
-D) Removing all action tools and giving the agent only read-only tools is the only safe configuration for refund-capable systems.
+A) Restricting each agent's tool set to those relevant to its role prevents cross-specialization misuse and aligns action authority with intent.
+B) Adding more tools to an agent always helps because larger catalogs raise the chance the right tool is available when needed for a given user request type.
+C) Forcing tool selection with `tool_choice: "any"` on every turn would eliminate the risk by ensuring the model never has discretion at all during operation.
+D) Removing all action tools and giving the agent only read-only tools is the only safe configuration for refund-capable systems in production deployments.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Scoped tool access keeps each agent's action authority aligned with its role, preventing misuse and reducing decision complexity simultaneously. The principle covers both reliability and safety: an agent that should not be issuing refunds proactively should not have unrestricted refund authority. You apply this whenever expanding an agent's tool set would broaden the action surface beyond the agent's intended responsibility. It beats forced selection because forcing is about *which* tool is called, not *which tools* are available.
-- **C (plausible runner-up):** Forcing tool selection does constrain behavior and has legitimate uses for sequencing. The reason it is not the right principle here is that the underlying concern is which actions the agent can take at all, not which action it must take next. Tool-set scoping is the access lever; `tool_choice` is the selection lever.
 - **B:** "More tools is always better" is the exact misconception the task warns against; large catalogs degrade selection.
+- **C:** Forcing tool selection does constrain behavior and has legitimate uses for sequencing. The reason it is not the right principle here is that the underlying concern is which actions the agent can take at all, not which action it must take next. Tool-set scoping is the access lever; `tool_choice` is the selection lever.
 - **D:** Removing all action tools is over-correction; the agent still needs to actually do its job.
 
 ---
@@ -1661,14 +1658,14 @@ D) `web_search`, `fetch_url`, `summarize_text`, `extract_metadata`, `verify_fact
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** A web-search subagent's role is finding and fetching, plus tightly-scoped cross-role tools for high-frequency needs encountered mid-fetch (metadata extraction, single fact verification). This applies scoping while preserving practical efficiency. You reach for this composition any time you need a balance between specialization and not over-routing trivial follow-ups through the coordinator. It beats web-search-only because requiring every metadata extraction to bounce through the coordinator adds latency without improving specialization.
-- **C (plausible runner-up):** Web-search-only is the strict-purist reading of scoping and is a reasonable starting point. The reason it is not best is that the task statement specifically allows scoped cross-role tools for high-frequency needs; refusing them creates unnecessary coordinator overhead. Strictness should be tuned by observed usage patterns.
 - **B:** "Occasionally used over a quarter" is not a justification for keeping a tool; it is the very pattern that creates sprawl.
+- **C:** Web-search-only is the strict-purist reading of scoping and is a reasonable starting point. The reason it is not best is that the task statement specifically allows scoped cross-role tools for high-frequency needs; refusing them creates unnecessary coordinator overhead. Strictness should be tuned by observed usage patterns.
 - **D:** Same set as B — keeping report generation on the web-search agent has no scoping justification.
 
 ---
@@ -1685,15 +1682,15 @@ D) Skip `tool_choice` entirely and rely on the system prompt to instruct the mod
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** `tool_choice: "any"` is exactly designed for the "must call some tool, but not a specific one" case. It guarantees the model produces a tool call rather than conversational text, while leaving discretion over which tool. You apply this whenever the downstream contract requires structured output and any tool in the set produces a valid result. It beats forced selection because forcing a specific tool removes the flexibility the scenario requires.
-- **C (plausible runner-up):** Forcing a specific default tool guarantees a tool call but at the cost of variety; it is appropriate when one tool genuinely should run first regardless of input. The reason it is wrong here is the stem explicitly says the specific tool should vary by document type. Forced selection is the wrong granularity.
 - **A:** `auto` allows the model to return prose, which violates the downstream contract.
+- **B (correct):** `tool_choice: "any"` is exactly designed for the "must call some tool, but not a specific one" case. It guarantees the model produces a tool call rather than conversational text, while leaving discretion over which tool. You apply this whenever the downstream contract requires structured output and any tool in the set produces a valid result. It beats forced selection because forcing a specific tool removes the flexibility the scenario requires.
+- **C:** Forcing a specific default tool guarantees a tool call but at the cost of variety; it is appropriate when one tool genuinely should run first regardless of input. The reason it is wrong here is the stem explicitly says the specific tool should vary by document type. Forced selection is the wrong granularity.
 - **D:** Prompt-only guarantees are probabilistic and will occasionally drop tool calls.
 
 ---
@@ -1702,24 +1699,24 @@ D) Skip `tool_choice` entirely and rely on the system prompt to instruct the mod
 
 **Stem:** You audit a developer-productivity coordinator that has 18 tools across MCP servers and built-ins, with no subagent decomposition. Selection reliability has degraded as tools were added. Leadership wants a phased refactor that addresses tool sprawl without dropping any capability. Which sequence of steps best applies the relevant principles?
 
-A) Add three more tools to cover edge cases, then ship; selection improves with more options because the model has more chances to pick correctly.
-B) Switch the coordinator to `tool_choice: "any"` to force a tool call every turn, leaving the 18-tool catalog otherwise unchanged.
-C) Cut the tool set to four tools and rely entirely on natural-language reasoning for everything else, regardless of capability gaps.
-D) Decompose into role-scoped subagents (e.g., code-search, refactor, test-gen), assign each only its relevant tools, and use cross-role scoping sparingly.
+A) Add three more tools to cover edge cases, then ship the system; tool selection improves with more options because the model has more chances to pick correctly.
+B) Switch the coordinator to `tool_choice: "any"` to force a tool call every turn, leaving the eighteen-tool catalog otherwise unchanged from its current configuration.
+C) Cut the tool set down to four tools and rely entirely on natural-language reasoning for everything else, regardless of any capability gaps that may emerge.
+D) Decompose into role-scoped subagents (e.g., code-search, refactor, test-gen), give each only its relevant tools, and use cross-role scoping sparingly.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The canonical fix for tool sprawl is decomposition into role-scoped subagents, each restricted to its relevant tools, with limited cross-role tools for specific high-frequency needs. This preserves capability while bringing each subagent's effective tool set into the reliable 4–5-range. You apply this whenever a single agent's catalog has grown beyond what one role can plausibly specialize in. It beats blunt-cutting because the team explicitly cannot lose capability.
-- **C (plausible runner-up):** Aggressive cuts from 18 to 4 would absolutely improve selection reliability and is a real option when you can afford to drop capability. The reason it is not the right answer is that leadership explicitly requires no capability loss. Decomposition keeps the same total surface but distributes it.
 - **A:** Adding tools to a sprawl problem worsens it; the premise that "more options helps" inverts the actual principle.
 - **B:** Forcing `any` does not reduce decision complexity; it just constrains the response type.
+- **C:** Aggressive cuts from 18 to 4 would absolutely improve selection reliability and is a real option when you can afford to drop capability. The reason it is not the right answer is that leadership explicitly requires no capability loss. Decomposition keeps the same total surface but distributes it.
+- **D (correct):** The canonical fix for tool sprawl is decomposition into role-scoped subagents, each restricted to its relevant tools, with limited cross-role tools for specific high-frequency needs. This preserves capability while bringing each subagent's effective tool set into the reliable 4–5-range. You apply this whenever a single agent's catalog has grown beyond what one role can plausibly specialize in. It beats blunt-cutting because the team explicitly cannot lose capability.
 
 ---
 
@@ -1728,22 +1725,22 @@ D) Decompose into role-scoped subagents (e.g., code-search, refactor, test-gen),
 **Stem:** Your team wants a shared MCP server for their internal observability backend to be available to every developer using Claude Code on the project, with credentials supplied via an environment variable so secrets are never committed. Each developer also has personal experimental MCP servers they prefer to keep private. Where should each be configured?
 
 A) Both in `~/.claude.json` so each developer's setup is independent and there is no shared configuration file that could leak secrets.
-B) Shared observability server in `.mcp.json` at the project root with `${OBSERVABILITY_TOKEN}` expansion; personal servers in `~/.claude.json`.
+B) Shared observability server in `.mcp.json` at the project root with `${OBSERVABILITY_TOKEN}` expansion; personal servers go in `~/.claude.json`.
 C) Both in `.mcp.json` at the project root, with personal servers gated behind environment variables that only the owner has set locally.
 D) Shared observability server in a one-off shell script that each developer runs on startup; personal servers in `.mcp.json` at the project root.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** The canonical scoping is project-level `.mcp.json` for shared team tooling (committed to the repo with environment variable expansion for credentials) and user-level `~/.claude.json` for personal or experimental servers. Environment variable expansion like `${OBSERVABILITY_TOKEN}` keeps secrets out of the committed file. You apply this whenever a server should be shared with everyone on the project versus only available to one developer. It beats the all-personal option because shared tooling belongs in a committed configuration so onboarding is automatic.
-- **C (plausible runner-up):** Putting everything in `.mcp.json` with env-var gating is technically possible but mixes personal preferences into team config and clutters the project file. The reason it is not the right call is that the user-scope file exists specifically for personal servers, and using it preserves separation of concerns. Use project scope only for shared servers.
 - **A:** Putting the shared server in every developer's user config means onboarding is manual and inconsistent.
+- **B (correct):** The canonical scoping is project-level `.mcp.json` for shared team tooling (committed to the repo with environment variable expansion for credentials) and user-level `~/.claude.json` for personal or experimental servers. Environment variable expansion like `${OBSERVABILITY_TOKEN}` keeps secrets out of the committed file. You apply this whenever a server should be shared with everyone on the project versus only available to one developer. It beats the all-personal option because shared tooling belongs in a committed configuration so onboarding is automatic.
+- **C:** Putting everything in `.mcp.json` with env-var gating is technically possible but mixes personal preferences into team config and clutters the project file. The reason it is not the right call is that the user-scope file exists specifically for personal servers, and using it preserves separation of concerns. Use project scope only for shared servers.
 - **D:** A startup shell script is an ad hoc workaround that the MCP scoping mechanism was designed to replace.
 
 ---
@@ -1754,21 +1751,21 @@ D) Shared observability server in a one-off shell script that each developer run
 
 A) Remove Grep from the agent's tool set entirely so the only remaining option for issue lookups is the Jira MCP tool.
 B) Switch to a custom MCP server written in-house so the tool integrates more tightly with your other MCP tooling.
-C) Lengthen and clarify the `search_jira` description to detail its capabilities, the freshness of results, and when to prefer it over Grep.
+C) Lengthen and clarify the `search_jira` description to detail its capabilities, the freshness of the results, and when to prefer it over Grep.
 D) Move the Jira server configuration from `.mcp.json` to `~/.claude.json` so each developer can opt in or out at the user level individually.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Built-in tools like Grep have strong, well-known descriptions; MCP tools must compete on description quality. Enhancing the `search_jira` description with capabilities, output detail, and explicit "prefer over Grep when..." guidance changes the selection calculus. You apply this any time the agent defaults to a built-in tool instead of a more capable MCP tool. It beats writing a custom server because the community Jira server is already doing the right thing functionally — the issue is purely description-quality.
-- **B (plausible runner-up):** Writing a custom MCP server is sometimes appropriate for team-specific workflows, but should be reserved for those cases. The reason it is wrong here is that a community Jira server already exists and works; rewriting it gains nothing and burns engineering time. Prefer community servers for standard integrations.
 - **A:** Removing Grep cripples legitimate code-search workflows to fix a description problem.
+- **B:** Writing a custom MCP server is sometimes appropriate for team-specific workflows, but should be reserved for those cases. The reason it is wrong here is that a community Jira server already exists and works; rewriting it gains nothing and burns engineering time. Prefer community servers for standard integrations.
+- **C (correct):** Built-in tools like Grep have strong, well-known descriptions; MCP tools must compete on description quality. Enhancing the `search_jira` description with capabilities, output detail, and explicit "prefer over Grep when..." guidance changes the selection calculus. You apply this any time the agent defaults to a built-in tool instead of a more capable MCP tool. It beats writing a custom server because the community Jira server is already doing the right thing functionally — the issue is purely description-quality.
 - **D:** Scope changes do not influence which tool the model picks; this is a description issue, not a scoping issue.
 
 ---
@@ -1778,23 +1775,23 @@ D) Move the Jira server configuration from `.mcp.json` to `~/.claude.json` so ea
 **Stem:** Your research system relies on a documentation MCP server with 200+ pages of internal API docs. Today the agent runs many exploratory tool calls to discover what topics exist before retrieving any specific page. The team wants to reduce these exploratory calls without removing the agent's freedom to navigate. Which MCP feature applies the right principle?
 
 A) Expose the documentation hierarchy as MCP resources so the agent can see available data without making exploratory tool calls first.
-B) Pre-summarize the entire 200-page corpus into a single 5,000-word context block injected at the start of every conversation turn.
-C) Replace the documentation MCP server with a built-in Read tool over the same files so navigation is faster and more deterministic.
-D) Cache the previous turn's exploratory tool call results in agent memory and reuse them on subsequent turns without re-querying.
+B) Pre-summarize the entire two-hundred-page corpus into a single five-thousand-word context block injected at the start of every conversation turn in the run.
+C) Replace the documentation MCP server with a built-in Read tool over the same files so navigation is faster and more deterministic across the agent's turns.
+D) Cache the previous turn's exploratory tool call results in agent memory and reuse them on subsequent turns without re-querying the documentation service.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
 - B: plausible-runner-up
-- D: implausible
 - C: implausible
+- D: implausible
 
 **Explanation:**
 - **A (correct):** MCP resources expose content catalogs — documentation hierarchies, issue summaries, schemas — so the agent has visibility into what is available without exploratory tool calls. The agent can scan the resource list and target retrieval, instead of guessing topics. You apply this any time a corpus is large and the agent is wasting calls on discovery. It beats pre-summarization because the resource approach scales with the corpus and stays current as docs change.
-- **B (plausible runner-up):** Injecting a 5,000-word summary is a real technique for giving the agent corpus awareness, especially when no resource mechanism is available. The reason resources beat it is that resources are queryable and structured, scale beyond what fits in every turn, and stay current automatically. Pre-summarization risks staleness and bloats every turn's context.
-- **D:** Caching previous tool outputs is a separate optimization that does not address discovery on fresh topics.
+- **B:** Injecting a 5,000-word summary is a real technique for giving the agent corpus awareness, especially when no resource mechanism is available. The reason resources beat it is that resources are queryable and structured, scale beyond what fits in every turn, and stay current automatically. Pre-summarization risks staleness and bloats every turn's context.
 - **C:** Built-in Read does not help discovery; it just lets the agent fetch known paths. The bottleneck is knowing which paths exist.
+- **D:** Caching previous tool outputs is a separate optimization that does not address discovery on fresh topics.
 
 ---
 
@@ -1802,24 +1799,24 @@ D) Cache the previous turn's exploratory tool call results in agent memory and r
 
 **Stem:** A new developer joins your team and clones the repository. Their first run of Claude Code fails to discover the MCP tools your team relies on. You inspect their machine: they have committed code, a `.gitignore`, and a `package.json`, but you notice their workflow has not picked up the MCP servers. What is the most likely root cause and fix?
 
-A) The team has not added a `.mcp.json` at the project root; create one with the shared servers and environment variable expansion, then commit it.
-B) The new developer needs to manually copy MCP server configurations into their `~/.claude.json` file before any tool will work for them.
-C) Claude Code does not support MCP server discovery automatically; the developer must run a CLI command on every session to enable servers.
-D) The repository should commit `~/.claude.json` so user-scoped configurations propagate to every team member who clones the repository.
+A) The team has not added a `.mcp.json` at the project root; create one with the shared servers and env-var expansion, then commit it.
+B) The new developer needs to manually copy MCP server configurations into their own `~/.claude.json` file before any tool will work for them on the local machine.
+C) Claude Code does not support MCP server discovery automatically; the developer must run a CLI command on every session to enable the configured servers.
+D) The repository should commit `~/.claude.json` so user-scoped configurations propagate to every team member who clones the repository onto their machine.
 
 **Correct:** A
 
 **Plausibility:**
 - A: plausible-correct
 - B: plausible-runner-up
-- D: implausible
 - C: implausible
+- D: implausible
 
 **Explanation:**
 - **A (correct):** Shared team tooling belongs in a project-scoped `.mcp.json` at the repo root, which Claude Code discovers automatically. Without it, new developers see only their personal user-scope servers. Environment variable expansion keeps secrets out of the committed file. You apply this any time onboarding to MCP tooling should be automatic for everyone cloning the repo. It beats the manual-copy option because the project-scope mechanism exists exactly to avoid that toil.
-- **B (plausible runner-up):** Asking the developer to copy MCP servers into their user config is a real workaround and would functionally work. The reason it is the wrong answer is that user scope is intended for *personal* servers, not shared team tooling; this is exactly what project-scoped `.mcp.json` solves automatically. Maintaining configs in many places is also error-prone.
-- **D:** `~/.claude.json` is a per-user file and contains personal preferences and credentials; committing it would leak secrets and clutter every machine.
+- **B:** Asking the developer to copy MCP servers into their user config is a real workaround and would functionally work. The reason it is the wrong answer is that user scope is intended for *personal* servers, not shared team tooling; this is exactly what project-scoped `.mcp.json` solves automatically. Maintaining configs in many places is also error-prone.
 - **C:** Claude Code does support automatic discovery; manual CLI runs every session is not the design.
+- **D:** `~/.claude.json` is a per-user file and contains personal preferences and credentials; committing it would leak secrets and clutter every machine.
 
 ---
 
@@ -1830,21 +1827,21 @@ D) The repository should commit `~/.claude.json` so user-scoped configurations p
 A) Replace `${JIRA_TOKEN}` with the literal token value in `.mcp.json` for now and rotate the token in a follow-up sprint to limit exposure.
 B) Hardcode the token in a project-level `.env.local` and commit it to a separate private branch only the developer pulls from for builds.
 C) Switch the Jira server to a different MCP that does not require authentication so the developer can avoid environment variable issues entirely.
-D) Set the environment variable in a launchd plist or shell profile sourced by the GUI app's launch context so `${JIRA_TOKEN}` expansion works.
+D) Set the environment variable inside a launchd plist or shell profile sourced by the GUI app's launch context so the `${JIRA_TOKEN}` expansion works.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Environment variable expansion in `.mcp.json` requires the variable to be present in the launch environment. On macOS, GUI apps do not source `.zshrc`; the fix is to define the variable in a launchd plist or a profile that the GUI launch context sources. This preserves the shared `.mcp.json` and keeps secrets out of the repo. You apply this whenever GUI-vs-shell environment differences cause expansion failures. It beats the `.env.local` approach because the variable simply needs to be in the actual launch environment, not in a project-specific file.
-- **B (plausible runner-up):** `.env.local` files for environment variables are a real pattern in many frameworks and would functionally provide the token. The reason it is not the best answer is that committing it to any branch — even a private one — risks leakage and breaks the secret-management contract. The right fix is at the process-environment level, not in committed files.
 - **A:** Hardcoding tokens in committed config is the exact failure mode `${...}` expansion exists to prevent.
+- **B:** `.env.local` files for environment variables are a real pattern in many frameworks and would functionally provide the token. The reason it is not the best answer is that committing it to any branch — even a private one — risks leakage and breaks the secret-management contract. The right fix is at the process-environment level, not in committed files.
 - **C:** Removing authentication is not an option for a corporate tool with real access controls.
+- **D (correct):** Environment variable expansion in `.mcp.json` requires the variable to be present in the launch environment. On macOS, GUI apps do not source `.zshrc`; the fix is to define the variable in a launchd plist or a profile that the GUI launch context sources. This preserves the shared `.mcp.json` and keeps secrets out of the repo. You apply this whenever GUI-vs-shell environment differences cause expansion failures. It beats the `.env.local` approach because the variable simply needs to be in the actual launch environment, not in a project-specific file.
 
 ---
 
@@ -1852,23 +1849,23 @@ D) Set the environment variable in a launchd plist or shell profile sourced by t
 
 **Stem:** You are deciding whether to use a community MCP server or build a custom one for connecting your research system to a standard issue tracker (GitHub Issues). The community server is actively maintained, covers your needs, and supports all the operations you require. Leadership asks why you would prefer one over the other. Which principle best supports adopting the community server?
 
-A) Community servers must always be wrapped in a custom adapter before use, since the project will eventually outgrow community feature sets.
-B) Existing community MCP servers should be preferred for standard integrations; custom servers should be reserved for team-specific workflows.
-C) Custom servers are always preferred because they let your team optimize the tool descriptions to a higher quality than community defaults.
-D) Both should run in parallel and the agent should pick between them dynamically based on the user's most recent question phrasing.
+A) Community servers must always be wrapped in a custom adapter before use, since the project will eventually outgrow community feature sets as needs evolve.
+B) Existing community MCP servers should be preferred for standard integrations; reserve custom servers for team-specific workflows.
+C) Custom servers are always preferred because they let your team optimize tool descriptions to a higher quality than community defaults achieve out of the box.
+D) Both should run in parallel and the agent should pick between them dynamically based on the user's most recent question phrasing for each turn.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** The recommended principle is to prefer existing community MCP servers for standard integrations like GitHub Issues, Jira, and Slack, and reserve custom server development for genuinely team-specific workflows. This minimizes maintenance burden and benefits from upstream improvements. You apply this whenever a community server already covers your operations and is actively maintained. It beats the custom-server-for-descriptions argument because you can enhance descriptions on top of community servers (or contribute upstream) without rewriting the whole server.
-- **C (plausible runner-up):** Description quality is a real lever and custom servers do give you full control over them. The reason it is not the deciding factor is that you can enhance MCP tool descriptions through your own configuration layer; description quality alone does not justify rewriting a maintained integration.
 - **A:** "Always wrap in a custom adapter" is over-engineering when the community server already covers needs.
+- **B (correct):** The recommended principle is to prefer existing community MCP servers for standard integrations like GitHub Issues, Jira, and Slack, and reserve custom server development for genuinely team-specific workflows. This minimizes maintenance burden and benefits from upstream improvements. You apply this whenever a community server already covers your operations and is actively maintained. It beats the custom-server-for-descriptions argument because you can enhance descriptions on top of community servers (or contribute upstream) without rewriting the whole server.
+- **C:** Description quality is a real lever and custom servers do give you full control over them. The reason it is not the deciding factor is that you can enhance MCP tool descriptions through your own configuration layer; description quality alone does not justify rewriting a maintained integration.
 - **D:** Running parallel duplicate servers introduces sprawl and confuses selection.
 
 ---
@@ -1885,16 +1882,16 @@ D) Tools from all configured MCP servers are discovered at connection time and m
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** MCP servers expose their tool catalogs at connection time, and the agent has the full set available simultaneously from the start of the session. There is no lazy per-tool discovery. You rely on this guarantee every time you reason about which tools the agent can choose among at any point in a conversation. It beats the restart-needed answer because servers and their tools become available as soon as they connect, not only on process startup.
-- **B (plausible runner-up):** It is true that servers added mid-session may not be picked up until reconnection in some setups, so this answer is close to a real behavior. The reason it is not the right answer is that the question is about how discovery works for already-configured servers at connection time, which is upfront and simultaneous.
 - **A:** There is no per-tool lazy discovery; the catalog is fetched at connection.
+- **B:** It is true that servers added mid-session may not be picked up until reconnection in some setups, so this answer is close to a real behavior. The reason it is not the right answer is that the question is about how discovery works for already-configured servers at connection time, which is upfront and simultaneous.
 - **C:** No artificial inter-server delays are part of the protocol; discovery is parallel.
+- **D (correct):** MCP servers expose their tool catalogs at connection time, and the agent has the full set available simultaneously from the start of the session. There is no lazy per-tool discovery. You rely on this guarantee every time you reason about which tools the agent can choose among at any point in a conversation. It beats the restart-needed answer because servers and their tools become available as soon as they connect, not only on process startup.
 
 ---
 
@@ -1904,22 +1901,22 @@ D) Tools from all configured MCP servers are discovered at connection time and m
 
 A) Replace the listing tool with a function that returns only the top three topics by recency to reduce response size every turn.
 B) Move the topic catalog into the system prompt as a giant bulleted list refreshed nightly by a separate build job.
-C) Expose the topic catalog as an MCP resource so the agent has the catalog available without consuming a tool call to list it.
+C) Expose the topic catalog as an MCP resource so the agent has the catalog available each turn without consuming a tool call to list it.
 D) Cache the catalog response in agent memory across turns and only call the listing tool on the first turn of every new session.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** MCP resources are designed exactly for content catalogs that should be visible to the agent without consuming a tool call. Moving the topic catalog to a resource means the agent has it available continuously, removing the per-turn listing call. You apply this any time a catalog is queried for orientation rather than action. It beats turn-level caching because resources are the protocol-supported way to do this and integrate cleanly with how Claude reasons over available data.
-- **D (plausible runner-up):** Caching the catalog response is a real performance optimization and would reduce repeated listing calls. The reason it is not the best answer is that resources solve the same problem at a higher abstraction level — the agent sees the catalog as first-class data rather than as a cached tool result. Caching is a fallback when resources are not available.
 - **A:** Trimming to top-three topics loses information that the agent legitimately needs.
 - **B:** Stuffing the catalog into the system prompt bloats every turn's context and goes stale.
+- **C (correct):** MCP resources are designed exactly for content catalogs that should be visible to the agent without consuming a tool call. Moving the topic catalog to a resource means the agent has it available continuously, removing the per-turn listing call. You apply this any time a catalog is queried for orientation rather than action. It beats turn-level caching because resources are the protocol-supported way to do this and integrate cleanly with how Claude reasons over available data.
+- **D:** Caching the catalog response is a real performance optimization and would reduce repeated listing calls. The reason it is not the best answer is that resources solve the same problem at a higher abstraction level — the agent sees the catalog as first-class data rather than as a cached tool result. Caching is a fallback when resources are not available.
 
 ---
 
@@ -1935,16 +1932,16 @@ D) Glob with the pattern `**/*.test.tsx`, which is specifically designed for fil
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Glob is the built-in tool for file path pattern matching — finding files by name or extension patterns. `**/*.test.tsx` recursively matches the pattern across the repository. You reach for Glob any time the task is "find files named like X" rather than "find files containing X." It beats Bash+find because the built-in tool is purpose-built, observable in traces, and does not require shell expertise from the model.
-- **B (plausible runner-up):** Bash with `find` and `grep` is a valid composition and is sometimes useful when Glob does not cover an exotic pattern. The reason it is not the right primary choice is that Glob exists specifically for this case; falling back to Bash forfeits the built-in's predictability and tooling integration. Use Bash only when a built-in cannot express the operation.
 - **A:** Read on a directory does not exist as a useful operation; Read is for file contents.
+- **B:** Bash with `find` and `grep` is a valid composition and is sometimes useful when Glob does not cover an exotic pattern. The reason it is not the right primary choice is that Glob exists specifically for this case; falling back to Bash forfeits the built-in's predictability and tooling integration. Use Bash only when a built-in cannot express the operation.
 - **C:** Grep searches file *contents*, not file *names*; this would not match by filename.
+- **D (correct):** Glob is the built-in tool for file path pattern matching — finding files by name or extension patterns. `**/*.test.tsx` recursively matches the pattern across the repository. You reach for Glob any time the task is "find files named like X" rather than "find files containing X." It beats Bash+find because the built-in tool is purpose-built, observable in traces, and does not require shell expertise from the model.
 
 ---
 
@@ -1967,7 +1964,7 @@ D) Read on the file that exports `parseDate` to extract its signature and then a
 
 **Explanation:**
 - **A (correct):** Grep is the built-in for content search across files, exactly the right tool for finding callers — usages of a function name across many files. You apply Grep any time you need to find code that references a specific identifier, error message, or import. It beats Glob because file names do not tell you which files *use* `parseDate`; you need to inspect contents. The pattern "find callers" is the canonical Grep workflow.
-- **B (plausible runner-up):** Glob is the right shape of tool (codebase navigation) but the wrong predicate; it filters by filename, not content. The reason it is wrong is that filename-based search will miss every caller whose file is not named `parseDate*`. Use Glob for filename patterns, Grep for content patterns.
+- **B:** Glob is the right shape of tool (codebase navigation) but the wrong predicate; it filters by filename, not content. The reason it is wrong is that filename-based search will miss every caller whose file is not named `parseDate*`. Use Glob for filename patterns, Grep for content patterns.
 - **C:** `git log` finds historical changes, not current callers; it answers a different question.
 - **D:** Reading only the exporting file misses every other file that uses the function, which is the entire point of finding callers.
 
@@ -1985,15 +1982,15 @@ D) Use Glob to find related files and Read them all to build a global picture be
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** When Edit cannot find unique anchor text, the canonical fallback is Read followed by Write — load the full file, apply the change reliably in memory, then overwrite. This guarantees a deterministic update without depending on text uniqueness. You apply this any time an Edit fails for non-uniqueness and the surrounding context does not give you a clean unique anchor. It beats expanding the Edit anchor because anchor expansion is fragile and still depends on guessing what context is locally unique.
-- **A (plausible runner-up):** Expanding the anchor text is the first thing to try if the surrounding context is small and clearly unique. The reason it is not the best fallback is that it still risks repeated failures and adds iterations; Read+Write is robust and finishes in one round-trip. Expand-anchor is a tactical tweak; Read+Write is the structured fallback.
+- **A:** Expanding the anchor text is the first thing to try if the surrounding context is small and clearly unique. The reason it is not the best fallback is that it still risks repeated failures and adds iterations; Read+Write is robust and finishes in one round-trip. Expand-anchor is a tactical tweak; Read+Write is the structured fallback.
 - **B:** Bash+sed mixes shell scripting into a workflow where built-ins are reliable; line-number disambiguation is brittle as files evolve.
+- **C (correct):** When Edit cannot find unique anchor text, the canonical fallback is Read followed by Write — load the full file, apply the change reliably in memory, then overwrite. This guarantees a deterministic update without depending on text uniqueness. You apply this any time an Edit fails for non-uniqueness and the surrounding context does not give you a clean unique anchor. It beats expanding the Edit anchor because anchor expansion is fragile and still depends on guessing what context is locally unique.
 - **D:** Cross-file Glob+Read is unrelated to a single-file Edit failure.
 
 ---
@@ -2010,16 +2007,16 @@ D) Start with Grep to find entry points (e.g., `main`, exported functions), then
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Incremental codebase understanding starts with Grep to find entry points (main functions, exported names, route handlers), then uses Read to follow imports and trace flows. This avoids the "read everything upfront" anti-pattern and keeps the context window focused. You apply this whenever exploring an unfamiliar codebase. It beats line-count-based heuristics because longest files are not necessarily most important; entry points are.
-- **C (plausible runner-up):** Using Glob plus a line-count heuristic is a real exploration technique and is sometimes useful when entry points are unclear. The reason it is not the best workflow is that file size is a poor proxy for importance, and starting from entry points yields a more accurate mental model. Heuristics are a fallback, not the primary method.
 - **A:** Reading every entry point at once is what the team is trying to stop; it exhausts the context window.
 - **B:** Writing a placeholder before understanding the code is putting outputs before inputs.
+- **C:** Using Glob plus a line-count heuristic is a real exploration technique and is sometimes useful when entry points are unclear. The reason it is not the best workflow is that file size is a poor proxy for importance, and starting from entry points yields a more accurate mental model. Heuristics are a fallback, not the primary method.
+- **D (correct):** Incremental codebase understanding starts with Grep to find entry points (main functions, exported names, route handlers), then uses Read to follow imports and trace flows. This avoids the "read everything upfront" anti-pattern and keeps the context window focused. You apply this whenever exploring an unfamiliar codebase. It beats line-count-based heuristics because longest files are not necessarily most important; entry points are.
 
 ---
 
@@ -2035,14 +2032,14 @@ D) Skip Grep and use Read on every file in the repo to manually scan for any of 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** A regex alternation across the three known names is a valid optimization and reduces the number of Grep calls. The reason it falls short is that it assumes you already know all the aliases; the task starts with discovering them. Alternation is a great follow-up after enumeration, not a substitute.
 - **B (correct):** When a function is re-exported under multiple names, the canonical workflow is to first identify all exported names from the wrapper modules and then search for each name across the codebase. This explicitly addresses the alias problem. You apply this whenever tracing usage across wrapper layers, indirection, or naming inconsistencies. It beats a single regex pass because identifying the names first ensures you do not miss aliases you did not know existed.
-- **A (plausible runner-up):** A regex alternation across the three known names is a valid optimization and reduces the number of Grep calls. The reason it falls short is that it assumes you already know all the aliases; the task starts with discovering them. Alternation is a great follow-up after enumeration, not a substitute.
 - **C:** Case-insensitive matching does not catch underscore versus camelCase variants and is unreliable for alias discovery.
 - **D:** Reading every file in the repo defeats the purpose of using search tools.
 
@@ -2052,24 +2049,24 @@ D) Skip Grep and use Read on every file in the repo to manually scan for any of 
 
 **Stem:** Your agent must add a single new field to a TypeScript interface defined in `types.ts`. The interface declaration is unique in the file, but the agent's Edit call fails because the model included extra trailing whitespace from a copy-paste in the `old_string`, so it does not match exactly. The team wants a resilient fix without disabling whitespace sensitivity. What is the best next step?
 
-A) Re-attempt Edit after trimming trailing whitespace in the `old_string` argument so the match succeeds on exact bytes.
-B) Switch to Bash with `sed -i` and a regex that ignores trailing whitespace, applying the edit across all files for consistency.
-C) Use Glob to find every `.ts` file containing an interface declaration and Edit each one in turn with the same fragment.
+A) Re-attempt Edit after trimming trailing whitespace in the `old_string` argument so the match succeeds on exact bytes the next attempt around the file.
+B) Switch to Bash with `sed -i` and a regex that ignores trailing whitespace, applying the edit across all files for consistency across the repository.
+C) Use Glob to find every `.ts` file containing an interface declaration and Edit each one in turn with the same fragment applied repeatedly.
 D) Read the file to capture the exact bytes of the interface declaration, then issue Edit with that precise text, or Write the modified contents.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Reading the file first to capture the exact bytes — including precise whitespace — gives the agent a guaranteed-correct `old_string`, or it can do Read+Write directly as the canonical fallback. This handles the whitespace mismatch without relying on guesses about what trimming might work. You apply this whenever Edit fails due to formatting nuances. It beats blind trimming because trimming may not match the file's actual state if the model also dropped or added other characters.
-- **A (plausible runner-up):** Trimming trailing whitespace and retrying is a quick first attempt and often works. The reason it is not the most resilient step is that it assumes the only mismatch is trailing whitespace; if leading whitespace or tab/space differences are also off, the trim fails again. Reading the file removes all guesswork.
+- **A:** Trimming trailing whitespace and retrying is a quick first attempt and often works. The reason it is not the most resilient step is that it assumes the only mismatch is trailing whitespace; if leading whitespace or tab/space differences are also off, the trim fails again. Reading the file removes all guesswork.
 - **B:** Cross-file sed for a single-file change is overreach and risks unintended changes in other files.
 - **C:** Editing every `.ts` file with an interface declaration is the opposite of targeted modification.
+- **D (correct):** Reading the file first to capture the exact bytes — including precise whitespace — gives the agent a guaranteed-correct `old_string`, or it can do Read+Write directly as the canonical fallback. This handles the whitespace mismatch without relying on guesses about what trimming might work. You apply this whenever Edit fails due to formatting nuances. It beats blind trimming because trimming may not match the file's actual state if the model also dropped or added other characters.
 
 ---
 
@@ -2077,23 +2074,23 @@ D) Read the file to capture the exact bytes of the interface declaration, then i
 
 **Stem:** The agent is asked: "Show me where we catch `DatabaseConnectionError` so I can confirm we always log before re-throwing." There are likely many catch blocks in many files. Which workflow applies the right principle most efficiently?
 
-A) Bash with `find . -type f` piped through `xargs grep` so the agent has full control of the search semantics across the file tree.
-B) Glob with `**/*.{ts,js}` to enumerate code files and Read each one in turn to look for `DatabaseConnectionError` references manually.
-C) Grep with the pattern `DatabaseConnectionError` to find every reference, then Read the matched files to inspect the surrounding catch blocks.
-D) Read the file that defines `DatabaseConnectionError` and assume its catchers are all listed in the class's JSDoc as documentation.
+A) Bash with `find . -type f` piped through `xargs grep` so the agent has full control of the search semantics across the file tree for this task.
+B) Glob with `**/*.{ts,js}` to enumerate code files and Read each one in turn to look for `DatabaseConnectionError` references manually one by one.
+C) Grep with the pattern `DatabaseConnectionError` to find every reference, then Read the matched files to inspect surrounding catch blocks.
+D) Read the file that defines `DatabaseConnectionError` and assume its catchers are all listed in the class's JSDoc as documentation for callers.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Grep is the right tool for content search across the codebase, and the canonical workflow is Grep first to find matches, then Read selected files to inspect surrounding context (here, the catch blocks). You apply this any time you need to find usages and then understand them in context. It beats raw Bash piping because the built-in is purpose-built, surfaces well in traces, and does not require the model to compose shell idioms.
-- **A (plausible runner-up):** Bash with find/xargs/grep is a valid composition and sometimes useful for exotic queries. The reason it is not the best primary choice is that the built-in Grep covers this case directly and avoids the overhead of shell composition. Reach for Bash when built-ins cannot express the operation.
+- **A:** Bash with find/xargs/grep is a valid composition and sometimes useful for exotic queries. The reason it is not the best primary choice is that the built-in Grep covers this case directly and avoids the overhead of shell composition. Reach for Bash when built-ins cannot express the operation.
 - **B:** Globbing every code file and Reading them all manually is exactly the inefficiency Grep exists to avoid.
+- **C (correct):** Grep is the right tool for content search across the codebase, and the canonical workflow is Grep first to find matches, then Read selected files to inspect surrounding context (here, the catch blocks). You apply this any time you need to find usages and then understand them in context. It beats raw Bash piping because the built-in is purpose-built, surfaces well in traces, and does not require the model to compose shell idioms.
 - **D:** JSDoc rarely lists every catcher and is not a reliable source of truth for usage.
 
 ---
@@ -2102,37 +2099,29 @@ D) Read the file that defines `DatabaseConnectionError` and assume its catchers 
 
 **Stem:** Your agent must add a small helper function to the bottom of a 1,200-line utilities file. The file has many similar function declarations and Edit anchor matching has been unreliable. The change is large (a new 30-line function plus its imports). What is the most reliable built-in workflow for this change?
 
-A) Edit with the last 10 characters of the file as the `old_string` and the helper appended after them as the `new_string` for atomic insertion.
-B) Bash with `echo >> utilities.ts` to append the new helper, then a separate Bash call to prepend the new import line at the top of the file.
-C) Read the file to load its full current contents, build the modified version locally, and Write the full updated file back to disk in one call.
-D) Glob the project for similar utility files and Edit each one in parallel so the new helper is available everywhere it might be needed.
+A) Edit with the last ten characters of the file as the `old_string` and the helper appended after them as the `new_string` for atomic file insertion.
+B) Bash with `echo >> utilities.ts` to append the new helper, then a separate Bash call to prepend the new import line at the top of the file in place.
+C) Read the file to load its full current contents, build the modified version locally, and Write the full updated file back to disk.
+D) Glob the project for similar utility files and Edit each one in parallel so the new helper is available everywhere it might be needed across modules.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** For larger modifications and files where Edit anchors have been unreliable, the canonical pattern is Read followed by Write — load the file, apply the changes locally, write the full updated contents back. This is deterministic, single-round-trip, and avoids the brittleness of anchor matching for multi-location changes. You apply this whenever Edit has failed or when changes span multiple regions of a file. It beats end-of-file anchor edits because tiny anchors are not robust and do not handle the import addition cleanly.
-- **A (plausible runner-up):** Using the last few characters as an anchor is sometimes acceptable for append-only operations and would work for the function body. The reason it is not the best workflow is that the change also requires adding an import near the top, which requires a second Edit; Read+Write handles both in one shot. Multi-region changes favor Write.
+- **A:** Using the last few characters as an anchor is sometimes acceptable for append-only operations and would work for the function body. The reason it is not the best workflow is that the change also requires adding an import near the top, which requires a second Edit; Read+Write handles both in one shot. Multi-region changes favor Write.
 - **B:** Bash redirects bypass the built-in file tools and lose the safety and observability they provide.
+- **C (correct):** For larger modifications and files where Edit anchors have been unreliable, the canonical pattern is Read followed by Write — load the file, apply the changes locally, write the full updated contents back. This is deterministic, single-round-trip, and avoids the brittleness of anchor matching for multi-location changes. You apply this whenever Edit has failed or when changes span multiple regions of a file. It beats end-of-file anchor edits because tiny anchors are not robust and do not handle the import addition cleanly.
 - **D:** Editing many utility files for a single helper is overreach and introduces duplication.
 
 ---
 
-## Distribution Summary
-
-- Total questions: 42
-- Task statements covered: 2.1 (Q1–Q9, 9 questions), 2.2 (Q10–Q17, 8 questions), 2.3 (Q18–Q26, 9 questions), 2.4 (Q27–Q34, 8 questions), 2.5 (Q35–Q42, 8 questions)
-- Correct-letter distribution: A: 11, B: 10, C: 11, D: 10
-- Difficulty: 12 easy / 22 medium / 8 hard
-
 
 ## Domain 3: Claude Code Configuration & Workflows
-
 
 ### Q1 | Scenario 2 | TS 3.1 | difficulty: easy
 
@@ -2146,15 +2135,15 @@ D) Add a Git pre-commit hook that copies user-level memory into the repo wheneve
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The CLAUDE.md hierarchy explicitly separates user-level (`~/.claude/CLAUDE.md`) from project-level (root `CLAUDE.md` or `.claude/CLAUDE.md`), and only the project-level file is shared via version control. Conventions that must apply uniformly to a team belong in the project tier so every clone picks them up automatically with no manual onboarding step. You'd reach for this same approach any time the rule represents a shared team standard rather than a personal preference. It beats option A because manual file copying drifts over time and silently breaks for new hires.
-- **A (plausible runner-up):** Copying a user-level file into another user's home directory does technically deliver the same rules to that machine, and a small team using shared dotfiles repos sometimes operates this way. It gets the "make everyone have the same instructions" idea almost right, but it fundamentally misuses the user-level tier, which is designed for personal customization that should not be shared. The scenario signal that this is wrong is the emphasis on "all current and future teammates" — project-level configuration is the only mechanism designed for that audience.
+- **A:** Copying a user-level file into another user's home directory does technically deliver the same rules to that machine, and a small team using shared dotfiles repos sometimes operates this way. It gets the "make everyone have the same instructions" idea almost right, but it fundamentally misuses the user-level tier, which is designed for personal customization that should not be shared. The scenario signal that this is wrong is the emphasis on "all current and future teammates" — project-level configuration is the only mechanism designed for that audience.
 - **B:** Manual paste-at-start-of-session is exactly what the CLAUDE.md hierarchy was designed to replace; it's brittle and non-discoverable. Wiki-only docs are appropriate for purely human-readable runbooks, not loaded instructions.
+- **C (correct):** The CLAUDE.md hierarchy explicitly separates user-level (`~/.claude/CLAUDE.md`) from project-level (root `CLAUDE.md` or `.claude/CLAUDE.md`), and only the project-level file is shared via version control. Conventions that must apply uniformly to a team belong in the project tier so every clone picks them up automatically with no manual onboarding step. You'd reach for this same approach any time the rule represents a shared team standard rather than a personal preference. It beats option A because manual file copying drifts over time and silently breaks for new hires.
 - **D:** Pre-commit hooks should not move files between users' home directories — that's an obvious privacy and consistency anti-pattern. Hooks are appropriate for repo-local lint enforcement, not memory file synchronization.
 
 ---
@@ -2164,22 +2153,22 @@ D) Add a Git pre-commit hook that copies user-level memory into the repo wheneve
 **Stem:** Your monorepo's root `CLAUDE.md` has grown to 2,800 lines covering API conventions, testing rules, deployment standards, security guidance, and per-package quirks. Engineers report that Claude often cites generic project rules but ignores package-specific guidance. The maintainers of each package have strong opinions about which standards documents apply to their package. What restructuring approach most directly leverages the configuration hierarchy to fix this?
 
 A) Delete the root `CLAUDE.md` entirely and rely on each package maintainer pasting rules into chat as needed for their work.
-B) Keep the root `CLAUDE.md` short with shared rules, and add per-package `CLAUDE.md` files that `@import` the standards docs relevant to that package.
+B) Keep root `CLAUDE.md` short with shared rules; add per-package files that `@import` standards relevant to each package.
 C) Move every rule into `.claude/rules/` and remove all `CLAUDE.md` files so nothing is auto-loaded at session start.
 D) Concatenate all standards into a single 5,000-line `CLAUDE.md` so Claude always sees the complete ruleset in every session.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Directory-level `CLAUDE.md` files combined with `@import` syntax let each package maintainer curate exactly the standards relevant to their package, while a small root file holds genuinely shared rules. This applies the modular organization principle the hierarchy is designed for and respects maintainer domain knowledge. You'd reach for this same pattern any time per-area expertise should determine which standards load. It beats option C because directory-level memory is automatically scoped by location, whereas `.claude/rules/` files require explicit path globs or invocation triggers and remove the always-loaded shared baseline.
-- **C (plausible runner-up):** `.claude/rules/` is genuinely a real alternative to a monolithic `CLAUDE.md`, and splitting big files into topic-specific ones is exactly the right instinct. It gets the "break it up" idea almost right, but eliminating all `CLAUDE.md` files removes the always-loaded baseline that the team still needs for shared conventions, and it loses the natural directory-scoping that per-package `CLAUDE.md` provides. The signal in the stem — that maintainers want to control what loads in their package — points to directory-level memory plus selective imports.
 - **A:** Manual paste-at-chat-start is exactly the anti-pattern the memory system replaces; it doesn't scale and is non-discoverable. Wiping the root file also removes legitimate shared standards.
+- **B (correct):** Directory-level `CLAUDE.md` files combined with `@import` syntax let each package maintainer curate exactly the standards relevant to their package, while a small root file holds genuinely shared rules. This applies the modular organization principle the hierarchy is designed for and respects maintainer domain knowledge. You'd reach for this same pattern any time per-area expertise should determine which standards load. It beats option C because directory-level memory is automatically scoped by location, whereas `.claude/rules/` files require explicit path globs or invocation triggers and remove the always-loaded shared baseline.
+- **C:** `.claude/rules/` is genuinely a real alternative to a monolithic `CLAUDE.md`, and splitting big files into topic-specific ones is exactly the right instinct. It gets the "break it up" idea almost right, but eliminating all `CLAUDE.md` files removes the always-loaded baseline that the team still needs for shared conventions, and it loses the natural directory-scoping that per-package `CLAUDE.md` provides. The signal in the stem — that maintainers want to control what loads in their package — points to directory-level memory plus selective imports.
 - **D:** A larger file makes attention dilution worse, not better, and is the cause of the symptom (generic rules cited, specific ones ignored), not the cure.
 
 ---
@@ -2197,14 +2186,14 @@ D) Diff her local repository against `main` to detect any uncommitted changes to
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** The `/memory` command is the purpose-built diagnostic for exactly this question — it surfaces which memory files are currently loaded and from which tier (user, project, directory). It directly answers "what does Claude see right now?" without requiring file-system spelunking or assumptions about which tier is active. You'd use it any time loaded-context appears inconsistent across sessions or teammates, including when troubleshooting `@import` resolution. It beats the verbose-log approach because it works in the current session without a restart and presents the relevant information in a focused format.
-- **C (plausible runner-up):** Inspecting startup traces is a real diagnostic technique, and verbose logs can reveal file loading. It gets the "instrument the session" idea almost right, but it requires a restart (which may not reproduce the same intermittent state) and forces the engineer to interpret raw logs instead of using the built-in summary. The stem's emphasis on a "quick diagnostic step" and on the current session points to `/memory` as the more direct tool.
 - **B:** Manually comparing pasted file contents tells you what's on disk but not what Claude actually loaded in this session — `@import` resolution, working directory, and tier precedence can all cause divergence.
+- **C:** Inspecting startup traces is a real diagnostic technique, and verbose logs can reveal file loading. It gets the "instrument the session" idea almost right, but it requires a restart (which may not reproduce the same intermittent state) and forces the engineer to interpret raw logs instead of using the built-in summary. The stem's emphasis on a "quick diagnostic step" and on the current session points to `/memory` as the more direct tool.
 - **D:** A git diff finds uncommitted changes but doesn't reveal user-level or imported memory state, which is the most common source of inconsistent behavior.
 
 ---
@@ -2216,21 +2205,21 @@ D) Diff her local repository against `main` to detect any uncommitted changes to
 A) Split the file by alphabetizing all rules and chunking them into 500-line blocks named `CLAUDE-a.md`, `CLAUDE-b.md`, etc.
 B) Keep `CLAUDE.md` as-is and rely on engineers writing more specific prompts to focus Claude on relevant rules.
 C) Move all rules into one giant `.claude/rules/all-rules.md` file so they live outside `CLAUDE.md` but stay together.
-D) Create topic files under `.claude/rules/` like `testing.md`, `api-conventions.md`, and `deployment.md`, each with focused content.
+D) Create topic files in `.claude/rules/` like `testing.md`, `api-conventions.md`, `deployment.md`, each focused.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The `.claude/rules/` directory is designed precisely for topic-specific rule files as an alternative to a monolithic `CLAUDE.md`. Splitting by topic (testing, api-conventions, deployment) lets each owner edit their domain without merge conflicts and makes the rule's purpose self-documenting. You'd reach for this pattern whenever a single memory file has grown beyond comfortable reading length and natural topic boundaries exist. It beats prompt-engineering because the structural fix removes the irrelevant rules from being always-loaded in the first place, rather than asking humans to compensate.
-- **B (plausible runner-up):** Better prompts do reduce irrelevant tangents, and crafting specific requests is genuinely a real technique. It gets the "make Claude focus" idea almost right, but it treats a configuration problem as a prompting problem and forces every engineer to compensate forever. The stem's clear ask for "rules grouped by topic" and "edit each topic independently" points to a structural answer, not a behavioral workaround.
 - **A:** Alphabetical chunking ignores topical coherence and creates arbitrary fragments — exactly the wrong way to use `.claude/rules/`.
+- **B:** Better prompts do reduce irrelevant tangents, and crafting specific requests is genuinely a real technique. It gets the "make Claude focus" idea almost right, but it treats a configuration problem as a prompting problem and forces every engineer to compensate forever. The stem's clear ask for "rules grouped by topic" and "edit each topic independently" points to a structural answer, not a behavioral workaround.
 - **C:** A single giant file in a different location does not solve the size or relevance problem; it just moves it.
+- **D (correct):** The `.claude/rules/` directory is designed precisely for topic-specific rule files as an alternative to a monolithic `CLAUDE.md`. Splitting by topic (testing, api-conventions, deployment) lets each owner edit their domain without merge conflicts and makes the rule's purpose self-documenting. You'd reach for this pattern whenever a single memory file has grown beyond comfortable reading length and natural topic boundaries exist. It beats prompt-engineering because the structural fix removes the irrelevant rules from being always-loaded in the first place, rather than asking humans to compensate.
 
 ---
 
@@ -2246,14 +2235,14 @@ D) Email the rules to teammates and ask them to paste them at the start of any s
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Adding the rules to the root with a scope comment does technically deliver them and is a real pattern teams sometimes use. It gets the "centralize the rules" idea almost right, but it loads the rules for every session regardless of where work is happening and relies on Claude to obey the conditional, which weakens reliability and wastes context. The stem's "without inflating every other package's loaded context" is the signal that pushes you toward directory-level placement.
 - **B (correct):** Directory-level `CLAUDE.md` files are the configuration tier designed for "applies only when working in this part of the tree" rules, and they load automatically when sessions operate inside that directory. This is the cleanest expression of the scenario's requirement — package-specific rules in a package-specific location. You'd reach for directory-level memory any time conventions naturally cluster by directory and would otherwise inflate other areas' context. It beats putting the rules in the root file because directory placement does the scoping for you instead of relying on Claude to interpret a conditional sentence.
-- **A (plausible runner-up):** Adding the rules to the root with a scope comment does technically deliver them and is a real pattern teams sometimes use. It gets the "centralize the rules" idea almost right, but it loads the rules for every session regardless of where work is happening and relies on Claude to obey the conditional, which weakens reliability and wastes context. The stem's "without inflating every other package's loaded context" is the signal that pushes you toward directory-level placement.
 - **C:** User-level memory is for personal preferences and is not shared via version control — wrong tier for a team rule.
 - **D:** Manual paste-at-start workflows are exactly what the memory hierarchy replaces and are non-discoverable for new hires.
 
@@ -2271,15 +2260,15 @@ D) The standards file uses CRLF line endings on one machine and LF on the other,
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The most common source of "same repo, different behavior" is divergent user-level memory: `~/.claude/CLAUDE.md` is not version-controlled and frequently contains personal rules that interact with project rules in surprising ways. Investigating that file first is the highest-yield diagnostic before touching shared files. You'd reach for this same hypothesis any time two clones of the same commit produce different Claude behavior. It beats the editor-rewriting hypothesis because user-level drift is a documented, common cause whereas silent `@import` rewrites by editors are rare and would also be caught by a quick `cat` of the file.
-- **A (plausible runner-up):** Editors do occasionally mangle Markdown on save (trailing whitespace, link reformatting), and verifying the file's literal contents is a real diagnostic step. It gets the "check what's actually on disk" idea almost right, but it's a less common cause than user-level drift and would be discovered quickly if you simply opened the file. The stem's mention of "same commit" but different behavior is the strongest signal pointing at unversioned per-user state.
+- **A:** Editors do occasionally mangle Markdown on save (trailing whitespace, link reformatting), and verifying the file's literal contents is a real diagnostic step. It gets the "check what's actually on disk" idea almost right, but it's a less common cause than user-level drift and would be discovered quickly if you simply opened the file. The stem's mention of "same commit" but different behavior is the strongest signal pointing at unversioned per-user state.
 - **B:** Binary version drift can cause feature gaps but `@import` has been stable; the symptom described (partial honoring) doesn't match a feature-absent scenario.
+- **C (correct):** The most common source of "same repo, different behavior" is divergent user-level memory: `~/.claude/CLAUDE.md` is not version-controlled and frequently contains personal rules that interact with project rules in surprising ways. Investigating that file first is the highest-yield diagnostic before touching shared files. You'd reach for this same hypothesis any time two clones of the same commit produce different Claude behavior. It beats the editor-rewriting hypothesis because user-level drift is a documented, common cause whereas silent `@import` rewrites by editors are rare and would also be caught by a quick `cat` of the file.
 - **D:** Line-ending issues rarely break Markdown imports and would typically manifest as parse errors, not selective rule application.
 
 ---
@@ -2288,7 +2277,7 @@ D) The standards file uses CRLF line endings on one machine and LF on the other,
 
 **Stem:** Across your monorepo you have three packages, each with a distinct maintainer who curates their own standards docs. The maintainers want to define exactly which standards files their package's `CLAUDE.md` pulls in, without forcing the other maintainers to load those rules. You want a mechanism that lets each maintainer write a short package `CLAUDE.md` that references only the standards they consider relevant. Which approach best satisfies that requirement?
 
-A) Use `@import` in each package's directory-level `CLAUDE.md` to pull in just the standards files that maintainer considers relevant.
+A) Use `@import` in each package's directory-level `CLAUDE.md` to pull only the standards files that the package's maintainer considers relevant.
 B) Concatenate all standards into the root `CLAUDE.md` so every package automatically has access to everything its maintainer might need.
 C) Put every standards file into `~/.claude/CLAUDE.md` on every teammate's machine, listing them all explicitly in user memory.
 D) Have maintainers paste the relevant standards into chat at the start of every session that touches their package.
@@ -2303,7 +2292,7 @@ D) Have maintainers paste the relevant standards into chat at the start of every
 
 **Explanation:**
 - **A (correct):** `@import` is the modular composition primitive of the memory system: a small directory-level `CLAUDE.md` per package can selectively pull in standards files based on the maintainer's judgment, keeping each package's loaded context relevant. This applies the principle that maintainer domain knowledge should drive what loads where. You'd use this same pattern whenever multiple sub-units need different curated views over a shared library of rules. It beats concatenation because it preserves separation of concerns and avoids loading every standards file in every session.
-- **B (plausible runner-up):** Putting everything in the root does ensure that any rule a maintainer needs is technically available, and "more context is safer" is a real instinct. It gets the "make standards reachable" idea almost right, but it forces every package to carry the union of all rules and dilutes attention on the rules that actually apply. The stem's emphasis on maintainer curation and avoiding cross-package load is the signal that points to per-package selective imports.
+- **B:** Putting everything in the root does ensure that any rule a maintainer needs is technically available, and "more context is safer" is a real instinct. It gets the "make standards reachable" idea almost right, but it forces every package to carry the union of all rules and dilutes attention on the rules that actually apply. The stem's emphasis on maintainer curation and avoiding cross-package load is the signal that points to per-package selective imports.
 - **C:** User-level memory isn't shared via version control, so it's the wrong place for team-shared standards and would drift per machine.
 - **D:** Manual paste is the workflow the memory system replaces; it doesn't scale and is non-discoverable.
 
@@ -2321,16 +2310,16 @@ D) Place it in `.claude/commands/security-review.md` inside the repo so it loads
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Project-scoped slash commands live in `.claude/commands/` inside the repository so they're shared via version control and load for every clone. This matches the requirement precisely: ship with the project, not the user. You'd reach for project-scoped placement whenever the command encodes team workflows that should be uniformly available to anyone working on the codebase. It beats user-scoped placement because user-scoped commands exist only on the individual's machine and would not propagate to teammates or CI.
-- **A (plausible runner-up):** `~/.claude/commands/` is a real, documented location for slash commands and works perfectly for personal commands. It gets the "make the command available" idea almost right, but it places the command at the user tier, which is not shared via version control and would force every engineer to recreate it. The stem's explicit "ship with the project via version control" is the signal that rules this out.
+- **A:** `~/.claude/commands/` is a real, documented location for slash commands and works perfectly for personal commands. It gets the "make the command available" idea almost right, but it places the command at the user tier, which is not shared via version control and would force every engineer to recreate it. The stem's explicit "ship with the project via version control" is the signal that rules this out.
 - **B:** Claude Code does not load slash commands from `/etc/claude/`; system-wide OS placement isn't part of the configuration hierarchy.
 - **C:** `.vscode/` is for VS Code settings, not Claude Code commands, which look in `.claude/commands/` specifically.
+- **D (correct):** Project-scoped slash commands live in `.claude/commands/` inside the repository so they're shared via version control and load for every clone. This matches the requirement precisely: ship with the project, not the user. You'd reach for project-scoped placement whenever the command encodes team workflows that should be uniformly available to anyone working on the codebase. It beats user-scoped placement because user-scoped commands exist only on the individual's machine and would not propagate to teammates or CI.
 
 ---
 
@@ -2339,21 +2328,21 @@ D) Place it in `.claude/commands/security-review.md` inside the repo so it loads
 **Stem:** You're authoring a skill that performs a deep codebase analysis to summarize architecture across hundreds of files. When you tested an early version, the verbose discovery output filled the main conversation context and made later tasks struggle for context budget. You want the skill to run, return only a concise summary, and not pollute the parent session with intermediate file reads. Which frontmatter configuration most directly achieves that?
 
 A) Add `allowed-tools: [Read, Grep]` to the skill so it physically cannot produce output beyond reading and searching.
-B) Set `context: fork` in the skill's `SKILL.md` frontmatter so it runs in an isolated sub-agent and returns only its summary.
+B) Set `context: fork` in the skill's `SKILL.md` frontmatter so it runs in an isolated sub-agent.
 C) Add `argument-hint: "summary only"` to remind invokers to ask for a summary every time the skill runs.
 D) Increase the model context window size in the skill frontmatter so the verbose discovery output fits without crowding.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** `allowed-tools` is a real frontmatter knob and is the right answer for restricting destructive actions or scoping permissions. It gets the "constrain the skill" idea almost right, but restricting tools doesn't prevent verbose transcript output — the skill still reads files, just maybe fewer of them. The stem's signal of "intermediate file reads pollute parent session" points to context isolation, not tool restriction.
 - **B (correct):** `context: fork` is the specific frontmatter option designed to run a skill in an isolated sub-agent context so intermediate output stays in the fork and only the final summary returns to the main session. This applies the principle of separating verbose discovery from main conversation context. You'd reach for `context: fork` whenever a skill needs to do exploration (codebase scans, brainstorming, multi-step research) that would otherwise crowd the parent context. It beats restricting tools because the issue is output volume, not tool risk — the skill needs Read and Grep to do its job; what it needs is isolation of the resulting transcript.
-- **A (plausible runner-up):** `allowed-tools` is a real frontmatter knob and is the right answer for restricting destructive actions or scoping permissions. It gets the "constrain the skill" idea almost right, but restricting tools doesn't prevent verbose transcript output — the skill still reads files, just maybe fewer of them. The stem's signal of "intermediate file reads pollute parent session" points to context isolation, not tool restriction.
 - **C:** `argument-hint` prompts for arguments at invocation; it has nothing to do with output verbosity or context pollution.
 - **D:** Context window size is not configured per-skill in this way, and even a larger window wouldn't fix the underlying problem of clutter from intermediate steps.
 
@@ -2363,7 +2352,7 @@ D) Increase the model context window size in the skill frontmatter so the verbos
 
 **Stem:** You are authoring a skill that performs surgical edits to YAML configuration files. You're worried that the skill could be misused to run shell commands or modify unrelated files, especially when invoked by less-experienced teammates. You want the skill itself to be unable to execute Bash or write to non-YAML files regardless of how it's prompted. Which configuration mechanism most directly enforces that constraint?
 
-A) Add an `allowed-tools` list in the skill's frontmatter that grants only the file-write tool restricted to YAML paths.
+A) Add an `allowed-tools` list in the frontmatter granting only the file-write tool restricted to YAML paths.
 B) Add a strongly worded warning at the top of `SKILL.md` reminding users not to run Bash or touch other files.
 C) Add `context: fork` so the skill runs in isolation and its Bash actions don't affect the main session.
 D) Ask invokers to confirm interactively before each tool call so risky actions get rejected by humans.
@@ -2372,15 +2361,15 @@ D) Ask invokers to confirm interactively before each tool call so risky actions 
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** `allowed-tools` is the frontmatter mechanism designed exactly for restricting which tools a skill can call during execution, so it provides a programmatic guarantee independent of prompts. This applies the principle that deterministic safeguards beat probabilistic ones when consequences are sensitive. You'd reach for `allowed-tools` any time a skill should be capability-scoped — for example, file-write skills that should not be able to run shell commands. It beats human-in-the-loop confirmations because confirmations rely on the human noticing the issue, while `allowed-tools` makes the unsafe action impossible.
-- **D (plausible runner-up):** Interactive confirmation is a real safety pattern and works well for one-off high-stakes actions. It gets the "stop unsafe actions" idea almost right, but it depends on human vigilance every single time and creates friction during routine use. The stem's signal that the skill "could be misused regardless of how it's prompted" points to capability restriction rather than runtime gating.
 - **B:** Prose warnings in `SKILL.md` rely on probabilistic compliance; they're not enforcement.
 - **C:** `context: fork` isolates the conversation transcript but does not restrict which tools the skill can use inside its fork.
+- **D:** Interactive confirmation is a real safety pattern and works well for one-off high-stakes actions. It gets the "stop unsafe actions" idea almost right, but it depends on human vigilance every single time and creates friction during routine use. The stem's signal that the skill "could be misused regardless of how it's prompted" points to capability restriction rather than runtime gating.
 
 ---
 
@@ -2390,21 +2379,21 @@ D) Ask invokers to confirm interactively before each tool call so risky actions 
 
 A) Edit the project-scoped `repo-cleanup` skill in `.claude/skills/` to include the archive step behind a flag, defaulted off.
 B) Submit a pull request adding the archive step and ask reviewers to merge it so the team gets the new functionality.
-C) Create a personal variant in `~/.claude/skills/` with a different name like `repo-cleanup-archive` containing the archive step.
+C) Create a personal variant in `~/.claude/skills/` named `repo-cleanup-archive` containing the archive step.
 D) Rename the team skill to `repo-cleanup-team` and add a new `repo-cleanup` to his user-scoped directory that supersedes it.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Personal skill customization is explicitly supported by placing variants in `~/.claude/skills/` under a different name, which keeps the variant available only to that user without modifying team-shared skills. This applies the principle of separating user-scoped from project-scoped customization. You'd reach for this pattern any time one user wants extra behavior that the team has not agreed to adopt. It beats modifying the project skill because his teammates haven't consented to the new behavior, even gated behind a flag they'd need to learn about.
-- **A (plausible runner-up):** Flag-gated extensions to shared skills are a real pattern and work when teams agree that the feature should exist but be optional. It gets the "extend, don't fork" idea almost right, but it still adds team-visible complexity that the team didn't ask for, and the stem explicitly says his team doesn't want this step imposed. The right tier for "only me" is user-scoped, not project-scoped with opt-outs.
+- **A:** Flag-gated extensions to shared skills are a real pattern and work when teams agree that the feature should exist but be optional. It gets the "extend, don't fork" idea almost right, but it still adds team-visible complexity that the team didn't ask for, and the stem explicitly says his team doesn't want this step imposed. The right tier for "only me" is user-scoped, not project-scoped with opt-outs.
 - **B:** A PR forces a team decision that the stem says is unwanted — wrong scope.
+- **C (correct):** Personal skill customization is explicitly supported by placing variants in `~/.claude/skills/` under a different name, which keeps the variant available only to that user without modifying team-shared skills. This applies the principle of separating user-scoped from project-scoped customization. You'd reach for this pattern any time one user wants extra behavior that the team has not agreed to adopt. It beats modifying the project skill because his teammates haven't consented to the new behavior, even gated behind a flag they'd need to learn about.
 - **D:** Renaming the team skill is a disruptive change to shared assets that teammates rely on by name; a separate variant under a new name in user scope is cleaner.
 
 ---
@@ -2416,21 +2405,21 @@ D) Rename the team skill to `repo-cleanup-team` and add a new `repo-cleanup` to 
 A) Configure `context: fork` in the command frontmatter so missing arguments cause it to run in isolation and ask there.
 B) Add a `paths:` field in the command's YAML frontmatter so it only activates when invoked on relevant files.
 C) Move the command into `.claude/rules/` so it loads more reliably with arguments attached.
-D) Add an `argument-hint` field to the command frontmatter that prompts the invoker for the required parameters when omitted.
+D) Add an `argument-hint` field to the command frontmatter prompting the invoker for required parameters when omitted.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** `argument-hint` frontmatter is purpose-built to prompt developers for required parameters when they invoke a command or skill without arguments, replacing silent failures or guessed defaults with a clear prompt. This applies the principle of designing skills for predictable invocation. You'd add `argument-hint` any time a command's correctness depends on inputs the user might forget to supply. It beats `context: fork` because forking changes where the skill runs, not how it solicits missing arguments — argument-hint is the correct frontmatter for input solicitation.
-- **A (plausible runner-up):** `context: fork` is a real and useful frontmatter option for isolating verbose runs, and someone reading quickly might imagine "fork lets it ask the user." It gets the "use a frontmatter knob" instinct almost right, but `context: fork` solves a different problem — context isolation — and has nothing to do with argument solicitation. The stem's explicit "prompt for missing parameters" is exactly the documented purpose of `argument-hint`.
+- **A:** `context: fork` is a real and useful frontmatter option for isolating verbose runs, and someone reading quickly might imagine "fork lets it ask the user." It gets the "use a frontmatter knob" instinct almost right, but `context: fork` solves a different problem — context isolation — and has nothing to do with argument solicitation. The stem's explicit "prompt for missing parameters" is exactly the documented purpose of `argument-hint`.
 - **B:** `paths:` is for path-conditional rule loading in `.claude/rules/`, not for argument prompting in commands.
 - **C:** `.claude/rules/` holds rule files, not slash commands; the placement wouldn't change argument behavior.
+- **D (correct):** `argument-hint` frontmatter is purpose-built to prompt developers for required parameters when they invoke a command or skill without arguments, replacing silent failures or guessed defaults with a clear prompt. This applies the principle of designing skills for predictable invocation. You'd add `argument-hint` any time a command's correctness depends on inputs the user might forget to supply. It beats `context: fork` because forking changes where the skill runs, not how it solicits missing arguments — argument-hint is the correct frontmatter for input solicitation.
 
 ---
 
@@ -2439,21 +2428,21 @@ D) Add an `argument-hint` field to the command frontmatter that prompts the invo
 **Stem:** You have two pieces of guidance for your team. The first is an internal naming convention every contributor should always follow on every file. The second is a multi-step workflow for "investigate and propose a fix for a flaky test" that's only run a few times per week. You want each piece of guidance in the right place so it neither pollutes loaded context unnecessarily nor is hard to invoke when needed. Where should each live?
 
 A) Both belong in `CLAUDE.md` so they're always loaded and immediately available without needing invocation.
-B) The naming convention belongs in `CLAUDE.md`; the flaky-test workflow belongs in a skill invoked on demand.
+B) The naming convention belongs in `CLAUDE.md`; the flaky-test workflow belongs in an on-demand skill.
 C) Both belong in a skill under `.claude/skills/` so they're consistently authored and invoked the same way.
 D) The naming convention belongs in a skill; the flaky-test workflow belongs in `CLAUDE.md` for visibility.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Putting everything in `CLAUDE.md` is a real (if blunt) instinct, and it does technically make the workflow "available." It gets the "centralize knowledge" idea almost right, but it ignores the loading cost: a multi-step workflow text always present in context inflates token usage for every session that never invokes it. The signal in the stem about "neither pollutes loaded context nor is hard to invoke" points to the on-demand vs always-loaded distinction.
 - **B (correct):** `CLAUDE.md` is for always-loaded universal standards; skills are for on-demand task-specific workflows. A naming convention applied to every file is exactly an always-loaded standard, while a multi-step investigation procedure run a few times per week is exactly an on-demand workflow. This applies the principle of matching configuration mechanism to invocation frequency and scope. You'd reach for this same split whenever you're deciding between universal rules and task scripts. It beats putting both in `CLAUDE.md` because loading the flaky-test workflow into every session wastes context for every contributor who never runs it.
-- **A (plausible runner-up):** Putting everything in `CLAUDE.md` is a real (if blunt) instinct, and it does technically make the workflow "available." It gets the "centralize knowledge" idea almost right, but it ignores the loading cost: a multi-step workflow text always present in context inflates token usage for every session that never invokes it. The signal in the stem about "neither pollutes loaded context nor is hard to invoke" points to the on-demand vs always-loaded distinction.
 - **C:** Putting always-loaded conventions inside a skill means they only fire when someone invokes the skill, which is exactly wrong for universal standards.
 - **D:** This inverts both placements — naming conventions are not invocation-driven, and a rare workflow shouldn't be in always-loaded memory.
 
@@ -2463,7 +2452,7 @@ D) The naming convention belongs in a skill; the flaky-test workflow belongs in 
 
 **Stem:** Your team standardizes a `/triage-issue` slash command that walks Claude through a consistent process for analyzing newly filed GitHub issues. You want all current and future teammates to get this command automatically without any manual setup, and you want it to evolve via normal pull requests. Where should it live in the repo?
 
-A) `.claude/commands/triage-issue.md` checked into the repository so anyone cloning the repo gets it automatically.
+A) `.claude/commands/triage-issue.md` checked into the repository so anyone cloning the repo gets it.
 B) `~/.claude/commands/triage-issue.md` on each teammate's laptop, kept in sync via a separate dotfiles repository.
 C) A pinned GitHub issue containing the prompt text that teammates paste into chat when they need to triage.
 D) An internal wiki page documenting the command's prompt steps for engineers to follow manually each time.
@@ -2478,7 +2467,7 @@ D) An internal wiki page documenting the command's prompt steps for engineers to
 
 **Explanation:**
 - **A (correct):** Project-scoped slash commands placed in `.claude/commands/` are shared via version control, so anyone cloning the repo automatically gets the command and updates flow through normal pull requests. This matches the requirement: no manual setup, evolves via PRs. You'd reach for project-scoped command placement any time a workflow should be uniformly available to a team. It beats user-scoped placement because user-scoped commands are private to each machine and would not propagate to new hires without extra tooling.
-- **B (plausible runner-up):** Dotfiles repositories that ship `~/.claude/commands/` files are a real pattern for personal-tool synchronization and do work. It gets the "version-control the commands" idea almost right, but it places team workflows at the user tier instead of the project tier, which forces extra onboarding steps and divorces command evolution from the repo's normal PR cycle. The signal in the stem — "no manual setup, evolves via pull requests" — is precisely why project-scope wins.
+- **B:** Dotfiles repositories that ship `~/.claude/commands/` files are a real pattern for personal-tool synchronization and do work. It gets the "version-control the commands" idea almost right, but it places team workflows at the user tier instead of the project tier, which forces extra onboarding steps and divorces command evolution from the repo's normal PR cycle. The signal in the stem — "no manual setup, evolves via pull requests" — is precisely why project-scope wins.
 - **C:** Pinned issues require manual paste at invocation; that's the workflow slash commands replace.
 - **D:** Wiki documentation describes a process; it isn't an executable slash command and doesn't load automatically.
 
@@ -2496,16 +2485,16 @@ D) Create a file in `.claude/rules/` with YAML frontmatter `paths: ["**/*.tf"]` 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Path-specific rules in `.claude/rules/` with YAML `paths:` frontmatter using glob patterns are designed exactly for this case: conventions that apply by file type across many directories, loaded conditionally only when editing matching files. This applies the principle that glob-pattern rules beat directory-level `CLAUDE.md` for conventions that span the codebase. You'd reach for this whenever a rule's scope is "file type or file pattern" rather than "directory subtree." It beats duplicating directory-level files because glob-based scoping centralizes the rule in one place and automatically picks up new directories without maintenance.
-- **B (plausible runner-up):** Directory-level `CLAUDE.md` files are real and work great when rules cluster by directory. It gets the "scope by location" instinct almost right, but it requires duplicating the same content in many directories and adding a new copy every time someone introduces a new Terraform directory. The stem's emphasis on rules "spread across many directories" is the signal that path-scoped rules in `.claude/rules/` are the better tool.
 - **A:** A prose note that "applies only to .tf files" loads the rule for every session and relies on Claude obeying the conditional probabilistically.
+- **B:** Directory-level `CLAUDE.md` files are real and work great when rules cluster by directory. It gets the "scope by location" instinct almost right, but it requires duplicating the same content in many directories and adding a new copy every time someone introduces a new Terraform directory. The stem's emphasis on rules "spread across many directories" is the signal that path-scoped rules in `.claude/rules/` are the better tool.
 - **C:** User-level memory isn't shared via version control, so it's wrong for a team convention.
+- **D (correct):** Path-specific rules in `.claude/rules/` with YAML `paths:` frontmatter using glob patterns are designed exactly for this case: conventions that apply by file type across many directories, loaded conditionally only when editing matching files. This applies the principle that glob-pattern rules beat directory-level `CLAUDE.md` for conventions that span the codebase. You'd reach for this whenever a rule's scope is "file type or file pattern" rather than "directory subtree." It beats duplicating directory-level files because glob-based scoping centralizes the rule in one place and automatically picks up new directories without maintenance.
 
 ---
 
@@ -2521,16 +2510,16 @@ D) Put the testing rules in the root `CLAUDE.md` so they're always loaded and Cl
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** `.claude/rules/` files with `paths:` glob frontmatter are designed for exactly this case — conventions that apply across the codebase but only to files matching a pattern, regardless of directory location. This applies the principle of path-pattern scoping over directory scoping. You'd reach for this whenever the natural scope of a rule is a file type rather than a subtree. It beats always-loading rules in the root `CLAUDE.md` because path-scoped activation reduces irrelevant context when editing non-test files and avoids relying on Claude to interpret conditional applicability.
-- **D (plausible runner-up):** Putting rules in the root `CLAUDE.md` with a prose conditional ("apply when editing tests") is a real pattern many teams start with, and it does technically make the rules available. It gets the "centralize the rules" instinct almost right, but it loads the rules in every session including ones that never touch tests, and it makes applicability probabilistic instead of structural. The stem's explicit "should apply only when Claude edits a test file" is the signal pointing to path-scoped activation.
 - **A:** Per-directory duplication can't keep up with a codebase where tests live in many directories — high maintenance, error-prone.
 - **B:** Reconfiguring the system prompt per file is not how Claude Code's path-scoped rules work; the supported mechanism is `paths:` in `.claude/rules/` frontmatter.
+- **C (correct):** `.claude/rules/` files with `paths:` glob frontmatter are designed for exactly this case — conventions that apply across the codebase but only to files matching a pattern, regardless of directory location. This applies the principle of path-pattern scoping over directory scoping. You'd reach for this whenever the natural scope of a rule is a file type rather than a subtree. It beats always-loading rules in the root `CLAUDE.md` because path-scoped activation reduces irrelevant context when editing non-test files and avoids relying on Claude to interpret conditional applicability.
+- **D:** Putting rules in the root `CLAUDE.md` with a prose conditional ("apply when editing tests") is a real pattern many teams start with, and it does technically make the rules available. It gets the "centralize the rules" instinct almost right, but it loads the rules in every session including ones that never touch tests, and it makes applicability probabilistic instead of structural. The stem's explicit "should apply only when Claude edits a test file" is the signal pointing to path-scoped activation.
 
 ---
 
@@ -2538,7 +2527,7 @@ D) Put the testing rules in the root `CLAUDE.md` so they're always loaded and Cl
 
 **Stem:** Your team has two competing instincts for how to encode a SQL migration convention. The migrations all live under `db/migrations/` and the rule should apply only when editing files there. Option A is to add a directory-level `CLAUDE.md` inside `db/migrations/`. Option B is to add a `.claude/rules/` file with `paths: ["db/migrations/**"]`. Both technically work. What is the most important factor in choosing between them?
 
-A) Whether the convention also needs to apply to migration files that may live outside `db/migrations/` now or in the future.
+A) Whether the convention also needs to apply to migration files that may live outside `db/migrations/`.
 B) Whether the team prefers YAML frontmatter syntax over Markdown headings as a stylistic choice in their toolchain.
 C) Whether the migration files are written in raw SQL versus a higher-level migration framework's DSL.
 D) Whether Claude Code is being invoked interactively or as part of a CI pipeline for migrations.
@@ -2547,14 +2536,14 @@ D) Whether Claude Code is being invoked interactively or as part of a CI pipelin
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** The deciding factor between directory-level `CLAUDE.md` and `.claude/rules/` with `paths:` is whether the convention's natural scope is "this subtree only" or "files matching this pattern anywhere." If migrations will always live under `db/migrations/`, a directory-level `CLAUDE.md` is fine; if they might appear elsewhere now or later, path-scoped rules generalize. This applies the principle of choosing path scoping when conventions span directories. You'd use this same reasoning whenever a rule's scope might broaden over time. It beats syntax-preference reasoning because the structural choice has downstream maintenance implications, not just aesthetic ones.
-- **C (plausible runner-up):** The migration language does influence the content of the rule (raw SQL vs DSL syntax), and adapting rule content to the language is real. It gets the "consider the file type" idea almost right, but the question asks about choosing between two configuration locations, not about the rule's contents. The signal in the stem — "rule should apply only when editing files there" vs the future-proofing concern — points to scope, not to the language of the files.
 - **B:** Stylistic preference is not the most important factor in a structural decision with maintenance consequences.
+- **C:** The migration language does influence the content of the rule (raw SQL vs DSL syntax), and adapting rule content to the language is real. It gets the "consider the file type" idea almost right, but the question asks about choosing between two configuration locations, not about the rule's contents. The signal in the stem — "rule should apply only when editing files there" vs the future-proofing concern — points to scope, not to the language of the files.
 - **D:** Both `CLAUDE.md` and `.claude/rules/` load in both interactive and CI sessions in the same way; invocation mode doesn't determine placement.
 
 ---
@@ -2564,22 +2553,22 @@ D) Whether Claude Code is being invoked interactively or as part of a CI pipelin
 **Stem:** You have a `.claude/rules/python-strict.md` file with frontmatter `paths: ["packages/strict/**/*.py"]`. A teammate reports that the strict rules are sometimes being applied when she edits files outside that path, and other times not being applied when she edits files inside it. Which investigation step is most likely to surface the actual cause of the inconsistent application?
 
 A) Confirm her Claude Code binary version matches the team's, since older versions might not support the `paths:` frontmatter field.
-B) Check whether other rule files have overlapping or conflicting `paths:` globs that broaden activation beyond what she expects.
+B) Check whether other rule files have overlapping or conflicting `paths:` globs that broaden activation beyond what her edits should match.
 C) Inspect the YAML frontmatter syntax of the rule file for malformed indentation or stray characters that break parsing.
 D) Delete the rule file and recreate it from scratch to rule out file corruption from a recent merge.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Rule files with `paths:` globs combine; when multiple files have overlapping patterns, activation can broaden surprisingly, and rules may also be tied to other triggers. The most productive diagnostic is to enumerate all rule files and check whether their glob patterns overlap or otherwise activate when she doesn't expect. This applies the principle of investigating configured behavior holistically before suspecting bugs. You'd use this approach any time path-conditional activation seems inconsistent. It beats the YAML-malformed hypothesis because a malformed file would more likely not load at all than load inconsistently across files.
-- **C (plausible runner-up):** Malformed YAML frontmatter is a real and common cause of rule files silently failing to load, and inspecting it is a reasonable diagnostic step. It gets the "check the file" instinct almost right, but a malformed file typically produces consistent failure (never loads) rather than intermittent and bidirectional inconsistency (sometimes applied, sometimes not, both inside and outside the path). The stem's pattern of inconsistency on both sides of the boundary points to overlapping rules, not parse failure.
 - **A:** Binary version drift is unlikely to produce bidirectional inconsistency; `paths:` has been stable.
+- **B (correct):** Rule files with `paths:` globs combine; when multiple files have overlapping patterns, activation can broaden surprisingly, and rules may also be tied to other triggers. The most productive diagnostic is to enumerate all rule files and check whether their glob patterns overlap or otherwise activate when she doesn't expect. This applies the principle of investigating configured behavior holistically before suspecting bugs. You'd use this approach any time path-conditional activation seems inconsistent. It beats the YAML-malformed hypothesis because a malformed file would more likely not load at all than load inconsistently across files.
+- **C:** Malformed YAML frontmatter is a real and common cause of rule files silently failing to load, and inspecting it is a reasonable diagnostic step. It gets the "check the file" instinct almost right, but a malformed file typically produces consistent failure (never loads) rather than intermittent and bidirectional inconsistency (sometimes applied, sometimes not, both inside and outside the path). The stem's pattern of inconsistency on both sides of the boundary points to overlapping rules, not parse failure.
 - **D:** Deleting and recreating without understanding the cause is a guess and won't help if the issue is in a sibling rule file.
 
 ---
@@ -2589,23 +2578,23 @@ D) Delete the rule file and recreate it from scratch to rule out file corruption
 **Stem:** Your team is restructuring memory and rules. You have a convention specific to a single directory (a legacy CLI tool that lives in `tools/legacy-cli/` only) that the team agrees should never apply outside that directory. There's no expectation the tool will move or appear elsewhere. Which placement is the most appropriate for this convention?
 
 A) `.claude/rules/legacy-cli.md` with frontmatter `paths: ["tools/legacy-cli/**"]` to be safe against future moves.
-B) A directory-level `CLAUDE.md` inside `tools/legacy-cli/` containing the convention as straightforward always-loaded content.
+B) A directory-level `CLAUDE.md` placed inside `tools/legacy-cli/` containing the convention as always-loaded content.
 C) `~/.claude/CLAUDE.md` on each teammate's machine for offline reliability and to keep team rules small.
 D) The repo root `CLAUDE.md` with a prose conditional saying it only applies inside `tools/legacy-cli/`.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** `.claude/rules/` with a `paths:` glob does work and is the right answer when scope spans directories. It gets the "scope it" idea almost right, but it adds indirection that's unnecessary when the scope is a single directory and there's no expectation that scope will change. The stem's signal — "never apply outside that directory" and "no expectation the tool will move" — argues for the simpler directory-level placement.
 - **B (correct):** Directory-level `CLAUDE.md` is the appropriate tier when a rule's natural scope is a single subtree and there's no expectation the files will spread elsewhere. The hierarchy is designed so that placing the file inside the directory implicitly scopes it. You'd reach for directory-level placement whenever the directory is a stable, naturally bounded scope for the rule. It beats path-scoped rules because the directory placement does the scoping implicitly with no glob-pattern overhead and is the most discoverable place for a maintainer working in that directory to find and edit the rules.
-- **A (plausible runner-up):** `.claude/rules/` with a `paths:` glob does work and is the right answer when scope spans directories. It gets the "scope it" idea almost right, but it adds indirection that's unnecessary when the scope is a single directory and there's no expectation that scope will change. The stem's signal — "never apply outside that directory" and "no expectation the tool will move" — argues for the simpler directory-level placement.
-- **D:** Always-loading the rule in the root and relying on a prose conditional inflates context unnecessarily and risks probabilistic misapplication.
 - **C:** User-level memory isn't shared via version control, so it's the wrong tier for a team-shared rule.
+- **D:** Always-loading the rule in the root and relying on a prose conditional inflates context unnecessarily and risks probabilistic misapplication.
 
 ---
 
@@ -2621,15 +2610,15 @@ D) Place every rule file in `~/.claude/rules/` so it doesn't accidentally activa
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The design intent of path-scoped rules is to load only when relevant to reduce irrelevant context and token usage; tight globs match that intent and minimize cross-rule interference. This applies the principle that conditional loading is most effective when the condition is precise. You'd use tight globs whenever the rule's applicability is narrow (e.g., `**/*.test.tsx` for tests, `db/migrations/**` for migrations). It beats over-broad globs because broad patterns recreate the always-loaded-monolith problem the system was designed to solve.
-- **A (plausible runner-up):** Letting Claude decide which rules to apply at runtime sounds flexible and is a real pattern in prompting. It gets the "trust the model" instinct almost right, but it puts probabilistic burden on Claude instead of structural enforcement and reintroduces the very token-bloat and irrelevant-context problems path scoping is meant to fix. The stem's explicit ask — reduce unexpected loading — argues for tighter globs, not broader ones.
+- **A:** Letting Claude decide which rules to apply at runtime sounds flexible and is a real pattern in prompting. It gets the "trust the model" instinct almost right, but it puts probabilistic burden on Claude instead of structural enforcement and reintroduces the very token-bloat and irrelevant-context problems path scoping is meant to fix. The stem's explicit ask — reduce unexpected loading — argues for tighter globs, not broader ones.
 - **B:** Dropping frontmatter means the file isn't path-scoped at all, which makes the unexpected-context problem worse.
+- **C (correct):** The design intent of path-scoped rules is to load only when relevant to reduce irrelevant context and token usage; tight globs match that intent and minimize cross-rule interference. This applies the principle that conditional loading is most effective when the condition is precise. You'd use tight globs whenever the rule's applicability is narrow (e.g., `**/*.test.tsx` for tests, `db/migrations/**` for migrations). It beats over-broad globs because broad patterns recreate the always-loaded-monolith problem the system was designed to solve.
 - **D:** `~/.claude/rules/` is the user tier and shouldn't hold team-shared rules; it doesn't propagate via version control.
 
 ---
@@ -2638,7 +2627,7 @@ D) Place every rule file in `~/.claude/rules/` so it doesn't accidentally activa
 
 **Stem:** Your repo has two competing rule placements drafted by different engineers. Engineer X wants a directory-level `CLAUDE.md` in `services/billing/` to hold billing-specific conventions. Engineer Y points out that there are billing-related files scattered in `shared/types/billing.ts`, `apps/admin/billing/`, and `tests/billing/`, and proposes a `.claude/rules/` file with `paths:` globs covering all those locations. Which approach better fits the design intent of the configuration system given those facts?
 
-A) Use `.claude/rules/billing.md` with globs covering all billing-related locations, since the rule's scope spans multiple directories.
+A) Use `.claude/rules/billing.md` with globs covering all billing locations, since the rule spans multiple directories.
 B) Use `services/billing/CLAUDE.md` only, and rely on Claude to infer that billing rules apply when it sees the word "billing."
 C) Combine both: put the rule in `services/billing/CLAUDE.md` and also paste it into every other directory's `CLAUDE.md`.
 D) Skip configuration and have engineers manually paste billing rules into chat when they start work on billing.
@@ -2647,14 +2636,14 @@ D) Skip configuration and have engineers manually paste billing rules into chat 
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** When a rule's natural scope is "files about a topic that live in many directories," path-scoped rules with glob patterns beat directory-level `CLAUDE.md` because they capture the cross-cutting nature without duplication. This is the canonical case for `.claude/rules/` with `paths:`. You'd reach for this same approach whenever conventions cluster by topic or file pattern rather than by location. It beats duplicating rules across directories because duplication drifts over time and requires updates in many places.
-- **C (plausible runner-up):** Duplicating rules in every relevant directory's `CLAUDE.md` does ensure each location has the rule and is a real (if low-tech) approach. It gets the "make the rule reach all locations" idea almost right, but it creates a maintenance burden and drift risk that path-scoped rules eliminate, and it inflates context for unrelated work in those directories. The stem's hint — billing files scattered across many locations — is precisely the case path scoping is designed for.
 - **B:** Relying on word-matching ("billing") is probabilistic and breaks for files that don't use that word in the path.
+- **C:** Duplicating rules in every relevant directory's `CLAUDE.md` does ensure each location has the rule and is a real (if low-tech) approach. It gets the "make the rule reach all locations" idea almost right, but it creates a maintenance burden and drift risk that path-scoped rules eliminate, and it inflates context for unrelated work in those directories. The stem's hint — billing files scattered across many locations — is precisely the case path scoping is designed for.
 - **D:** Manual paste is the workflow the memory system replaces; it's non-discoverable and doesn't scale.
 
 ---
@@ -2671,16 +2660,16 @@ D) Direct execution, because the scope is small, well-understood, and bounded to
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Direct execution is appropriate for simple, well-scoped changes — a single conditional in a single function with a clear stack trace and existing tests is the canonical case. This applies the principle that plan mode's investigative overhead is wasted on changes that are already well-understood. You'd choose direct execution any time the scope, change shape, and verification path are all clear up front. It beats plan-mode-with-exploration because the stem already tells you the scope is one function and tests cover related cases — there's nothing to discover before changing the code.
-- **B (plausible runner-up):** Using the Explore subagent to find callers before changing a function is a real, valuable habit when the function is widely used or has subtle invariants. It gets the "consider blast radius" idea almost right, but the stem describes a single conditional check inside the function and existing tests for related cases, so callers don't change their contract. The signal pointing to direct execution is "single conditional + clean stack trace + covered by tests."
 - **A:** A blanket rule "plan every change" wastes effort on trivial fixes and is not the design intent of plan mode.
+- **B:** Using the Explore subagent to find callers before changing a function is a real, valuable habit when the function is widely used or has subtle invariants. It gets the "consider blast radius" idea almost right, but the stem describes a single conditional check inside the function and existing tests for related cases, so callers don't change their contract. The signal pointing to direct execution is "single conditional + clean stack trace + covered by tests."
 - **C:** Library-comparison architecture work is hugely out of proportion for a one-line conditional fix.
+- **D (correct):** Direct execution is appropriate for simple, well-scoped changes — a single conditional in a single function with a clear stack trace and existing tests is the canonical case. This applies the principle that plan mode's investigative overhead is wasted on changes that are already well-understood. You'd choose direct execution any time the scope, change shape, and verification path are all clear up front. It beats plan-mode-with-exploration because the stem already tells you the scope is one function and tests cover related cases — there's nothing to discover before changing the code.
 
 ---
 
@@ -2689,22 +2678,22 @@ D) Direct execution, because the scope is small, well-understood, and bounded to
 **Stem:** Your team is migrating from a monolith to microservices. The migration will touch roughly 45 files, requires choosing between two integration approaches (sync RPC vs async event bus) with different infrastructure implications, and will affect several teams' interfaces. You haven't started yet. Which working mode is most appropriate for this initial phase?
 
 A) Direct execution starting from the most-changed file, because seeing real diffs will clarify the right design fastest.
-B) Plan mode, to explore the codebase and produce a design proposal before committing to either integration approach.
+B) Plan mode, so you can explore the codebase and produce a design proposal before committing to either integration approach.
 C) Direct execution with frequent commits, so each step is reviewable and you can roll back individual changes if needed.
 D) A series of small isolated direct-execution sessions, one per file, to keep each change manageable.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Plan mode is designed for tasks with architectural implications, multiple valid approaches, and large-scale multi-file modifications — a 45-file migration with a sync-vs-async decision is the canonical case. This applies the principle that exploration and design before commitment prevents costly rework. You'd reach for plan mode any time the right answer isn't yet clear and the change is large enough that the wrong direction is expensive to undo. It beats incremental direct-execution approaches because the integration-approach decision must be made coherently across files, not arrived at file-by-file.
-- **C (plausible runner-up):** Frequent commits and reviewable diffs are excellent practices and are a real risk-management technique. It gets the "stay safe through small steps" idea almost right, but it doesn't address the underlying problem: the integration-approach choice spans many files and must be decided coherently. Plan mode handles the decision; direct execution can then implement it. The stem's signal about competing integration approaches is the cue to plan first.
 - **A:** "Start changing things to learn the design" is a recipe for rework when architectural choices haven't been made.
+- **B (correct):** Plan mode is designed for tasks with architectural implications, multiple valid approaches, and large-scale multi-file modifications — a 45-file migration with a sync-vs-async decision is the canonical case. This applies the principle that exploration and design before commitment prevents costly rework. You'd reach for plan mode any time the right answer isn't yet clear and the change is large enough that the wrong direction is expensive to undo. It beats incremental direct-execution approaches because the integration-approach decision must be made coherently across files, not arrived at file-by-file.
+- **C:** Frequent commits and reviewable diffs are excellent practices and are a real risk-management technique. It gets the "stay safe through small steps" idea almost right, but it doesn't address the underlying problem: the integration-approach choice spans many files and must be decided coherently. Plan mode handles the decision; direct execution can then implement it. The stem's signal about competing integration approaches is the cue to plan first.
 - **D:** One-file-at-a-time direct execution still doesn't resolve the cross-cutting design choice and can lock in inconsistent patterns.
 
 ---
@@ -2713,7 +2702,7 @@ D) A series of small isolated direct-execution sessions, one per file, to keep e
 
 **Stem:** You're investigating an unfamiliar legacy module that may contain code relevant to a refactor. You expect the discovery phase to involve reading dozens of files, grep across the codebase, and tracing several call chains. You want the conclusions of that exploration available in your main session, but you don't want each individual file read and grep result clogging the context window. Which mechanism is designed for that case?
 
-A) Use the Explore subagent to handle the verbose discovery and return a concise summary back to the main session.
+A) Use the Explore subagent to handle the verbose discovery work and return a concise summary back to the main session.
 B) Continue in the main session but ask Claude to stop showing file contents and only output its final conclusions.
 C) Run plan mode and let it handle the discovery internally before producing a plan and committing to changes.
 D) Use direct execution and trust that the model will compress its own discovery output as the context fills up.
@@ -2722,14 +2711,14 @@ D) Use direct execution and trust that the model will compress its own discovery
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** The Explore subagent is purpose-built for isolating verbose discovery output and returning summaries to preserve main conversation context, which is exactly the scenario described. This applies the principle of subagent context isolation during exploration-heavy phases. You'd use Explore whenever discovery would otherwise crowd out budget for downstream reasoning and implementation. It beats running plan mode in the main session because plan mode and its discovery still consume the parent context — Explore moves the verbose work into a fork.
-- **C (plausible runner-up):** Plan mode is a real and appropriate choice for complex tasks and does include investigative phases. It gets the "use a structured exploration mode" idea almost right, but plan mode itself runs in the main session and doesn't isolate verbose discovery output the way Explore does. The stem's emphasis on dozens of file reads clogging context is the signal that subagent isolation is the right tool.
 - **B:** Asking Claude to "only show conclusions" still produces the underlying tool-call transcripts and intermediate context inside the session.
+- **C:** Plan mode is a real and appropriate choice for complex tasks and does include investigative phases. It gets the "use a structured exploration mode" idea almost right, but plan mode itself runs in the main session and doesn't isolate verbose discovery output the way Explore does. The stem's emphasis on dozens of file reads clogging context is the signal that subagent isolation is the right tool.
 - **D:** Hoping the model self-compresses is not a configuration mechanism and leaves you exposed to context exhaustion.
 
 ---
@@ -2746,15 +2735,15 @@ D) Skip the plan and have Claude re-derive the migration approach independently 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Combining plan mode for investigation/design with direct execution for implementation is the canonical workflow: once decisions are made, execution should be efficient and not pay plan-mode overhead. This applies the principle of matching mode to the activity at hand. You'd use this same pattern any time you've already produced an approved plan and mechanical edits remain. It beats staying in plan mode because the decisions are settled and re-deliberating per file wastes effort.
-- **A (plausible runner-up):** Staying in plan mode for consistency sounds prudent, and plan mode is a real and capable execution mode. It gets the "be careful" instinct almost right, but it ignores the design intent of plan mode (exploration and design before committing) and adds overhead during a phase where mechanical application is what's required. The stem's explicit "decisions are settled" is the signal pointing to direct execution.
+- **A:** Staying in plan mode for consistency sounds prudent, and plan mode is a real and capable execution mode. It gets the "be careful" instinct almost right, but it ignores the design intent of plan mode (exploration and design before committing) and adds overhead during a phase where mechanical application is what's required. The stem's explicit "decisions are settled" is the signal pointing to direct execution.
 - **B:** Re-planning per file undermines the coherent migration plan and is needlessly expensive.
+- **C (correct):** Combining plan mode for investigation/design with direct execution for implementation is the canonical workflow: once decisions are made, execution should be efficient and not pay plan-mode overhead. This applies the principle of matching mode to the activity at hand. You'd use this same pattern any time you've already produced an approved plan and mechanical edits remain. It beats staying in plan mode because the decisions are settled and re-deliberating per file wastes effort.
 - **D:** Discarding the plan and re-deriving per file produces inconsistent migration patterns across files.
 
 ---
@@ -2766,21 +2755,21 @@ D) Skip the plan and have Claude re-derive the migration approach independently 
 A) Plan mode should be used for every code change without exception, since plans never harm and frequently catch issues.
 B) Plan mode should be used only for emergency fixes when production is down and there's no time to think first.
 C) Plan mode should be used only for security-related changes, since those are the highest-risk category of work.
-D) Plan mode fits complex multi-file or architectural changes; direct execution fits simple well-scoped fixes like a single null-check.
+D) Plan mode fits complex multi-file or architectural changes; direct execution fits simple, low-risk fixes like a null-check.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Plan mode is designed for complex tasks with multiple valid approaches, architectural decisions, or large-scale multi-file modifications; direct execution is appropriate for simple, well-scoped changes. A single null-check is the canonical direct-execution case. This applies the principle of matching mode to scope and complexity. You'd reach for this guidance any time someone proposes either always-plan or never-plan as a blanket rule. It beats "plan everything" because plan mode's investigative overhead has a real cost in time and context.
-- **A (plausible runner-up):** "Always plan" is a real risk-averse stance and has appeal because plans rarely actively harm. It gets the "be careful" instinct almost right, but it ignores the design intent of the two modes and creates friction that erodes adoption for trivial changes. The signal in the stem — pushback about friction on a simple null-check — is the cue that scope and complexity should drive the choice.
+- **A:** "Always plan" is a real risk-averse stance and has appeal because plans rarely actively harm. It gets the "be careful" instinct almost right, but it ignores the design intent of the two modes and creates friction that erodes adoption for trivial changes. The signal in the stem — pushback about friction on a simple null-check — is the cue that scope and complexity should drive the choice.
 - **B:** Restricting plan mode to emergency fixes inverts its purpose (it's about deliberation, not urgency).
 - **C:** Plan mode applies to many categories of complex change, not just security — and trivial security fixes still fit direct execution.
+- **D (correct):** Plan mode is designed for complex tasks with multiple valid approaches, architectural decisions, or large-scale multi-file modifications; direct execution is appropriate for simple, well-scoped changes. A single null-check is the canonical direct-execution case. This applies the principle of matching mode to scope and complexity. You'd reach for this guidance any time someone proposes either always-plan or never-plan as a blanket rule. It beats "plan everything" because plan mode's investigative overhead has a real cost in time and context.
 
 ---
 
@@ -2789,23 +2778,23 @@ D) Plan mode fits complex multi-file or architectural changes; direct execution 
 **Stem:** Mid-migration, your engineer notices that her plan-mode session's context budget is running low after extensive codebase exploration. She still needs to implement the planned changes but is worried about context exhaustion. The exploration produced useful findings she wants to retain. What is the most effective recovery approach?
 
 A) Continue in the same session and trust the model to silently summarize earlier turns as it approaches context limits.
-B) Capture the plan and key findings, then start a fresh direct-execution session seeded with that summary for implementation.
+B) Capture the plan and key findings, then start a fresh direct-execution session seeded with that summary.
 C) Switch the session to a model with a smaller context window so the system more aggressively trims older messages.
 D) Re-run the exploration in plan mode from scratch in a new session to regenerate findings with fresh context.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** When a plan-mode session has produced a useful plan but is running low on context, the canonical move is to capture the plan and key findings, then begin a fresh session with that summary as input — combining plan mode for investigation with direct execution for implementation while resetting the context budget. This applies the principle of using subagents and session breaks to manage context proactively. You'd use this approach whenever investigation has consumed significant context and implementation still lies ahead. It beats trusting the model to self-summarize because silent compression is unreliable for important plan details and can drop critical decisions.
-- **D (plausible runner-up):** Restarting the exploration in a fresh session is real and works as a last resort, especially if the plan is unclear. It gets the "use a fresh session" idea almost right, but it discards exploration work that's already been done and is more expensive than capturing the existing plan as a seed. The stem's signal that "the exploration produced useful findings she wants to retain" argues for capturing not re-deriving.
 - **A:** Implicit summarization is not a reliable mechanism for preserving plan details.
+- **B (correct):** When a plan-mode session has produced a useful plan but is running low on context, the canonical move is to capture the plan and key findings, then begin a fresh session with that summary as input — combining plan mode for investigation with direct execution for implementation while resetting the context budget. This applies the principle of using subagents and session breaks to manage context proactively. You'd use this approach whenever investigation has consumed significant context and implementation still lies ahead. It beats trusting the model to self-summarize because silent compression is unreliable for important plan details and can drop critical decisions.
 - **C:** Smaller context windows do not gracefully trim — they just hit limits sooner.
+- **D:** Restarting the exploration in a fresh session is real and works as a last resort, especially if the plan is unclear. It gets the "use a fresh session" idea almost right, but it discards exploration work that's already been done and is more expensive than capturing the existing plan as a seed. The stem's signal that "the exploration produced useful findings she wants to retain" argues for capturing not re-deriving.
 
 ---
 
@@ -2822,14 +2811,14 @@ D) Both tasks: direct execution, since Claude is capable of handling complex dec
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Direct execution fits well-scoped single-function changes (Task A); plan mode fits decisions with multiple valid approaches and cross-team implications (Task B). This is the canonical mapping the modes are designed for. You'd apply this same reasoning whenever a task list has a mix of trivial fixes and architectural choices — the modes are complementary, not substitutes. It beats "plan everything" because each mode adds value only when matched to the right kind of work.
-- **C (plausible runner-up):** "Both plan mode" is a defensible cautious stance and plan mode is a real, capable mode. It gets the "be careful" instinct almost right, but it ignores that plan mode's investigative overhead is wasted when the scope and shape of the change are already clear. The signal in the stem about Task A — single function, stack trace in hand — points to direct execution.
 - **B:** This inverts both mappings, applying architecture review to a trivial fix and direct execution to a multi-strategy decision.
+- **C:** "Both plan mode" is a defensible cautious stance and plan mode is a real, capable mode. It gets the "be careful" instinct almost right, but it ignores that plan mode's investigative overhead is wasted when the scope and shape of the change are already clear. The signal in the stem about Task A — single function, stack trace in hand — points to direct execution.
 - **D:** "Both direct execution" forgoes deliberation on a multi-strategy multi-environment decision and risks lock-in.
 
 ---
@@ -2840,21 +2829,21 @@ D) Both tasks: direct execution, since Claude is capable of handling complex dec
 
 A) Restate the requirement again using stronger imperative language like "you must" and "always" and "never deviate."
 B) Increase the model's temperature so it explores more transformations and converges on a stable convention.
-C) Provide 2–3 concrete input/output examples that show exactly the normalization (casing, trademark preservation) you want.
+C) Provide 2–3 concrete input/output examples showing exactly the normalization (casing, trademark) you want.
 D) Ask Claude to first explain what "normalize" means to it, then proceed with whatever interpretation it provides.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Concrete input/output examples are the most effective way to communicate expected transformations when prose descriptions are interpreted inconsistently. They eliminate ambiguity by showing rather than telling. This applies the iterative refinement principle that examples beat increasingly elaborate prose for transformation tasks. You'd reach for examples any time natural-language descriptions produce variance across runs. It beats more emphatic prose because emphasis doesn't disambiguate which interpretation of "normalize" you want — examples do.
-- **A (plausible runner-up):** Stronger imperative language is a real prompting technique and sometimes helps with following constraints. It gets the "be more specific" idea almost right, but it doesn't address ambiguity about *what* the transformation should produce — only urgency about following whatever interpretation the model chose. The stem's pattern of varying transformation outputs across runs is the signal that ambiguity, not urgency, is the issue.
+- **A:** Stronger imperative language is a real prompting technique and sometimes helps with following constraints. It gets the "be more specific" idea almost right, but it doesn't address ambiguity about *what* the transformation should produce — only urgency about following whatever interpretation the model chose. The stem's pattern of varying transformation outputs across runs is the signal that ambiguity, not urgency, is the issue.
 - **B:** Higher temperature increases variability, the exact opposite of what's needed here.
+- **C (correct):** Concrete input/output examples are the most effective way to communicate expected transformations when prose descriptions are interpreted inconsistently. They eliminate ambiguity by showing rather than telling. This applies the iterative refinement principle that examples beat increasingly elaborate prose for transformation tasks. You'd reach for examples any time natural-language descriptions produce variance across runs. It beats more emphatic prose because emphasis doesn't disambiguate which interpretation of "normalize" you want — examples do.
 - **D:** Asking Claude to define "normalize" defers the problem to the model's invented definition instead of pinning down yours.
 
 ---
@@ -2864,23 +2853,23 @@ D) Ask Claude to first explain what "normalize" means to it, then proceed with w
 **Stem:** You're asking Claude to implement a database migration utility for a domain you don't deeply understand yet. You suspect there are design considerations — cache invalidation, rollback strategy, failure modes — that you haven't thought of. You'd like Claude to surface those considerations before writing implementation code. Which refinement pattern is designed for that case?
 
 A) Provide a detailed test suite covering every edge case you can think of and let Claude code against the failing tests.
-B) Use the interview pattern: have Claude ask you questions to surface considerations before it produces an implementation.
+B) Use the interview pattern: have Claude ask questions to surface considerations before it produces an implementation.
 C) Start coding immediately and iterate when problems appear, since real failures are better signals than hypotheticals.
 D) Write a long prompt enumerating every possible concern you can think of and ask Claude to handle each one explicitly.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** Test-driven iteration (writing tests first and iterating on failures) is a real, powerful refinement technique. It gets the "structure the problem before coding" idea almost right, but it requires you to already understand the domain well enough to author the right tests. The stem's signal — "I don't deeply understand yet" — points to the interview pattern, which helps you build that understanding before testing.
 - **B (correct):** The interview pattern — having Claude ask questions to surface considerations the developer may not have anticipated — is designed exactly for unfamiliar domains where the developer suspects there are unknowns. This applies the principle that explicit elicitation before implementation prevents costly rework on overlooked requirements. You'd use the interview pattern any time you're entering a domain where you don't know what you don't know. It beats writing exhaustive test suites because tests presuppose you already know the edge cases — the interview pattern helps you discover them.
-- **A (plausible runner-up):** Test-driven iteration (writing tests first and iterating on failures) is a real, powerful refinement technique. It gets the "structure the problem before coding" idea almost right, but it requires you to already understand the domain well enough to author the right tests. The stem's signal — "I don't deeply understand yet" — points to the interview pattern, which helps you build that understanding before testing.
-- **D:** A long enumerated prompt only surfaces concerns *you* can think of, which misses the unknown-unknowns the interview pattern targets.
 - **C:** Iterating on real failures is reactive and expensive when design choices made early would have prevented the failures.
+- **D:** A long enumerated prompt only surfaces concerns *you* can think of, which misses the unknown-unknowns the interview pattern targets.
 
 ---
 
@@ -2888,7 +2877,7 @@ D) Write a long prompt enumerating every possible concern you can think of and a
 
 **Stem:** Your team is building a data pipeline transformation. You want Claude to follow a strict iterative refinement loop: write expected behavior as tests first, then implement, then iterate by sharing test failures with Claude to guide the next attempt. Which best describes when this test-driven iteration approach is most appropriate compared to alternatives?
 
-A) When the behavior can be expressed as concrete pass/fail assertions including edge cases and performance requirements.
+A) When the behavior can be expressed as concrete pass/fail assertions including edge cases plus measurable speed requirements.
 B) When the behavior is too qualitative to test and the team relies on subjective code review for correctness signals.
 C) When time is tight and the team wants to skip tests entirely to ship the first working version as quickly as possible.
 D) When the team intends to never write tests and only relies on Claude's confidence as a quality signal during development.
@@ -2903,7 +2892,7 @@ D) When the team intends to never write tests and only relies on Claude's confid
 
 **Explanation:**
 - **A (correct):** Test-driven iteration is most appropriate when expected behavior can be expressed as concrete pass/fail assertions — including edge cases and performance requirements — because then test failures become precise, actionable feedback for the next iteration. This applies the iterative refinement principle that concrete failing tests guide progressive improvement. You'd reach for this approach whenever the success criteria are objectively testable. It beats subjective-only review because tests give Claude unambiguous signals about what changed and what still doesn't pass.
-- **B (plausible runner-up):** Subjective code review is a real and valuable feedback mechanism, especially for design quality and readability. It gets the "feedback drives improvement" idea almost right, but it doesn't fit the test-driven iteration loop, which by definition depends on tests as the feedback mechanism. The stem asks specifically when test-driven iteration is appropriate, which is precisely when tests can express the behavior.
+- **B:** Subjective code review is a real and valuable feedback mechanism, especially for design quality and readability. It gets the "feedback drives improvement" idea almost right, but it doesn't fit the test-driven iteration loop, which by definition depends on tests as the feedback mechanism. The stem asks specifically when test-driven iteration is appropriate, which is precisely when tests can express the behavior.
 - **C:** Skipping tests is the opposite of test-driven iteration; the approach doesn't apply.
 - **D:** Relying solely on the model's confidence is not a quality signal and isn't an iteration mechanism at all.
 
@@ -2921,16 +2910,16 @@ D) Sequential single-issue messages, fixing each independent bug in its own iter
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** When issues are independent (don't interact in the code), fixing them sequentially in separate iterations is preferred because each iteration produces a focused, easily reviewed change with a test that pins the fix. This applies the principle of choosing single vs. multi-issue messages based on interaction, not just count. You'd use sequential iteration whenever fixes are independent. It beats interleaving because interleaved changes are harder to review, and a regression in one is harder to attribute.
-- **C (plausible runner-up):** Combining both fixes in one detailed message is appropriate when fixes interact — and grouped messages are a real refinement technique. It gets the "one message with both" idea almost right, but it ignores that these two bugs are independent (input parsing vs formatting). The stem's explicit "two issues are unrelated in the code" is the signal that sequential is better here.
 - **A:** Vague "fix related issues" invites scope creep and produces unfocused diffs.
 - **B:** Sequential is right, but choosing order by feel rather than by independence misses the principle.
+- **C:** Combining both fixes in one detailed message is appropriate when fixes interact — and grouped messages are a real refinement technique. It gets the "one message with both" idea almost right, but it ignores that these two bugs are independent (input parsing vs formatting). The stem's explicit "two issues are unrelated in the code" is the signal that sequential is better here.
+- **D (correct):** When issues are independent (don't interact in the code), fixing them sequentially in separate iterations is preferred because each iteration produces a focused, easily reviewed change with a test that pins the fix. This applies the principle of choosing single vs. multi-issue messages based on interaction, not just count. You'd use sequential iteration whenever fixes are independent. It beats interleaving because interleaved changes are harder to review, and a regression in one is harder to attribute.
 
 ---
 
@@ -2946,15 +2935,15 @@ D) Start over from scratch and rewrite the auth module from blank because the ex
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** When multiple issues interact, providing all of them in a single detailed message lets Claude design a coherent fix that accounts for the interactions, rather than producing partial fixes that invalidate each other. This applies the refinement principle of choosing message granularity by interaction. You'd reach for the single-detailed-message approach whenever sequential fixes produce regressions because each fix changes the surface the next was diagnosed against. It beats sequential-with-more-tests because tests catch regressions after they happen — the root issue is that the fixes need to compose, which requires they be designed together.
-- **A (plausible runner-up):** Sequential fixes plus thorough tests is a real, valuable iteration discipline and works well for independent issues. It gets the "more rigor" instinct almost right, but it doesn't change the structural problem that each fix invalidates the next when issues interact. The stem's signal — fixing one shifts the others' behavior — is the cue that the fixes must be composed in a single design.
+- **A:** Sequential fixes plus thorough tests is a real, valuable iteration discipline and works well for independent issues. It gets the "more rigor" instinct almost right, but it doesn't change the structural problem that each fix invalidates the next when issues interact. The stem's signal — fixing one shifts the others' behavior — is the cue that the fixes must be composed in a single design.
 - **B:** "Out of scope" framing is incorrect — interacting issues are routine refinement territory with the right approach.
+- **C (correct):** When multiple issues interact, providing all of them in a single detailed message lets Claude design a coherent fix that accounts for the interactions, rather than producing partial fixes that invalidate each other. This applies the refinement principle of choosing message granularity by interaction. You'd reach for the single-detailed-message approach whenever sequential fixes produce regressions because each fix changes the surface the next was diagnosed against. It beats sequential-with-more-tests because tests catch regressions after they happen — the root issue is that the fixes need to compose, which requires they be designed together.
 - **D:** Rewriting from scratch discards valuable context and is hugely out of proportion to the situation described.
 
 ---
@@ -2963,7 +2952,7 @@ D) Start over from scratch and rewrite the auth module from blank because the ex
 
 **Stem:** Your team is adding a transformation that converts user inputs into a strict normalized form (specific casing rules, specific punctuation handling). You want Claude to fix a specific edge case where null inputs are passed through unchanged instead of being converted to empty strings. Which specific refinement technique most directly fixes this kind of edge-case behavior?
 
-A) Provide a specific failing test case with example input `null` and expected output `""` so Claude has unambiguous behavior to target.
+A) Provide a specific failing test case with input `null` and expected `""` so Claude has clear behavior.
 B) Restate the requirement in stronger prose without examples and trust Claude to handle null correctly.
 C) Add a general comment in the code saying "handle nulls carefully" and let Claude interpret what that means.
 D) Ask Claude to enumerate every possible edge case it can imagine and then ask which ones you want fixed.
@@ -2972,15 +2961,15 @@ D) Ask Claude to enumerate every possible edge case it can imagine and then ask 
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** Providing a specific failing test case with concrete input and expected output is the canonical refinement move for fixing edge-case handling: it eliminates ambiguity and gives Claude unambiguous criteria to satisfy. This applies the principle that concrete examples beat prose for transformation tasks. You'd use this approach whenever an edge case keeps slipping through despite repeated prose descriptions. It beats general prose because the example simultaneously specifies the input, the expected output, and (when added to a test suite) the verification criterion.
-- **D (plausible runner-up):** Asking Claude to enumerate edge cases is a real elicitation pattern (related to the interview approach) and can surface unknown unknowns. It gets the "explore what could go wrong" idea almost right, but it's a discovery technique rather than a fix-this-specific-edge-case technique, and the stem already names the specific case. A concrete test case is more direct.
 - **B:** Stronger prose without examples is exactly what didn't work in similar refinement contexts.
 - **C:** A general comment relies on probabilistic interpretation of "carefully" and doesn't pin down the expected behavior.
+- **D:** Asking Claude to enumerate edge cases is a real elicitation pattern (related to the interview approach) and can surface unknown unknowns. It gets the "explore what could go wrong" idea almost right, but it's a discovery technique rather than a fix-this-specific-edge-case technique, and the stem already names the specific case. A concrete test case is more direct.
 
 ---
 
@@ -2991,21 +2980,21 @@ D) Ask Claude to enumerate every possible edge case it can imagine and then ask 
 A) Provide 50 input/output examples covering happy paths and edge cases and let Claude infer the considerations from data.
 B) Ask Claude to start coding and inspect the resulting design after the fact to discover what considerations it implicitly made.
 C) Generate a long prose specification covering every consideration you can already name and submit it for implementation.
-D) Use the interview pattern: prompt Claude to ask you questions covering ordering, late arrivals, replay, and back-pressure before coding.
+D) Use the interview pattern: prompt Claude to ask about ordering, late arrivals, replay, and back-pressure before coding.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The interview pattern is designed for exactly this case — surfacing considerations the developer may not have anticipated, especially in unfamiliar domains. By asking Claude to question you before implementation, important design choices come into view early. This applies the iterative refinement principle of eliciting before implementing. You'd use the interview pattern any time you're entering a domain with non-obvious design choices. It beats writing an exhaustive prose spec because the spec can only cover things you already know to think about.
-- **C (plausible runner-up):** Detailed prose specifications are a real, useful artifact and often the right input for well-understood domains. It gets the "specify upfront" idea almost right, but in unfamiliar domains the spec will miss exactly the considerations you don't know to include, which is the gap the interview pattern fills. The stem's signal — "unfamiliar domain" — is the cue that elicitation beats specification here.
 - **A:** Input/output examples specify transformations but don't surface non-functional considerations like ordering guarantees or back-pressure.
 - **B:** "Inspect the design after the fact" pushes elicitation past the point where it could have prevented costly rework.
+- **C:** Detailed prose specifications are a real, useful artifact and often the right input for well-understood domains. It gets the "specify upfront" idea almost right, but in unfamiliar domains the spec will miss exactly the considerations you don't know to include, which is the gap the interview pattern fills. The stem's signal — "unfamiliar domain" — is the cue that elicitation beats specification here.
+- **D (correct):** The interview pattern is designed for exactly this case — surfacing considerations the developer may not have anticipated, especially in unfamiliar domains. By asking Claude to question you before implementation, important design choices come into view early. This applies the iterative refinement principle of eliciting before implementing. You'd use the interview pattern any time you're entering a domain with non-obvious design choices. It beats writing an exhaustive prose spec because the spec can only cover things you already know to think about.
 
 ---
 
@@ -3016,21 +3005,21 @@ D) Use the interview pattern: prompt Claude to ask you questions covering orderi
 A) `--no-color` to remove terminal coloring that may confuse log parsers and trigger waits for input.
 B) `--input-format json` to ensure the runner can send structured input even when no TTY is attached.
 C) `--allow-all-tools` to grant unattended permission for every tool call without prompting for approval.
-D) `-p` (or `--print`) to run Claude Code in non-interactive print mode suitable for automated pipelines.
+D) `-p` (or `--print`) to run Claude Code in non-interactive print mode for automated pipelines.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The `-p` (or `--print`) flag is the documented non-interactive mode designed for automated pipelines: it runs Claude Code to completion and prints results without waiting for interactive input. This applies the CI integration principle of using non-interactive mode whenever there's no human at the terminal. You'd use `-p` for any CI invocation, including PR review, test generation, and structured-output pipelines. It beats permission flags because the issue isn't permission prompting — it's the entire interactive REPL waiting for input that needs to be turned off.
-- **C (plausible runner-up):** Permission flags that auto-approve tool calls are a real concern in CI and can also cause hangs if missing. It gets the "remove interactivity blockers" idea almost right, but the canonical and primary mechanism for non-interactive CI is `-p` (`--print`); permission handling is a separate concern. The signal in the stem — "hangs waiting for user input" with no other context — points to `-p`.
 - **A:** `--no-color` is a presentation flag and has no effect on interactive vs. non-interactive behavior.
 - **B:** Input-format flags govern structured input handling but don't make the command non-interactive on their own.
+- **C:** Permission flags that auto-approve tool calls are a real concern in CI and can also cause hangs if missing. It gets the "remove interactivity blockers" idea almost right, but the canonical and primary mechanism for non-interactive CI is `-p` (`--print`); permission handling is a separate concern. The signal in the stem — "hangs waiting for user input" with no other context — points to `-p`.
+- **D (correct):** The `-p` (or `--print`) flag is the documented non-interactive mode designed for automated pipelines: it runs Claude Code to completion and prints results without waiting for interactive input. This applies the CI integration principle of using non-interactive mode whenever there's no human at the terminal. You'd use `-p` for any CI invocation, including PR review, test generation, and structured-output pipelines. It beats permission flags because the issue isn't permission prompting — it's the entire interactive REPL waiting for input that needs to be turned off.
 
 ---
 
@@ -3040,21 +3029,21 @@ D) `-p` (or `--print`) to run Claude Code in non-interactive print mode suitable
 
 A) Switch to plain-text output and write a complex regex parser that locates finding sections by Markdown heading patterns.
 B) Increase the prompt's emphasis on producing well-formed Markdown so the parser's existing regex becomes more reliable.
-C) Use `--output-format json` together with `--json-schema` to enforce a structured findings shape the parser can rely on.
+C) Use `--output-format json` together with `--json-schema` to enforce a structured shape for the findings the parser can rely on.
 D) Use `--debug` mode to expose Claude's internal reasoning steps so the parser can extract findings from intermediate state.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** `--output-format json` together with `--json-schema` is the documented mechanism for producing machine-parseable structured findings in CI contexts, perfect for posting inline PR comments programmatically. This applies the principle of using schema-enforced output when downstream automation needs to consume the result. You'd use this same approach any time a pipeline step needs Claude's output to be reliably parseable rather than human-readable. It beats parsing Markdown because schemas make the contract explicit and validated, while Markdown parsing is fragile by nature.
-- **B (plausible runner-up):** Emphasizing well-formed Markdown is a real prompting habit and does improve consistency. It gets the "make output more parseable" idea almost right, but it doesn't make output structured in any enforceable sense — it just narrows the variation. The stem's signal — fragile parser, need machine-parseable records — points to schema-enforced JSON.
 - **A:** A regex on heading patterns inherits the fragility problem; it's exactly the situation you're trying to leave behind.
+- **B:** Emphasizing well-formed Markdown is a real prompting habit and does improve consistency. It gets the "make output more parseable" idea almost right, but it doesn't make output structured in any enforceable sense — it just narrows the variation. The stem's signal — fragile parser, need machine-parseable records — points to schema-enforced JSON.
+- **C (correct):** `--output-format json` together with `--json-schema` is the documented mechanism for producing machine-parseable structured findings in CI contexts, perfect for posting inline PR comments programmatically. This applies the principle of using schema-enforced output when downstream automation needs to consume the result. You'd use this same approach any time a pipeline step needs Claude's output to be reliably parseable rather than human-readable. It beats parsing Markdown because schemas make the contract explicit and validated, while Markdown parsing is fragile by nature.
 - **D:** Debug mode produces unstable internal output not intended for downstream parsing.
 
 ---
@@ -3064,21 +3053,21 @@ D) Use `--debug` mode to expose Claude's internal reasoning steps so the parser 
 **Stem:** Your CI pipeline generates unit tests for new code in PRs. Engineers complain that Claude often suggests test cases your existing suite already covers, cluttering review with redundant tests. You want test generation to be aware of what's already tested and avoid duplicating scenarios. Which adjustment most directly addresses this?
 
 A) Run test generation multiple times and only emit tests that appear in fewer than half the runs as candidates.
-B) Include the existing test files in the Claude Code context so it can avoid suggesting duplicate scenarios already covered.
+B) Include existing test files in the Claude Code context so it can avoid suggesting duplicates already covered.
 C) Increase the temperature parameter to force more diverse test ideas that are less likely to overlap with existing tests.
 D) Limit the size of the prompt by truncating function signatures so Claude has less surface area to overtest.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Multi-run consensus is a real technique and is occasionally used for stability. It gets the "filter duplicates" idea almost right, but it's expensive and indirect, and it doesn't teach the generator what's already covered — it just filters by output overlap, which is a different signal. The stem's signal — duplication with the existing suite — points to giving Claude that suite as context.
 - **B (correct):** Providing the existing test files in context is the documented technique for avoiding duplicate-scenario suggestions during automated test generation: Claude can only avoid duplication if it knows what's already covered. This applies the CI principle of supplying prior context to suppress redundant output. You'd reach for this approach whenever automated generation needs to be aware of what's already done — past reviews, prior tests, existing fixtures. It beats randomness-based dedup because providing context teaches Claude what coverage exists, while higher randomness just produces noisier output.
-- **A (plausible runner-up):** Multi-run consensus is a real technique and is occasionally used for stability. It gets the "filter duplicates" idea almost right, but it's expensive and indirect, and it doesn't teach the generator what's already covered — it just filters by output overlap, which is a different signal. The stem's signal — duplication with the existing suite — points to giving Claude that suite as context.
 - **C:** Higher temperature produces more varied output but doesn't make Claude aware of what's covered.
 - **D:** Truncating signatures degrades generation quality without addressing duplication.
 
@@ -3091,21 +3080,21 @@ D) Limit the size of the prompt by truncating function signatures so Claude has 
 A) Each model snapshot has hidden randomness that resolves differently across sessions, and pipelines should rely on that variability.
 B) Reviews are by nature less thorough than generation, so any review session will be shallower than the originating session.
 C) Larger context windows always improve review quality, so the answer is to migrate review to a model with more context.
-D) Session context isolation matters: review benefits from an independent instance that hasn't already committed to the implementation.
+D) Session context isolation matters: review benefits from an independent instance that hasn't committed to the implementation.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Session context isolation is the principle: a Claude session that already produced an implementation has reasoning anchored to that implementation and is less effective at critically reviewing it. An independent review instance, lacking those anchors, is more rigorous. This applies the CI principle of separating generation from review by session boundary. You'd use this same reasoning whenever a workflow has a generation step and a review step in the same pipeline — they should be different sessions. It beats reliance on randomness because the asymmetry isn't random — it's a predictable consequence of context.
-- **A (plausible runner-up):** Stochastic variability between sessions is a real phenomenon and can sometimes lead to different surface findings. It gets the "different sessions act differently" idea almost right, but the systematic difference between generation-then-review and independent-review is structural (context anchoring), not random. The stem's signal — same diff, more rigorous critique in a fresh instance — points to a systematic effect, not randomness.
+- **A:** Stochastic variability between sessions is a real phenomenon and can sometimes lead to different surface findings. It gets the "different sessions act differently" idea almost right, but the systematic difference between generation-then-review and independent-review is structural (context anchoring), not random. The stem's signal — same diff, more rigorous critique in a fresh instance — points to a systematic effect, not randomness.
 - **B:** Reviews are not inherently shallower; this misstates the underlying dynamic.
 - **C:** Larger context windows do not address anchoring on prior reasoning.
+- **D (correct):** Session context isolation is the principle: a Claude session that already produced an implementation has reasoning anchored to that implementation and is less effective at critically reviewing it. An independent review instance, lacking those anchors, is more rigorous. This applies the CI principle of separating generation from review by session boundary. You'd use this same reasoning whenever a workflow has a generation step and a review step in the same pipeline — they should be different sessions. It beats reliance on randomness because the asymmetry isn't random — it's a predictable consequence of context.
 
 ---
 
@@ -3115,21 +3104,21 @@ D) Session context isolation matters: review benefits from an independent instan
 
 A) Disable the reviewer for follow-up commits and only run it on the first commit of each PR to avoid all repetition.
 B) Add a deduplication step that fuzzy-matches new comments to old ones and silently drops near-duplicates from posting.
-C) Include prior review findings in the context for re-runs and instruct Claude to report only new or still-unaddressed issues.
+C) Include prior review findings inside the context for re-runs and instruct Claude to report only new or still-unaddressed issues.
 D) Increase the model's temperature for re-runs so each re-review generates different phrasing of comments to avoid duplication.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Providing prior review findings as context and instructing Claude to surface only new or still-unaddressed issues is the documented technique for re-running reviews after commits without duplicating earlier comments. This applies the CI principle of supplying historical state so generation is aware of what's already been said. You'd reach for this approach any time a CI step runs repeatedly against an evolving artifact (PR reviews, test gen, doc gen). It beats fuzzy-match deduplication because Claude can reason about whether a comment is still relevant (e.g., the issue was actually fixed) rather than just whether the wording matches.
-- **B (plausible runner-up):** Post-hoc deduplication on the comment stream is a real engineering pattern and does cut down on noise. It gets the "remove duplicates" idea almost right, but it works only at the wording level and can't distinguish "still applies" from "already fixed but I'm re-flagging it." The stem's signal — comments the team has "addressed or acknowledged" — argues for awareness in generation, not filtering after.
 - **A:** Skipping later commits forgoes the benefit of reviewing real changes; the goal is dedup, not silence.
+- **B:** Post-hoc deduplication on the comment stream is a real engineering pattern and does cut down on noise. It gets the "remove duplicates" idea almost right, but it works only at the wording level and can't distinguish "still applies" from "already fixed but I'm re-flagging it." The stem's signal — comments the team has "addressed or acknowledged" — argues for awareness in generation, not filtering after.
+- **C (correct):** Providing prior review findings as context and instructing Claude to surface only new or still-unaddressed issues is the documented technique for re-running reviews after commits without duplicating earlier comments. This applies the CI principle of supplying historical state so generation is aware of what's already been said. You'd reach for this approach any time a CI step runs repeatedly against an evolving artifact (PR reviews, test gen, doc gen). It beats fuzzy-match deduplication because Claude can reason about whether a comment is still relevant (e.g., the issue was actually fixed) rather than just whether the wording matches.
 - **D:** Different phrasing of the same finding is still duplication and is exactly what you don't want.
 
 ---
@@ -3138,7 +3127,7 @@ D) Increase the model's temperature for re-runs so each re-review generates diff
 
 **Stem:** Your CI test-generation step produces tests that are technically valid but low-value — testing trivial getters, restating obvious assertions, or duplicating existing fixtures. Reviewers say "skip the noise." You want Claude to generate more meaningful tests aligned with what your team considers valuable. Which configuration mechanism most directly raises the quality bar?
 
-A) Document your team's testing standards, valuable test criteria, and available fixtures in CLAUDE.md so CI-invoked Claude Code follows them.
+A) Document team testing standards, valuable test criteria, and fixtures in CLAUDE.md so CI-invoked Claude Code foll
 B) Reject all generated tests by default and require an engineer to opt each test in manually before it can be merged.
 C) Add a post-generation filter that drops tests below a minimum line count to enforce that they do enough work.
 D) Increase the model temperature so each generated test is more creative and less likely to be a trivial getter test.
@@ -3147,14 +3136,14 @@ D) Increase the model temperature so each generated test is more creative and le
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Documenting testing standards, valuable test criteria, and available fixtures in `CLAUDE.md` is the canonical way to provide CI-invoked Claude Code with the project context it needs to generate higher-quality, less-trivial tests. This applies the CI principle that `CLAUDE.md` is the mechanism for supplying project context to non-interactive sessions. You'd use this same approach whenever the quality of CI-generated output depends on team-specific conventions. It beats heuristic filtering because the conventions are encoded once and applied at generation time, rather than filtering noise after the fact.
-- **C (plausible runner-up):** Minimum-size filters are a real, simple way to drop trivial tests and do remove some noise. It gets the "raise the bar" idea almost right, but they're a crude proxy: a small but meaningful test passes while a long but useless test sails through. The stem's signal — "tests aligned with what your team considers valuable" — points to encoding those criteria as context, not approximating them with line counts.
 - **B:** Opt-in-per-test is exactly the manual burden the automation was meant to reduce.
+- **C:** Minimum-size filters are a real, simple way to drop trivial tests and do remove some noise. It gets the "raise the bar" idea almost right, but they're a crude proxy: a small but meaningful test passes while a long but useless test sails through. The stem's signal — "tests aligned with what your team considers valuable" — points to encoding those criteria as context, not approximating them with line counts.
 - **D:** Higher temperature increases variability but doesn't align output with team criteria.
 
 ---
@@ -3171,47 +3160,44 @@ D) Skip Claude Code entirely and use a different tool for CI-driven document gen
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The `-p` (or `--print`) flag runs Claude Code in non-interactive print mode designed for automated pipelines, and stdout capture produces a file containing exactly the printed result. This applies the CI integration principle of using non-interactive mode plus normal shell redirection. You'd use this combination any time a CI step needs a clean output captured to a file. It beats debug-and-parse approaches because print mode is explicitly designed for this and produces clean, structured output without log scraping.
-- **B (plausible runner-up):** Debug/verbose modes do capture output to logs and are real flags. It gets the "we need the output somewhere" idea almost right, but it captures intermediate reasoning along with the result and forces a fragile post-hoc parse to extract just the release notes. The stem's signal — the file must contain only the release notes — argues for clean print-mode output, not log scraping.
 - **A:** TTY emulation in CI is brittle and is exactly the workflow `-p` was designed to replace.
+- **B:** Debug/verbose modes do capture output to logs and are real flags. It gets the "we need the output somewhere" idea almost right, but it captures intermediate reasoning along with the result and forces a fragile post-hoc parse to extract just the release notes. The stem's signal — the file must contain only the release notes — argues for clean print-mode output, not log scraping.
+- **C (correct):** The `-p` (or `--print`) flag runs Claude Code in non-interactive print mode designed for automated pipelines, and stdout capture produces a file containing exactly the printed result. This applies the CI integration principle of using non-interactive mode plus normal shell redirection. You'd use this combination any time a CI step needs a clean output captured to a file. It beats debug-and-parse approaches because print mode is explicitly designed for this and produces clean, structured output without log scraping.
 - **D:** Claude Code is explicitly designed for CI use; opting out misses the entire `-p`/`--output-format` capability set.
+
+---
 
 
 ## Domain 4: Prompt Engineering & Structured Output
-
-
-42 scenario-based practice questions for the CCA-F exam.
-
----
 
 ### Q1 | Scenario 5 | TS 4.1 | difficulty: medium
 
 **Stem:** Your PR review bot flags "comment accuracy" issues. The current prompt says "check that comments are accurate and flag problems." Developers complain that 60% of comment flags are pedantic — formatting nits, mildly outdated phrasing, or stylistic preferences — and they've started ignoring all comment findings, including legitimate ones where comments contradict code. Production data shows the bot can correctly identify true contradictions when it surfaces them. What is the most effective change to restore developer trust?
 
 A) Append "be conservative and only flag issues you are highly confident about" to the comment review prompt to reduce volume.
-B) Rewrite the criterion to "flag comments only when the claimed behavior contradicts what the code actually does" with examples.
+B) Rewrite the criterion to "flag comments only when claimed behavior contradicts what the code does" with examples.
 C) Lower the model temperature for comment-review prompts so the model returns fewer findings overall in this category.
 D) Run two independent review passes on comments and only surface findings that both passes agree on as issues.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The principle here is replacing vague evaluative instructions with explicit categorical criteria. "Accurate" is subjective; "claimed behavior contradicts actual code behavior" is testable, with a clear yes/no answer per comment. This same approach applies whenever you see high false-positive rates from open-ended criteria — translate the goal into a specific predicate the model can evaluate. It beats the runner-up because changing the criterion fixes the root cause (definition of what counts as an issue), while ensemble agreement only suppresses noise around an already-bad definition.
-- **D (plausible runner-up):** Multi-pass agreement is a legitimate technique for reducing noise when you have a well-defined criterion but stochastic outputs, and it can improve precision on stable definitions. It gets right that the goal is fewer spurious flags. However, the underlying criterion ("accurate") is the problem — two passes will both agree on the same pedantic flags because they share the same vague definition. The stem tells you the bot can correctly identify true contradictions, signaling the issue is criterion scope, not output noise.
 - **A:** "Be conservative" and confidence-based instructions reliably fail to improve precision because the model has no calibrated notion of confidence in this domain. This pattern is sometimes acceptable in low-stakes brainstorming where false negatives don't matter.
+- **B (correct):** The principle here is replacing vague evaluative instructions with explicit categorical criteria. "Accurate" is subjective; "claimed behavior contradicts actual code behavior" is testable, with a clear yes/no answer per comment. This same approach applies whenever you see high false-positive rates from open-ended criteria — translate the goal into a specific predicate the model can evaluate. It beats the runner-up because changing the criterion fixes the root cause (definition of what counts as an issue), while ensemble agreement only suppresses noise around an already-bad definition.
 - **C:** Temperature mostly affects token-level variance, not the model's interpretation of a vague evaluative criterion. Adjusting temperature is appropriate for controlling format consistency or creative variation, not for changing what counts as an issue.
+- **D:** Multi-pass agreement is a legitimate technique for reducing noise when you have a well-defined criterion but stochastic outputs, and it can improve precision on stable definitions. It gets right that the goal is fewer spurious flags. However, the underlying criterion ("accurate") is the problem — two passes will both agree on the same pedantic flags because they share the same vague definition. The stem tells you the bot can correctly identify true contradictions, signaling the issue is criterion scope, not output noise.
 
 ---
 
@@ -3220,21 +3206,21 @@ D) Run two independent review passes on comments and only surface findings that 
 **Stem:** A team adds the instruction "only report high-confidence findings" to their PR review prompt, expecting fewer false positives. After two weeks the false positive rate is unchanged — the same categories that produced noisy findings before are still producing noisy findings, just now labeled "high confidence." Senior engineers are frustrated. Which observation best explains why this approach failed?
 
 A) Models cannot accurately self-report confidence without temperature scaling and an explicit calibration dataset for the review domain.
-B) Confidence-based filtering depends on subjective self-assessment and does not change the underlying criterion that produces the noisy findings.
+B) Confidence-based filtering depends on subjective self-assessment and does not change the criterion producing noisy findings.
 C) The model's confidence scores are biased toward the median of the training distribution and need post-hoc recalibration to be useful.
 D) High-confidence instructions only work when paired with an output schema that forces a numeric confidence value between zero and one.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Calibration is a real problem in model confidence and is genuinely useful in evaluation harnesses where you have ground-truth labels. It correctly identifies that the model's self-reported confidence is unreliable. However, this answer implies that with calibration the approach would work — but the root cause here is the categorical definition, not the numeric calibration. The stem signals this by noting the same categories still produce noise, which means the criterion, not the confidence number, is the issue.
 - **B (correct):** The principle being tested is that confidence-based filtering is a vague evaluative instruction layered on top of an unchanged criterion — it does not improve precision. The model will simply re-label the same outputs as "high confidence" because it has no independent grounding for what high confidence means in this domain. You'd apply this reasoning whenever a fix only changes the model's self-description of its outputs rather than the categorical definition of what to flag. This beats the runner-up because the issue is not calibration error in a real confidence signal — it's that there is no meaningful confidence signal at all when the criterion itself is fuzzy.
-- **A (plausible runner-up):** Calibration is a real problem in model confidence and is genuinely useful in evaluation harnesses where you have ground-truth labels. It correctly identifies that the model's self-reported confidence is unreliable. However, this answer implies that with calibration the approach would work — but the root cause here is the categorical definition, not the numeric calibration. The stem signals this by noting the same categories still produce noise, which means the criterion, not the confidence number, is the issue.
 - **C:** Distributional bias in confidence is a real phenomenon but is not how confidence is generated in instruction-following prompts. This concern is more relevant to classifier head outputs in fine-tuned models.
 - **D:** Forcing a numeric output via schema would make the confidence visible but would not make it meaningful or actionable. Numeric confidence fields are appropriate when you have a downstream threshold-based filter and a calibration set.
 
@@ -3259,7 +3245,7 @@ D) Combine all three categories into a single "issues" output so developers cann
 
 **Explanation:**
 - **A (correct):** The principle is that high-false-positive categories actively erode trust in adjacent accurate categories — developers generalize "the bot is noisy" across the whole tool. Temporarily disabling the noisy category is the fastest way to preserve the value of the accurate categories while you fix the noisy one offline. This pattern applies whenever per-category accuracy varies widely and the noisy categories drag down user perception of the entire system. It beats the runner-up because the runner-up still surfaces some noisy style findings, just fewer of them, which does not break the contamination effect.
-- **B (plausible runner-up):** Confidence thresholds across categories are a sensible engineering control and are widely used in production ML systems with calibrated scores. They get right the goal of reducing low-quality findings. The problem is twofold: confidence scores from instruction prompts aren't well calibrated, and the threshold is applied uniformly when only one category is the real offender. The stem highlights a per-category accuracy gap, signaling per-category intervention is appropriate.
+- **B:** Confidence thresholds across categories are a sensible engineering control and are widely used in production ML systems with calibrated scores. They get right the goal of reducing low-quality findings. The problem is twofold: confidence scores from instruction prompts aren't well calibrated, and the threshold is applied uniformly when only one category is the real offender. The stem highlights a per-category accuracy gap, signaling per-category intervention is appropriate.
 - **C:** Temperature 0 reduces token variance but does not improve criterion quality. The style criterion is producing 22% accurate findings deterministically because the prompt's definition of "style issue" is too broad — not because outputs are random.
 - **D:** Hiding category labels makes diagnosis harder and prevents developers from triaging by trust level. Combining categories is appropriate only when the downstream consumer treats all findings identically.
 
@@ -3271,21 +3257,21 @@ D) Combine all three categories into a single "issues" output so developers cann
 
 A) Add a temperature setting of 0 to the severity classification call to make outputs deterministic across identical inputs and PRs.
 B) Restructure the prompt to ask the model to first describe the bug's impact, then choose a severity based on its description.
-C) Replace adjective descriptions with concrete code-example anchors for each severity level showing canonical bugs at that level.
+C) Replace the adjective descriptions with concrete code-example anchors for every severity level showing canonical bugs that belong there.
 D) Move severity classification to a separate downstream model call that only sees the finding text and outputs a label.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that consistent classification requires concrete reference anchors, not abstract descriptors. Adjective ladders like "severe" vs "moderate" are interpreted differently across contexts; showing canonical code snippets per severity gives the model a comparable basis for each level. You'd reach for this pattern whenever you need stable classification across a categorical scale — severity, urgency, customer tier, document type. It beats the runner-up because chain-of-thought reasoning before classification can stabilize a single decision but doesn't fix the underlying lack of shared definition that causes drift across many PRs.
-- **B (plausible runner-up):** Chain-of-thought before classification is a real technique that improves consistency on tasks requiring multi-step reasoning, and it correctly addresses that classification under-specifies its rationale. It would help marginally here by forcing explicit reasoning. The problem is that the model's reasoning will still anchor on subjective adjectives like "severe," so different runs will produce different self-justifications for different labels. The stem signals this by noting the same bug gets different labels — a definitional issue, not a reasoning-depth issue.
 - **A:** Temperature 0 does not help when the model has multiple equally plausible interpretations of a vague rubric — it just picks one consistently per call, not consistently across different runs of similar inputs. Temperature 0 is appropriate for tasks where outputs should be reproducible given identical inputs.
+- **B:** Chain-of-thought before classification is a real technique that improves consistency on tasks requiring multi-step reasoning, and it correctly addresses that classification under-specifies its rationale. It would help marginally here by forcing explicit reasoning. The problem is that the model's reasoning will still anchor on subjective adjectives like "severe," so different runs will produce different self-justifications for different labels. The stem signals this by noting the same bug gets different labels — a definitional issue, not a reasoning-depth issue.
+- **C (correct):** The principle is that consistent classification requires concrete reference anchors, not abstract descriptors. Adjective ladders like "severe" vs "moderate" are interpreted differently across contexts; showing canonical code snippets per severity gives the model a comparable basis for each level. You'd reach for this pattern whenever you need stable classification across a categorical scale — severity, urgency, customer tier, document type. It beats the runner-up because chain-of-thought reasoning before classification can stabilize a single decision but doesn't fix the underlying lack of shared definition that causes drift across many PRs.
 - **D:** Moving classification to a downstream call with less context is likely to make classification worse, not better. Decoupled classification can be appropriate when the upstream finding contains too much noise, but here the issue is rubric clarity.
 
 ---
@@ -3295,21 +3281,21 @@ D) Move severity classification to a separate downstream model call that only se
 **Stem:** A teammate proposes the following review criterion: "flag any code that could be improved." After two weeks of running this prompt in CI, your dashboard shows the bot is flagging an average of 47 findings per PR — formatting, naming, ordering of imports, alternate idioms, and so on. Developers have stopped reading bot comments. Which fix most directly addresses the root cause?
 
 A) Lower the maximum number of findings the bot can output per PR to ten, regardless of the underlying review criterion.
-B) Replace the criterion with explicit categories of what TO report (bugs, security) and what to skip (style, local patterns).
+B) Replace the criterion with explicit categories of what TO report (bugs, security) and what to skip (style, patterns).
 C) Move to a larger model with better judgment so it can self-prune the noisy "could be improved" suggestions automatically.
 D) Add a post-processing step that uses a smaller model to deduplicate and rank findings before posting them.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** A hard cap is a defensible safety rail and is sometimes useful in production to bound noise. It correctly recognizes the volume is unacceptable. The problem is it doesn't change which findings are produced — the ten that surface are still drawn from the noisy "could be improved" set, so trust still erodes. The stem signals the issue is content of findings (formatting, naming, idioms) rather than volume alone.
 - **B (correct):** The principle is replacing open-ended evaluative criteria ("could be improved") with explicit inclusion/exclusion categories. The current prompt invites the model to flag anything, so it does. Defining what to report (bugs, security) versus skip (style, local patterns) directly constrains the scope. This same approach applies wherever an LLM produces too much output because the goal is under-specified — narrow the definition rather than add filters on top of noise. It beats the runner-up because a cap on findings still surfaces the wrong ten items, just hides the other 37.
-- **A (plausible runner-up):** A hard cap is a defensible safety rail and is sometimes useful in production to bound noise. It correctly recognizes the volume is unacceptable. The problem is it doesn't change which findings are produced — the ten that surface are still drawn from the noisy "could be improved" set, so trust still erodes. The stem signals the issue is content of findings (formatting, naming, idioms) rather than volume alone.
 - **C:** A larger model running an under-specified criterion will produce more confident noise, not less noise. Larger models help when the criterion is well-defined but the task is reasoning-heavy.
 - **D:** Post-hoc deduplication and ranking is useful for actual duplicates but does not improve the underlying criterion. This pattern is appropriate as a complement to a good prompt, not a substitute for one.
 
@@ -3327,15 +3313,15 @@ D) Train a smaller classifier model specifically for maintainability checks and 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that vague terms like "too long" must be replaced with explicit numeric criteria. The model can apply a clear numeric threshold consistently when told "more than 30 lines" — it cannot apply "too long" consistently because the threshold is undefined. This pattern applies whenever a rule has a known objective threshold; encode the threshold in the prompt. It beats the runner-up because the prompt-only fix is simpler, keeps everything in one component, and preserves the model's ability to reason about edge cases like generated code or DSL files where strict line counting would be wrong.
-- **B (plausible runner-up):** Programmatic pre-filtering is a real and often-correct pattern when you have a precise deterministic condition (line count is exactly such a condition). It correctly recognizes that the rule has a numeric anchor. The reason it's not the best fit here is that the broader review prompt benefits from knowing the threshold inline so it can reason about other findings consistently with the same definition; offloading just the length check creates a coordination cost. In codebases with many such precise rules, B would become the right answer, but for a single criterion C is more direct.
 - **A:** Asking the model to estimate length first can help marginally but still depends on a subjective "too long" interpretation. Chain-of-thought is appropriate for multi-step reasoning, not for substituting missing definitions.
+- **B:** Programmatic pre-filtering is a real and often-correct pattern when you have a precise deterministic condition (line count is exactly such a condition). It correctly recognizes that the rule has a numeric anchor. The reason it's not the best fit here is that the broader review prompt benefits from knowing the threshold inline so it can reason about other findings consistently with the same definition; offloading just the length check creates a coordination cost. In codebases with many such precise rules, B would become the right answer, but for a single criterion C is more direct.
+- **C (correct):** The principle is that vague terms like "too long" must be replaced with explicit numeric criteria. The model can apply a clear numeric threshold consistently when told "more than 30 lines" — it cannot apply "too long" consistently because the threshold is undefined. This pattern applies whenever a rule has a known objective threshold; encode the threshold in the prompt. It beats the runner-up because the prompt-only fix is simpler, keeps everything in one component, and preserves the model's ability to reason about edge cases like generated code or DSL files where strict line counting would be wrong.
 - **D:** Training a separate model for one heuristic line-length rule is enormous overkill. Specialized models are appropriate when the task has thousands of labeled examples and complex feature interactions.
 
 ---
@@ -3344,7 +3330,7 @@ D) Train a smaller classifier model specifically for maintainability checks and 
 
 **Stem:** Your bot reviews PRs in a monorepo with Python, Go, and TypeScript. Each language has a different style guide. The current prompt says "flag code that violates the team's style." Findings are inconsistent — the bot flags Python tuple unpacking as "unusual," allows Go's idiomatic short variable names, and complains about TypeScript optional chaining. The team wants consistent, language-aware reviews. Which approach best fits the goal of precise, low-false-positive review?
 
-A) Run separate review invocations per language, each with explicit examples of acceptable and unacceptable patterns for that language.
+A) Run separate review invocations per language, each carrying explicit examples of acceptable and unacceptable patterns for that language.
 B) Append the official style guide PDFs for each language to the prompt context so the model has full authoritative reference material.
 C) Add a generic instruction to "respect each language's idiomatic style" and let the model infer based on its pretraining.
 D) Use a routing classifier to detect the language and then call the same generic style prompt with the language name appended.
@@ -3353,15 +3339,15 @@ D) Use a routing classifier to detect the language and then call the same generi
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** The principle is that explicit per-category criteria with concrete examples beat generic instructions for precision. Each language has different idioms; the bot needs concrete in-prompt examples of what's acceptable (Go short variable names) and unacceptable (Python anti-patterns) for the rules to apply consistently. This pattern applies whenever a single review has subdomains with diverging rules — separate prompts with subdomain-specific examples. It beats the runner-up because just routing by language and reusing a generic prompt still leaves the criteria unspecified per language; the model's pretraining knowledge is uneven.
-- **D (plausible runner-up):** Routing by language is a sensible architecture and is the right first step when subdomains diverge. It correctly recognizes that different languages need different handling. But routing alone, with a shared generic style prompt, doesn't fix the core issue — the prompt still lacks explicit per-language anchors. The stem signals this by showing the bot misjudging language-specific idioms; the fix is concrete examples, not just labels.
 - **B:** Style guide PDFs are unreliable to inject wholesale — they often span hundreds of pages, contain examples that conflict with team conventions, and dilute attention. Reference documents are appropriate when the model can be given small, targeted excerpts inline.
 - **C:** "Respect each language's idiomatic style" is exactly the type of vague instruction the task statement warns against. It produces the inconsistent behavior the team is already seeing.
+- **D:** Routing by language is a sensible architecture and is the right first step when subdomains diverge. It correctly recognizes that different languages need different handling. But routing alone, with a shared generic style prompt, doesn't fix the core issue — the prompt still lacks explicit per-language anchors. The stem signals this by showing the bot misjudging language-specific idioms; the fix is concrete examples, not just labels.
 
 ---
 
@@ -3377,15 +3363,15 @@ D) Move the entire output format definition into the system prompt instead of le
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** The principle is that few-shot examples are the most effective technique for achieving consistently formatted output when detailed instructions alone produce inconsistency. The instructions already exist — the model just isn't applying them uniformly. Concrete examples of the desired shape act as a template the model imitates. This same pattern applies whenever output format consistency matters: 2–4 examples covering common cases beats more prose. It beats the runner-up because retry-with-validation is reactive (fixes after-the-fact) and costs an extra round trip, while few-shot prevents the error in the first place.
-- **C (plausible runner-up):** Validation plus retry is a valid pattern, especially for format errors, and is part of a robust extraction pipeline. It correctly recognizes that you need a check on the structure. The issue is that it doesn't reduce the rate of format errors at the source — every malformed output costs latency and tokens, and some malformed outputs may be hard to detect (e.g., wrong-ordered fields). When you have a known format and the prompt is just under-specified, demonstrating the format is the cheaper fix.
 - **A:** Repeating instructions doesn't reliably change behavior when the model has already received those instructions. This pattern can help when there are conflicting instructions to resolve, but here instructions are clear; the model needs a template.
+- **B (correct):** The principle is that few-shot examples are the most effective technique for achieving consistently formatted output when detailed instructions alone produce inconsistency. The instructions already exist — the model just isn't applying them uniformly. Concrete examples of the desired shape act as a template the model imitates. This same pattern applies whenever output format consistency matters: 2–4 examples covering common cases beats more prose. It beats the runner-up because retry-with-validation is reactive (fixes after-the-fact) and costs an extra round trip, while few-shot prevents the error in the first place.
+- **C:** Validation plus retry is a valid pattern, especially for format errors, and is part of a robust extraction pipeline. It correctly recognizes that you need a check on the structure. The issue is that it doesn't reduce the rate of format errors at the source — every malformed output costs latency and tokens, and some malformed outputs may be hard to detect (e.g., wrong-ordered fields). When you have a known format and the prompt is just under-specified, demonstrating the format is the cheaper fix.
 - **D:** System prompt vs user message placement rarely fixes format consistency. System prompts are appropriate for persistent role and policy, not for format anchoring.
 
 ---
@@ -3402,16 +3388,16 @@ D) Add 2–4 few-shot examples showing how to handle ambiguous coverage cases: h
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is that few-shot examples are the most effective technique for demonstrating ambiguous-case handling, like branch-level coverage gaps that overall percentages obscure. The examples show the model how to reason: "this PR has 95% overall coverage but the new error branch is uncovered → request tests." This pattern applies whenever a rule's edge cases dominate failures: show 2–4 concrete edge-case examples with explicit reasoning. It beats the runner-up because rewriting the criterion still leaves the model to apply it without a worked example, and the boundary cases (branches inside conditional logic, switch arms, exception paths) are precisely where ambiguity lives.
-- **C (plausible runner-up):** Rewriting the criterion to explicitly call out branch coverage is a real and useful change — it addresses the same task-statement principle of explicit criteria over vague ones. It would help marginally. The reason few-shot wins here is that the question explicitly highlights inconsistent handling of ambiguous cases (sometimes flags, sometimes doesn't), which is the canonical few-shot scenario. Examples teach generalization where a rule alone leaves the model guessing.
 - **A:** Larger models help with novel reasoning but don't substitute for missing examples of the team's interpretation of a rule. This is appropriate when the underlying task requires more capability, not when it requires more direction.
 - **B:** "Be thorough" is exactly the kind of vague evaluative instruction the task statement warns against. Such instructions can be reasonable in low-stakes contexts where coverage drift is acceptable.
+- **C:** Rewriting the criterion to explicitly call out branch coverage is a real and useful change — it addresses the same task-statement principle of explicit criteria over vague ones. It would help marginally. The reason few-shot wins here is that the question explicitly highlights inconsistent handling of ambiguous cases (sometimes flags, sometimes doesn't), which is the canonical few-shot scenario. Examples teach generalization where a rule alone leaves the model guessing.
+- **D (correct):** The principle is that few-shot examples are the most effective technique for demonstrating ambiguous-case handling, like branch-level coverage gaps that overall percentages obscure. The examples show the model how to reason: "this PR has 95% overall coverage but the new error branch is uncovered → request tests." This pattern applies whenever a rule's edge cases dominate failures: show 2–4 concrete edge-case examples with explicit reasoning. It beats the runner-up because rewriting the criterion still leaves the model to apply it without a worked example, and the boundary cases (branches inside conditional logic, switch arms, exception paths) are precisely where ambiguity lives.
 
 ---
 
@@ -3428,14 +3414,14 @@ D) Lower the temperature so the model is more decisive about extracting values r
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** The principle is that few-shot examples are highly effective for reducing extraction failures on documents with informal or varied formatting. Showing the model "120/80 → systolic 120 / diastolic 80" teaches a generalization pattern that the schema and prose rules alone cannot convey. This same approach applies broadly: address null-on-edge-case failures by demonstrating the edge cases. It beats the runner-up because an upstream normalization pass introduces an extra LLM call (extra cost, latency, failure surface) for a problem that examples solve in a single call.
-- **C (plausible runner-up):** A normalization pre-pass is a legitimate pipeline pattern, especially when source data is wildly heterogeneous and the same transformations are needed across many extraction prompts. It correctly recognizes that informal inputs need translation. The reason it loses here is that few-shot examples in the extraction prompt are more direct, single-pass, and share context with the schema — the model can match the example to its current input. For 8% of reports, a pre-pass is overkill.
 - **B:** Loosening the schema to accept strings undermines the structured-output guarantees you set up the schema for. Schema loosening is appropriate when fields legitimately have variable types, not when you want to handle a normalization edge case.
+- **C:** A normalization pre-pass is a legitimate pipeline pattern, especially when source data is wildly heterogeneous and the same transformations are needed across many extraction prompts. It correctly recognizes that informal inputs need translation. The reason it loses here is that few-shot examples in the extraction prompt are more direct, single-pass, and share context with the schema — the model can match the example to its current input. For 8% of reports, a pre-pass is overkill.
 - **D:** Lowering temperature doesn't change the model's interpretation of informal units; it only reduces token-level variation. Temperature is appropriate for controlling output stability when the task is otherwise well-specified.
 
 ---
@@ -3452,16 +3438,16 @@ D) Add 2–4 paired examples: a real bug labeled "bug" with reasoning, and a sty
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
-- B: implausible
 - A: implausible
+- B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is that few-shot examples with reasoning teach the model how to handle ambiguous categorization in a way that prose definitions cannot. Paired examples ("off-by-one indexing → bug because behavior is incorrect") give the model both the label and the rationale, so it generalizes consistently. This pattern is the canonical fix for inconsistent categorization across ambiguous boundaries — show 2–4 worked cases per category. It beats the runner-up because an enum only constrains the label set, not which examples map to which label; the bot will keep miscategorizing within the allowed enum values.
-- **C (plausible runner-up):** Enum fields in schemas are a real best practice for keeping outputs within an allowed set, and they prevent the model from inventing new categories. The mistake is thinking enum restriction fixes categorization quality — the model is already returning valid labels, just the wrong ones. Enums fix label drift; few-shot fixes label accuracy. The stem signals categorization confusion (real bugs labeled style and vice versa), which is a definitional issue.
-- **B:** Rephrasing prose definitions rarely moves the needle when definitions are already understandable — the model needs anchors, not synonyms. Prose definitions can be appropriate when paired with examples, not as a substitute.
 - **A:** A downstream classifier reduces context and is unlikely to outperform the original model with better examples. Downstream classification is appropriate when the upstream output has too much noise to label confidently.
+- **B:** Rephrasing prose definitions rarely moves the needle when definitions are already understandable — the model needs anchors, not synonyms. Prose definitions can be appropriate when paired with examples, not as a substitute.
+- **C:** Enum fields in schemas are a real best practice for keeping outputs within an allowed set, and they prevent the model from inventing new categories. The mistake is thinking enum restriction fixes categorization quality — the model is already returning valid labels, just the wrong ones. Enums fix label drift; few-shot fixes label accuracy. The stem signals categorization confusion (real bugs labeled style and vice versa), which is a definitional issue.
+- **D (correct):** The principle is that few-shot examples with reasoning teach the model how to handle ambiguous categorization in a way that prose definitions cannot. Paired examples ("off-by-one indexing → bug because behavior is incorrect") give the model both the label and the rationale, so it generalizes consistently. This pattern is the canonical fix for inconsistent categorization across ambiguous boundaries — show 2–4 worked cases per category. It beats the runner-up because an enum only constrains the label set, not which examples map to which label; the bot will keep miscategorizing within the allowed enum values.
 
 ---
 
@@ -3472,21 +3458,21 @@ D) Add 2–4 paired examples: a real bug labeled "bug" with reasoning, and a sty
 A) Run a pre-classification step that identifies which citation style the paper uses, then route to a style-specific extraction prompt.
 B) Add a separate model call after extraction that cross-checks the citations against external databases for validation purposes.
 C) Switch to a model with a larger context window so the entire paper plus all references fits in a single extraction call.
-D) Add 2–4 few-shot examples covering each citation style: inline-with-bib, author-year, and footnote-embedded, with correct extraction.
+D) Add 2–4 few-shot examples covering each citation style: inline-with-bib, author-year, and footnote-embedded, with correct extracti
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is that few-shot examples handle varied document structures effectively by demonstrating extraction across each structural variant in one prompt. Inline, author-year, and footnote formats can be covered with one example each, teaching the model to match the document's actual style. This pattern applies whenever extraction quality varies across format variants — show one example per variant. It beats the runner-up because routing requires building and maintaining a classifier plus multiple prompts, while a single few-shot prompt handles all variants in one call.
-- **A (plausible runner-up):** Pre-classification routing is a legitimate architecture and is the right choice when style variants require fundamentally different processing logic or when prompts are too large to combine. It correctly recognizes that variants need different handling. The issue is overhead — extra call, extra prompt to maintain, extra failure mode — for a problem few-shot solves directly. When you scale to 8+ variants, routing starts winning; at 3 variants, examples are simpler.
-- **C:** Larger context doesn't address the model's interpretation of citation style — papers usually fit fine; the problem is the model's handling of the format, not capacity. Larger context is appropriate when source documents exceed the model's window.
+- **A:** Pre-classification routing is a legitimate architecture and is the right choice when style variants require fundamentally different processing logic or when prompts are too large to combine. It correctly recognizes that variants need different handling. The issue is overhead — extra call, extra prompt to maintain, extra failure mode — for a problem few-shot solves directly. When you scale to 8+ variants, routing starts winning; at 3 variants, examples are simpler.
 - **B:** External database cross-checking is useful for verifying extracted values but doesn't help when the extraction itself is missing or wrong. Validation is appropriate for catching false positives, not for improving recall.
+- **C:** Larger context doesn't address the model's interpretation of citation style — papers usually fit fine; the problem is the model's handling of the format, not capacity. Larger context is appropriate when source documents exceed the model's window.
+- **D (correct):** The principle is that few-shot examples handle varied document structures effectively by demonstrating extraction across each structural variant in one prompt. Inline, author-year, and footnote formats can be covered with one example each, teaching the model to match the document's actual style. This pattern applies whenever extraction quality varies across format variants — show one example per variant. It beats the runner-up because routing requires building and maintaining a classifier plus multiple prompts, while a single few-shot prompt handles all variants in one call.
 
 ---
 
@@ -3495,21 +3481,21 @@ D) Add 2–4 few-shot examples covering each citation style: inline-with-bib, au
 **Stem:** Your PR review bot occasionally flags code that uses a deprecated internal helper, `legacy_format_date()`. The team is actively migrating away from this helper but allows it in three specific places (compatibility shims, legacy report exports, and the migration script itself). The bot flags every use, including the three allowed contexts. The team wants the bot to learn which contexts are acceptable without listing every file explicitly. What's the most effective approach?
 
 A) Add a global instruction: "do not flag `legacy_format_date` if used in a file that mentions migration or legacy in its name."
-B) Add 2–4 few-shot examples contrasting acceptable usages (in shim, in migration script) with genuine issues (in new feature code).
+B) Add 2–4 few-shot examples contrasting acceptable usages (in shim or migration) with genuine issues (in new feature code).
 C) Use a regex-based pre-filter on the diff to suppress all findings about `legacy_format_date` regardless of context.
 D) Lower the severity of findings about `legacy_format_date` to "info" so they appear but don't block the PR.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** A name-based rule is concrete and easy to verify, and similar file-pattern rules are widely used in linters. It correctly recognizes that location matters. The issue is brittleness: a `legacy_format_date` call inside a non-legacy-named file's migration block is acceptable; a call in a legacy-named file's brand-new code path may not be. The stem says the team wants the bot to learn without enumerating files, signaling a semantic rule.
 - **B (correct):** The principle is that few-shot examples enable generalization to novel patterns rather than matching only pre-specified cases. By contrasting acceptable uses (shims, migrations) with genuine issues (new feature code), the model learns the categorical rule (legacy usage in non-legacy code is a problem) and applies it to files the prompt didn't enumerate. This pattern applies to any "context-dependent acceptability" rule. It beats the runner-up because pattern matching on file names is brittle (file names change, new legacy paths get added) and misses semantic context like a migration block inside a non-migration file.
-- **A (plausible runner-up):** A name-based rule is concrete and easy to verify, and similar file-pattern rules are widely used in linters. It correctly recognizes that location matters. The issue is brittleness: a `legacy_format_date` call inside a non-legacy-named file's migration block is acceptable; a call in a legacy-named file's brand-new code path may not be. The stem says the team wants the bot to learn without enumerating files, signaling a semantic rule.
 - **C:** A regex pre-filter eliminates a real category of findings entirely, including the cases the team wants surfaced. Suppression is appropriate when a category has zero true-positive value, not when you need context-aware judgment.
 - **D:** Lowering severity hides the distinction between acceptable and genuine issues. Severity adjustment is appropriate when you've already separated true positives from false positives.
 
@@ -3519,7 +3505,7 @@ D) Lower the severity of findings about `legacy_format_date` to "info" so they a
 
 **Stem:** Your extraction pipeline pulls fields from invoices. The prompt has a strict JSON schema and clear field descriptions. For 100 sample invoices, 18 of them return null for `vendor_address` even though the address is clearly present in the document — sometimes in the header, sometimes in the footer, sometimes inline with the vendor name. The schema is correct. What's the most effective fix?
 
-A) Add 2–4 few-shot examples showing extraction from invoices with vendor address in the header, footer, and inline next to vendor name.
+A) Add 2–4 few-shot examples showing extraction from invoices with vendor address in the header, footer, and inline.
 B) Add validation logic that detects null `vendor_address` and runs a second targeted extraction call asking only for the address.
 C) Increase the model's temperature so it is less likely to default to null when the address is in an unusual document location.
 D) Use a larger model with stronger document-understanding capabilities to better identify addresses in non-standard locations.
@@ -3529,14 +3515,14 @@ D) Use a larger model with stronger document-understanding capabilities to bette
 **Plausibility:**
 - A: plausible-correct
 - B: plausible-runner-up
-- D: implausible
 - C: implausible
+- D: implausible
 
 **Explanation:**
 - **A (correct):** The principle is that few-shot examples reduce empty/null extraction of required fields by demonstrating extraction from varied document structures. Showing one invoice each with header, footer, and inline addresses teaches the model that vendor address can appear in any of these locations. This pattern is the canonical fix for "field exists but model returns null" failures. It beats the runner-up because retry-based recovery costs an extra call per failure, while examples prevent the failure on the first call.
-- **B (plausible runner-up):** Targeted retry with a narrow prompt is a valid recovery pattern and is the right move when the broader extraction has many fields and one is unreliable. It correctly recognizes that the address is the specific problem. However, in 18% of invoices, retry doubles the cost for that failure rate; examples can drop the failure rate on the first call to a fraction of that. Retry is best reserved for irreducible errors.
-- **D:** A larger model might find addresses in unusual locations but is far more expensive than adding three examples. Larger models are appropriate when capability, not direction, is the bottleneck.
+- **B:** Targeted retry with a narrow prompt is a valid recovery pattern and is the right move when the broader extraction has many fields and one is unreliable. It correctly recognizes that the address is the specific problem. However, in 18% of invoices, retry doubles the cost for that failure rate; examples can drop the failure rate on the first call to a fraction of that. Retry is best reserved for irreducible errors.
 - **C:** Temperature doesn't change whether the model decides to extract; it changes token-level variance. Temperature adjustment is appropriate for creative variability, not for missing extraction.
+- **D:** A larger model might find addresses in unusual locations but is far more expensive than adding three examples. Larger models are appropriate when capability, not direction, is the bottleneck.
 
 ---
 
@@ -3546,21 +3532,21 @@ D) Use a larger model with stronger document-understanding capabilities to bette
 
 A) Add a strict instruction "respond with ONLY valid JSON — no prose, no markdown, no fences" at the start of the prompt.
 B) Add post-processing that strips markdown fences and prose preambles from responses before passing to the parser.
-C) Define the extraction as a tool with a JSON schema and call it via tool_use; consume the structured tool_use input.
+C) Define the extraction as a tool carrying a JSON schema and invoke it via tool_use; consume the structured tool_use input.
 D) Lower the temperature to 0 so the model produces deterministic outputs that won't vary in their prose framing.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that tool use with JSON schemas is the most reliable approach to guarantee schema-compliant structured output, eliminating JSON syntax errors and stray prose entirely. The model's tool_use input is parsed by the API against the schema; you never see invalid JSON. This pattern is the default for any extraction pipeline with a strict downstream contract. It beats the runner-up because post-processing fences and prose is a constant maintenance burden — new framings appear, edge cases creep in — while tool use is architecturally complete.
-- **B (plausible runner-up):** Post-processing is a real, pragmatic technique and is often a reasonable step when tool use isn't available (e.g., older model versions or constraints in the calling environment). It correctly identifies that we can wrap the model's outputs. The reason it loses is that post-processing addresses symptoms one at a time — every new way the model can deviate (escaped JSON, nested code fences, leading whitespace, partial output) needs another handler. Tool use eliminates the failure mode at the API contract layer.
 - **A:** Prompt-based instructions to "return only JSON" reduce but do not eliminate format deviations. Strict prompts are reasonable when tool use is not available, but they are probabilistic, not guaranteed.
+- **B:** Post-processing is a real, pragmatic technique and is often a reasonable step when tool use isn't available (e.g., older model versions or constraints in the calling environment). It correctly identifies that we can wrap the model's outputs. The reason it loses is that post-processing addresses symptoms one at a time — every new way the model can deviate (escaped JSON, nested code fences, leading whitespace, partial output) needs another handler. Tool use eliminates the failure mode at the API contract layer.
+- **C (correct):** The principle is that tool use with JSON schemas is the most reliable approach to guarantee schema-compliant structured output, eliminating JSON syntax errors and stray prose entirely. The model's tool_use input is parsed by the API against the schema; you never see invalid JSON. This pattern is the default for any extraction pipeline with a strict downstream contract. It beats the runner-up because post-processing fences and prose is a constant maintenance burden — new framings appear, edge cases creep in — while tool use is architecturally complete.
 - **D:** Temperature 0 affects token sampling, not whether the model wraps output in prose. The model can deterministically include "Here is the JSON:" if its training distribution favors that opening.
 
 ---
@@ -3577,16 +3563,16 @@ D) `tool_choice: "any"` — require the model to call one of the available tools
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is that `tool_choice: "any"` guarantees structured output when multiple extraction schemas exist and the document type is unknown — it forces a tool call (no plain text) while letting the model pick the right one. This matches the scenario exactly: three tools, unknown type, structured output required every time. You'd use this pattern whenever the document classifier and the extractor can be merged into a single tool-selection step. It beats the runner-up because `"auto"` allows the model to return text, breaking the guarantee that every response is structured.
-- **A (plausible runner-up):** `"auto"` is the default and is correct when you legitimately want the model to decide whether structured output is needed (e.g., conversational agents). It correctly preserves flexibility. The issue is the scenario explicitly requires structured output every call, never plain text, which `"auto"` cannot guarantee. The stem signals this by saying "produce structured output every call."
+- **A:** `"auto"` is the default and is correct when you legitimately want the model to decide whether structured output is needed (e.g., conversational agents). It correctly preserves flexibility. The issue is the scenario explicitly requires structured output every call, never plain text, which `"auto"` cannot guarantee. The stem signals this by saying "produce structured output every call."
 - **B:** Forcing one specific tool would cause invoice extraction on receipts and contracts, producing garbage on two out of three document types. Forced tool selection is appropriate when you know the document type in advance.
 - **C:** `"none"` disables tool use entirely, returning prose — the opposite of what you want. `"none"` is appropriate when you want to suppress tools temporarily within a multi-turn conversation.
+- **D (correct):** The principle is that `tool_choice: "any"` guarantees structured output when multiple extraction schemas exist and the document type is unknown — it forces a tool call (no plain text) while letting the model pick the right one. This matches the scenario exactly: three tools, unknown type, structured output required every time. You'd use this pattern whenever the document classifier and the extractor can be merged into a single tool-selection step. It beats the runner-up because `"auto"` allows the model to return text, breaking the guarantee that every response is structured.
 
 ---
 
@@ -3602,16 +3588,16 @@ D) Make `extract_metadata` the only tool exposed on the step-1 call, but use `to
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The principle is that forcing a specific named tool via `tool_choice: {"type": "tool", "name": "..."}` ensures a particular extraction runs before downstream steps. This is the canonical pattern when a pipeline step has a known required tool and ordering matters. You'd use it whenever step ordering is non-negotiable and prompt-based ordering hints are insufficient. It beats the runner-up because exposing only one tool but using `"auto"` still lets the model respond with text instead of calling the tool, breaking the guarantee.
-- **D (plausible runner-up):** Limiting tool exposure plus `"auto"` is a reasonable pattern in multi-turn conversational agents where you don't always need the tool called. It correctly narrows the option space. The reason it loses is that `"auto"` does not guarantee a tool call — the model can still return prose like "I'll extract the metadata now" without actually calling the function. The stem signals this needs hard enforcement of ordering, not soft narrowing.
 - **A:** Prompt instructions about ordering are probabilistic and have been known to fail in exactly the scenario described. Prompt-based ordering is appropriate when failures are tolerable.
+- **B (correct):** The principle is that forcing a specific named tool via `tool_choice: {"type": "tool", "name": "..."}` ensures a particular extraction runs before downstream steps. This is the canonical pattern when a pipeline step has a known required tool and ordering matters. You'd use it whenever step ordering is non-negotiable and prompt-based ordering hints are insufficient. It beats the runner-up because exposing only one tool but using `"auto"` still lets the model respond with text instead of calling the tool, breaking the guarantee.
 - **C:** `"any"` with multiple tools available lets the model pick the wrong one (the enrichment tool) if it misreads the prompt. `"any"` is appropriate when any structured output is acceptable.
+- **D:** Limiting tool exposure plus `"auto"` is a reasonable pattern in multi-turn conversational agents where you don't always need the tool called. It correctly narrows the option space. The reason it loses is that `"auto"` does not guarantee a tool call — the model can still return prose like "I'll extract the metadata now" without actually calling the function. The stem signals this needs hard enforcement of ordering, not soft narrowing.
 
 ---
 
@@ -3619,7 +3605,7 @@ D) Make `extract_metadata` the only tool exposed on the step-1 call, but use `to
 
 **Stem:** Your extraction schema for clinical reports declares `diagnosis_code`, `procedure_code`, and `attending_physician` as required fields. About 12% of source reports legitimately omit one or more of these — they're preliminary or have redactions. Currently the model fabricates plausible-looking but incorrect ICD codes to satisfy the required fields. The downstream system can handle nulls but cannot handle wrong codes. What's the right schema change?
 
-A) Make `diagnosis_code`, `procedure_code`, and `attending_physician` optional (nullable) so the model can return null when absent.
+A) Make `diagnosis_code`, `procedure_code`, and `physician` optional (nullable) so the model can return null when absent.
 B) Keep the fields required but add a "confidence" sibling field and reject low-confidence entries in a post-validation step.
 C) Keep the fields required and add an instruction: "do not fabricate values; if absent, return the string 'UNKNOWN' in the field."
 D) Add a separate boolean `is_complete` field that signals whether the model had to invent values to satisfy the schema.
@@ -3628,14 +3614,14 @@ D) Add a separate boolean `is_complete` field that signals whether the model had
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** The principle is to design schema fields as optional (nullable) when source documents may not contain the information — this prevents the model from fabricating values to satisfy required-field constraints. Required-field pressure is a known hallucination cause; making fields nullable removes that pressure entirely. You'd apply this pattern whenever the source's coverage of fields is incomplete in real data. It beats the runner-up because "UNKNOWN" string conventions still pollute the data type (the field is supposed to be an ICD code, not a sentinel string) and downstream consumers must special-case them everywhere.
-- **C (plausible runner-up):** Sentinel strings like "UNKNOWN" are a real pattern in some legacy systems and do convey "no value available." It correctly recognizes that the field can legitimately be empty. The reasons it loses are typing (a string sentinel in a code field complicates parsing and validation) and the stem says the downstream system can handle nulls, making null the natural fit. The sentinel approach is a workaround when nulls are not allowed.
 - **B:** Confidence + post-validation rejects findings but doesn't help when the field is legitimately absent. Confidence rejection is appropriate when you have noisy extraction, not absent data.
+- **C:** Sentinel strings like "UNKNOWN" are a real pattern in some legacy systems and do convey "no value available." It correctly recognizes that the field can legitimately be empty. The reasons it loses are typing (a string sentinel in a code field complicates parsing and validation) and the stem says the downstream system can handle nulls, making null the natural fit. The sentinel approach is a workaround when nulls are not allowed.
 - **D:** A meta-field signaling fabrication does not stop fabrication, it merely flags it. Meta-flags are appropriate alongside legitimate optional fields, not as a substitute.
 
 ---
@@ -3646,21 +3632,21 @@ D) Add a separate boolean `is_complete` field that signals whether the model had
 
 A) Add a free-text `category_explanation` field alongside the enum so the model can explain its choice when ambiguous.
 B) Add `tags` as an array of strings so the model can apply multiple tags when categorization is ambiguous between two areas.
-C) Expand the enum with `other` plus add an `other_detail` string field for the model to describe edge cases that don't fit cleanly.
+C) Expand the enum with `other` plus an `other_detail` string for the model to describe edge cases that don't fit.
 D) Remove the enum constraint and let the model produce a free-text category, which downstream code can normalize.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is using `other` plus a detail string for extensible categorization — it preserves the enum's clean taxonomy while letting the model surface edge cases in a structured way you can analyze later. This is the canonical pattern for "small clean enum that needs an escape hatch." You'd apply it whenever rare categories matter for product visibility but you don't want enum explosion. It beats the runner-up because tags introduce a many-to-many semantics that downstream routing logic must now handle for every ticket, when the actual need is just a small overflow valve.
-- **B (plausible runner-up):** Multi-label tags are a real and powerful pattern when tickets genuinely span multiple categories and downstream consumers need to route accordingly. It correctly recognizes that some tickets don't fit one category. The issue is operational overhead — routing logic that handles single labels now needs multi-label handling everywhere, when the underlying need is just to surface rare overlap cases. For most teams, `other + detail` provides 90% of the benefit at 10% of the integration cost.
 - **A:** A free-text explanation alongside the same enum doesn't change the enum constraint, so coupon-code tickets still get squeezed into `billing` with a comment. Explanation fields are useful for audit trails, not for capturing missing categories.
+- **B:** Multi-label tags are a real and powerful pattern when tickets genuinely span multiple categories and downstream consumers need to route accordingly. It correctly recognizes that some tickets don't fit one category. The issue is operational overhead — routing logic that handles single labels now needs multi-label handling everywhere, when the underlying need is just to surface rare overlap cases. For most teams, `other + detail` provides 90% of the benefit at 10% of the integration cost.
+- **C (correct):** The principle is using `other` plus a detail string for extensible categorization — it preserves the enum's clean taxonomy while letting the model surface edge cases in a structured way you can analyze later. This is the canonical pattern for "small clean enum that needs an escape hatch." You'd apply it whenever rare categories matter for product visibility but you don't want enum explosion. It beats the runner-up because tags introduce a many-to-many semantics that downstream routing logic must now handle for every ticket, when the actual need is just a small overflow valve.
 - **D:** Removing the enum loses all the consistency benefits of structured taxonomy. Free-text categories are appropriate only when the taxonomy is genuinely unbounded.
 
 ---
@@ -3671,21 +3657,21 @@ D) Remove the enum constraint and let the model produce a free-text category, wh
 
 A) The schema is too loose — adding more validation rules and a stricter type system would catch these semantic errors before output.
 B) The schema is missing required fields — adding `calculated_total` as a required field forces the model to do internal math correctly.
-C) Tool-use schemas guarantee syntactic compliance but do not prevent semantic errors — these need separate validation logic to detect.
+C) Tool-use schemas guarantee syntactic JSON compliance but cannot prevent semantic errors — these require separate validation logic to detect.
 D) The model is hallucinating because tool_choice is set to "any" — switching to forced tool selection would reduce semantic mistakes.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that strict JSON schemas via tool use eliminate syntax errors but do not prevent semantic errors like values that don't sum correctly or fields placed in the wrong slot. Schema validation checks "is this a number?" not "is this the correct number?" The fix is separate semantic validation: cross-checks like calculated_total vs stated_total, sanity checks on date ordering, conflict detection. This understanding applies everywhere you use structured output. It beats the runner-up because adding `calculated_total` as a required field is a partial step but doesn't include the comparison logic that catches the discrepancy.
-- **B (plausible runner-up):** Adding a `calculated_total` field is a real and valuable pattern — it's specifically called out in the task statement as a self-correction validation flow. It correctly addresses one type of semantic error (sum mismatch). The reason it's not the most accurate diagnosis is that the question asks for the right framing of the whole problem; the broader principle is that schemas guarantee syntax only, and B is one tactical fix within that broader framing.
 - **A:** Type-system strictness doesn't catch semantic errors like "effective date in expiration_date" — both are valid dates per the schema. Type strictness is appropriate for syntactic constraints.
+- **B:** Adding a `calculated_total` field is a real and valuable pattern — it's specifically called out in the task statement as a self-correction validation flow. It correctly addresses one type of semantic error (sum mismatch). The reason it's not the most accurate diagnosis is that the question asks for the right framing of the whole problem; the broader principle is that schemas guarantee syntax only, and B is one tactical fix within that broader framing.
+- **C (correct):** The principle is that strict JSON schemas via tool use eliminate syntax errors but do not prevent semantic errors like values that don't sum correctly or fields placed in the wrong slot. Schema validation checks "is this a number?" not "is this the correct number?" The fix is separate semantic validation: cross-checks like calculated_total vs stated_total, sanity checks on date ordering, conflict detection. This understanding applies everywhere you use structured output. It beats the runner-up because adding `calculated_total` as a required field is a partial step but doesn't include the comparison logic that catches the discrepancy.
 - **D:** `tool_choice` settings affect whether and which tool is called, not the semantic correctness of the extracted values. Tool choice is appropriate for tool selection, not data correctness.
 
 ---
@@ -3695,23 +3681,23 @@ D) The model is hallucinating because tool_choice is set to "any" — switching 
 **Stem:** Source invoices in your extraction pipeline use inconsistent date formats: "Jan 5, 2024", "01/05/24", "2024-01-05", and "5-Jan-2024". Your schema requires `invoice_date` as an ISO 8601 string. The model occasionally produces dates like "Jan 5, 2024" inside the field, which the schema accepts as a string but downstream validators reject. The schema cannot be tightened to a true date type given the API constraints. What is the best fix?
 
 A) Add a regex post-processor that rewrites any non-ISO date strings the model returns into ISO 8601 format before saving them.
-B) Include format normalization rules in the prompt: "convert all dates to ISO 8601 (YYYY-MM-DD) before placing them in invoice_date."
+B) Include explicit format normalization in the prompt: convert each date to ISO 8601 (YYYY-MM-DD) before writing to `invoice_date`.
 C) Switch to forced tool selection with `tool_choice` on a separate `normalize_date` tool that runs after extraction.
 D) Add a few-shot example showing one ISO-formatted date and remove all other examples to anchor the model's output style.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** A regex post-processor is a defensible pragmatic step and is the right move when the prompt-level fix isn't possible (e.g., model unavailable or strict latency budget). It correctly recognizes that conversion needs to happen. The reason it loses is that date normalization in regex is famously brittle — corner cases like "5 Jan 24" or "2024.01.05" multiply maintenance — while in-prompt normalization leverages the model's date-parsing competence.
 - **B (correct):** The principle is to include format normalization rules in prompts alongside strict output schemas to handle inconsistent source formatting. The schema can't validate format details when the type is "string," so the normalization burden falls on the prompt. You'd combine this with a few-shot example showing the conversion ("Jan 5, 2024 → 2024-01-05") in real practice. This pattern applies any time the output type is a string but you need a specific sub-format. It beats the runner-up because in-prompt normalization is a single call and self-documenting, while post-processing is brittle to new date formats and adds out-of-band logic.
-- **A (plausible runner-up):** A regex post-processor is a defensible pragmatic step and is the right move when the prompt-level fix isn't possible (e.g., model unavailable or strict latency budget). It correctly recognizes that conversion needs to happen. The reason it loses is that date normalization in regex is famously brittle — corner cases like "5 Jan 24" or "2024.01.05" multiply maintenance — while in-prompt normalization leverages the model's date-parsing competence.
-- **D:** Reducing few-shot to a single example and dropping context likely degrades extraction more broadly. Few-shot reduction is appropriate when examples are conflicting or confusing the model.
 - **C:** Adding a normalization tool turns one call into two, doubling latency and cost for a problem solvable in the prompt. Separate tools are appropriate when the operation is complex enough to warrant its own structured contract.
+- **D:** Reducing few-shot to a single example and dropping context likely degrades extraction more broadly. Few-shot reduction is appropriate when examples are conflicting or confusing the model.
 
 ---
 
@@ -3719,7 +3705,7 @@ D) Add a few-shot example showing one ISO-formatted date and remove all other ex
 
 **Stem:** Your extraction pipeline for purchase orders sometimes produces outputs where `total` does not equal the sum of `line_items[].amount`. The model is otherwise reliable. You've added a post-extraction validator that checks the sum. On failure, you want to retry effectively. What is the most effective retry strategy?
 
-A) Send a follow-up call including the original document, the failed extraction, and a specific error message stating the sum mismatch.
+A) Send a follow-up call including the original document, the failed extraction, and an error message stating the sum mismatch.
 B) Retry the same prompt unchanged up to three times and pick the first response where line items sum equals the total field.
 C) Switch to a larger model for the retry call, since the first call's failure suggests insufficient capability for arithmetic checks.
 D) Lower the temperature to 0 for the retry call to make the arithmetic more deterministic and reduce sum errors on the second attempt.
@@ -3734,7 +3720,7 @@ D) Lower the temperature to 0 for the retry call to make the arithmetic more det
 
 **Explanation:**
 - **A (correct):** The principle is retry-with-error-feedback: appending the specific validation error to the retry prompt guides the model toward correction. By including the failed extraction and the precise sum mismatch ("line items sum to 1,247 but total is 1,250"), the model can self-correct on the second pass. This pattern is the canonical fix for semantic errors that are detectable but not preventable by the schema. It beats the runner-up because unprincipled retries sample from the same error distribution — you'll get many retries with the same mistake before a lucky pass.
-- **B (plausible runner-up):** Multi-sample retry-until-pass is a real technique and is genuinely useful for stochastic format errors where each retry has independent failure probability. It correctly recognizes that retries can recover from transient errors. The issue here is that arithmetic errors are not transient — the model is consistently misreading or mistyping one line item — so retries without feedback will mostly repeat the same mistake. The stem hints at this with "the model is otherwise reliable," suggesting the failure has a systematic cause that error feedback can identify.
+- **B:** Multi-sample retry-until-pass is a real technique and is genuinely useful for stochastic format errors where each retry has independent failure probability. It correctly recognizes that retries can recover from transient errors. The issue here is that arithmetic errors are not transient — the model is consistently misreading or mistyping one line item — so retries without feedback will mostly repeat the same mistake. The stem hints at this with "the model is otherwise reliable," suggesting the failure has a systematic cause that error feedback can identify.
 - **C:** Larger models would marginally improve arithmetic but don't address the fundamental fix of feedback-driven retry. Larger models help when capability is the bottleneck, not when error correction is.
 - **D:** Temperature 0 doesn't change the model's interpretation of line items — it can deterministically misread the same item every time. Temperature is appropriate for controlling sampling, not reasoning.
 
@@ -3752,16 +3738,16 @@ D) Add a few-shot example showing what to do when SSN is missing; the model will
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The principle is that retries are ineffective when the required information is simply absent from the source document — you must distinguish format/structural errors (retryable) from missing data (not retryable). Retrying when the data isn't present wastes tokens and time; the correct downstream action is manual review or out-of-band retrieval of the attached form. This pattern applies broadly: detect "information not in source" failures and divert them, not retry them. It beats the runner-up because the model is already correctly returning null — the failure is not in the model's behavior but in the missing source data.
-- **D (plausible runner-up):** Few-shot demonstrations of null handling are useful when the model is incorrectly fabricating or wrongly returning null for present data. It correctly identifies that few-shot is a powerful technique. The mistake is that the model is already returning null correctly here; the stem says "the model's first response correctly returns null." Few-shot would teach behavior the model is already doing.
 - **A:** Higher temperature won't conjure data that isn't in the document. Temperature is appropriate for output variability, not for retrieval from missing sources.
 - **B:** A larger model cannot cross-reference data that wasn't submitted. Larger models help with reasoning over present data, not with synthesizing missing data.
+- **C (correct):** The principle is that retries are ineffective when the required information is simply absent from the source document — you must distinguish format/structural errors (retryable) from missing data (not retryable). Retrying when the data isn't present wastes tokens and time; the correct downstream action is manual review or out-of-band retrieval of the attached form. This pattern applies broadly: detect "information not in source" failures and divert them, not retry them. It beats the runner-up because the model is already correctly returning null — the failure is not in the model's behavior but in the missing source data.
+- **D:** Few-shot demonstrations of null handling are useful when the model is incorrectly fabricating or wrongly returning null for present data. It correctly identifies that few-shot is a powerful technique. The mistake is that the model is already returning null correctly here; the stem says "the model's first response correctly returns null." Few-shot would teach behavior the model is already doing.
 
 ---
 
@@ -3777,16 +3763,16 @@ D) Add a `detected_pattern` string field that names the code pattern that trigge
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is adding a `detected_pattern` field to structured findings to enable systematic analysis of false positive patterns. When you can group dismissals by the underlying pattern that triggered the finding ("unused-async-await", "unhandled-promise"), you discover which categories are consistently disliked and can iterate prompts targeted at those patterns. This pattern applies whenever you need actionable signal from user reactions to bulk findings — categorize the cause, not just the effect. It beats the runner-up because confidence scores from instruction-tuned models are poorly calibrated and don't tell you which prompt section needs work.
-- **A (plausible runner-up):** Confidence + dismissal correlation is a real telemetry pattern used in production ML systems with calibrated scores. It correctly identifies that you want signal about dismissals. The issue is that LLM-reported confidence in this setting isn't calibrated, so the correlation is weak; even when it's strong, "low confidence" tells you nothing about which pattern to fix — you'd still need to inspect findings manually. `detected_pattern` gives you the categorical handle directly.
+- **A:** Confidence + dismissal correlation is a real telemetry pattern used in production ML systems with calibrated scores. It correctly identifies that you want signal about dismissals. The issue is that LLM-reported confidence in this setting isn't calibrated, so the correlation is weak; even when it's strong, "low confidence" tells you nothing about which pattern to fix — you'd still need to inspect findings manually. `detected_pattern` gives you the categorical handle directly.
 - **B:** A `developer_dismissed` boolean tracks the outcome you already track but adds no causal information. Outcome tracking is appropriate as a complement to causal labels, not a substitute.
 - **C:** Alternative fixes increase finding bulk without improving signal for dismissal analysis. Alternative suggestions are appropriate for boosting acceptance rates, not for telemetry.
+- **D (correct):** The principle is adding a `detected_pattern` field to structured findings to enable systematic analysis of false positive patterns. When you can group dismissals by the underlying pattern that triggered the finding ("unused-async-await", "unhandled-promise"), you discover which categories are consistently disliked and can iterate prompts targeted at those patterns. This pattern applies whenever you need actionable signal from user reactions to bulk findings — categorize the cause, not just the effect. It beats the runner-up because confidence scores from instruction-tuned models are poorly calibrated and don't tell you which prompt section needs work.
 
 ---
 
@@ -3795,23 +3781,23 @@ D) Add a `detected_pattern` string field that names the code pattern that trigge
 **Stem:** Your purchase order extraction uses a schema with `total` and `line_items`. You add validation that fails when the line items don't sum to total. You want to design a richer self-correction flow that catches discrepancies at extraction time rather than via post-hoc validation. What schema/prompt change best supports this?
 
 A) Add a `notes` field where the model can flag any extraction concerns it has during the run, like ambiguous totals.
-B) Have the model extract both `stated_total` (the printed value) and `calculated_total` (sum of line items) and flag if they differ.
+B) Have the model extract both `stated_total` (printed value) and `calculated_total` (line items) and flag if they differ.
 C) Add a `severity` enum to indicate how serious any extraction issue is, with retry logic gated by severity.
 D) Add a `validation_passed` boolean field that the model fills in as true if the extraction looks correct to it.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The principle is designing self-correction validation flows: extract `calculated_total` alongside `stated_total` to flag discrepancies during extraction. The model performs the arithmetic explicitly as part of its output, making mismatches detectable without external math, and forces the model to reconcile its own line items with the stated total. This pattern applies broadly: extract derived values alongside source values to enable consistency checks. It beats the runner-up because a single `validation_passed` boolean is unreliable self-assessment, while the dual-field design produces ground-truth-checkable values.
-- **D (plausible runner-up):** Self-reported validation booleans are sometimes useful as a coarse signal and can be combined with semantic checks. It correctly recognizes that the model should be aware of its own confidence. The problem is the model can confidently say "validation passed" while having gotten the math wrong — there's no external check forced by the design. The dual-value approach forces explicit arithmetic the post-processor can verify.
 - **A:** A free-text `notes` field captures qualitative concerns but doesn't yield machine-checkable structured signal. Notes fields are appropriate for human-readable context, not automated validation.
+- **B (correct):** The principle is designing self-correction validation flows: extract `calculated_total` alongside `stated_total` to flag discrepancies during extraction. The model performs the arithmetic explicitly as part of its output, making mismatches detectable without external math, and forces the model to reconcile its own line items with the stated total. This pattern applies broadly: extract derived values alongside source values to enable consistency checks. It beats the runner-up because a single `validation_passed` boolean is unreliable self-assessment, while the dual-field design produces ground-truth-checkable values.
 - **C:** A severity enum on issues is useful but doesn't address the underlying need to detect the discrepancy in the first place. Severity is appropriate after issues are detected.
+- **D:** Self-reported validation booleans are sometimes useful as a coarse signal and can be combined with semantic checks. It correctly recognizes that the model should be aware of its own confidence. The problem is the model can confidently say "validation passed" while having gotten the math wrong — there's no external check forced by the design. The dual-value approach forces explicit arithmetic the post-processor can verify.
 
 ---
 
@@ -3819,7 +3805,7 @@ D) Add a `validation_passed` boolean field that the model fills in as true if th
 
 **Stem:** Your extraction pipeline ingests scanned forms. Sometimes the OCR layer produces conflicting values — the same field appears twice in the document due to checkbox grids, and the OCR captures both. The extraction model picks one arbitrarily, leading to inconsistent outputs across runs. You want the model to surface that the source had conflicting information rather than silently choosing one. What's the most effective schema addition?
 
-A) Add a `conflict_detected` boolean field that the model sets to true when source data contains conflicting values for a field.
+A) Add a `conflict_detected` boolean that the model sets to true when source data contains conflicting values for a field.
 B) Add a `raw_values` array containing every candidate value the OCR layer found, in addition to the chosen field value.
 C) Add a `confidence` numeric field on each extracted value so downstream code can route low-confidence conflicts to review.
 D) Add a `correction_history` list that records every value the model considered before settling on the final extraction.
@@ -3834,7 +3820,7 @@ D) Add a `correction_history` list that records every value the model considered
 
 **Explanation:**
 - **A (correct):** The principle is adding `conflict_detected` booleans for inconsistent source data — a self-correction signal that flags ambiguity rather than hiding it under a silent choice. This is exactly the task statement's recommended pattern for inconsistent source data. You'd use it whenever the source can legitimately have contradictions (duplicate fields, conflicting checkbox states, contradictory totals) and downstream routing benefits from knowing. It beats the runner-up because raw_values exposes pipeline internals (OCR candidate set) into business logic, while a single boolean captures the actionable signal cleanly.
-- **B (plausible runner-up):** Exposing raw candidate values is a real pattern in OCR-heavy pipelines where downstream consumers may want to make their own resolution choices. It correctly recognizes that the conflict information should be preserved. The issue is it leaks OCR-layer artifacts into business records — every consumer must now understand `raw_values` semantics, even when they just want to know "is there a problem here?" A boolean is the right level of abstraction for most consumers; expose `raw_values` separately if needed.
+- **B:** Exposing raw candidate values is a real pattern in OCR-heavy pipelines where downstream consumers may want to make their own resolution choices. It correctly recognizes that the conflict information should be preserved. The issue is it leaks OCR-layer artifacts into business records — every consumer must now understand `raw_values` semantics, even when they just want to know "is there a problem here?" A boolean is the right level of abstraction for most consumers; expose `raw_values` separately if needed.
 - **C:** Confidence scores from LLMs are poorly calibrated for this; conflict is a binary fact about the source, not a probabilistic property of the extraction. Confidence is appropriate for ambiguous interpretation, not for binary source conflicts.
 - **D:** Correction history adds operational telemetry but doesn't help downstream consumers know that a conflict exists. History fields are appropriate for debugging, not for business signal.
 
@@ -3846,21 +3832,21 @@ D) Add a `correction_history` list that records every value the model considered
 
 A) Retries with the same prompt are useful — the swap is stochastic and three retries will produce a correct extraction by majority vote.
 B) Retries with error feedback would help — including the wrong-field error message would let the model self-correct on the next attempt.
-C) Retries are ineffective for this case — the failure is systematic, and the fix is prompt/schema changes (clearer field descriptions, examples).
+C) Retries are ineffective here — the failure is systematic; the fix is prompt or schema changes (clearer field descriptions plus examples).
 D) Retries with a different model would help — switching mid-pipeline to a larger model on retry resolves systematic field confusion.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is distinguishing systematic from transient errors. When the same field swap occurs consistently for the same document, the failure is in the model's interpretation of the schema or prompt, not in stochastic sampling. Retries can't fix a deterministic misinterpretation — only prompt/schema improvements (clearer field descriptions, distinguishing few-shot examples) can. This framing applies whenever telemetry shows reproducibility of an error. It beats the runner-up because retry-with-feedback can occasionally bump the model out of the wrong reading, but the underlying interpretation issue remains and will recur on similar documents.
-- **B (plausible runner-up):** Retry with error feedback is the canonical fix for many extraction errors and is genuinely effective for semantic errors like sum mismatches. It correctly recognizes the value of feedback. The reason it's not the most accurate framing here is that the failure is reproducible across runs for the same document — feedback might recover this run, but the model will swap the fields again on the next similar document. The root cause is prompt clarity.
 - **A:** Majority voting helps with stochastic errors, but reproducible errors will have a majority of the same wrong answer. Majority voting is appropriate for genuinely stochastic outputs.
+- **B:** Retry with error feedback is the canonical fix for many extraction errors and is genuinely effective for semantic errors like sum mismatches. It correctly recognizes the value of feedback. The reason it's not the most accurate framing here is that the failure is reproducible across runs for the same document — feedback might recover this run, but the model will swap the fields again on the next similar document. The root cause is prompt clarity.
+- **C (correct):** The principle is distinguishing systematic from transient errors. When the same field swap occurs consistently for the same document, the failure is in the model's interpretation of the schema or prompt, not in stochastic sampling. Retries can't fix a deterministic misinterpretation — only prompt/schema improvements (clearer field descriptions, distinguishing few-shot examples) can. This framing applies whenever telemetry shows reproducibility of an error. It beats the runner-up because retry-with-feedback can occasionally bump the model out of the wrong reading, but the underlying interpretation issue remains and will recur on similar documents.
 - **D:** Larger models may avoid the swap but introduce cost and complexity; the framing question is whether retry is the right tool, and a different model is a different intervention. Model switching is appropriate when capability is the limit.
 
 ---
@@ -3877,16 +3863,16 @@ D) Eliminate mode (1) via tool use; retry mode (2) with specific error feedback;
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is matching each failure type to its correct response. Mode (1) is a syntax error eliminated structurally by tool use with JSON schemas. Mode (2) is a semantic error retry-feedback can correct. Mode (3) is missing source data that retries cannot fix — route to manual review or out-of-band retrieval. This taxonomy is the core of the task statement on retry effectiveness and applies to any structured-extraction pipeline. It beats the runner-up because the runner-up retries mode (3) wastefully, hoping the model will hallucinate or find absent data.
-- **C (plausible runner-up):** Retry with feedback for modes (1) and (2) is partly correct and shows understanding of feedback's value. It correctly identifies mode (3) as different in nature. The mistakes are continuing to retry mode (3) when it cannot succeed (wasting tokens on absent data) and using retry for mode (1) when tool use eliminates the failure entirely. The unified strategy should use the strongest tool for each mode, not the same tool for all.
 - **A:** Treating all three modes identically wastes resources on mode (3) and misses the architectural elimination of mode (1). Uniform retry is appropriate when failure causes are unknown or homogeneous.
 - **B:** Larger models reduce the rate of modes (1) and (2) marginally but cannot fix mode (3); cost grows without solving the core problem. Larger models help when capability is the bottleneck.
+- **C:** Retry with feedback for modes (1) and (2) is partly correct and shows understanding of feedback's value. It correctly identifies mode (3) as different in nature. The mistakes are continuing to retry mode (3) when it cannot succeed (wasting tokens on absent data) and using retry for mode (1) when tool use eliminates the failure entirely. The unified strategy should use the strongest tool for each mode, not the same tool for all.
+- **D (correct):** The principle is matching each failure type to its correct response. Mode (1) is a syntax error eliminated structurally by tool use with JSON schemas. Mode (2) is a semantic error retry-feedback can correct. Mode (3) is missing source data that retries cannot fix — route to manual review or out-of-band retrieval. This taxonomy is the core of the task statement on retry effectiveness and applies to any structured-extraction pipeline. It beats the runner-up because the runner-up retries mode (3) wastefully, hoping the model will hallucinate or find absent data.
 
 ---
 
@@ -3902,14 +3888,14 @@ D) Use the synchronous API with caching of prompt prefixes to reduce cost; cache
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
-- D: implausible
+- B: plausible-correct
 - C: implausible
+- D: implausible
 
 **Explanation:**
+- **A:** Parallel synchronous calls are a real and useful pattern when you need low latency for individual results and have rate-limit headroom. It correctly recognizes that parallelization improves wall-clock time. The reason it loses is the workload is explicitly latency-tolerant — there's no benefit to per-request speed, but there's a substantial cost penalty for not using batch. The stem signals batch-suitability ("nightly," "Friday morning," 8 AM deadline).
 - **B (correct):** The principle is that the Message Batches API is appropriate for non-blocking, latency-tolerant workloads — overnight reports, weekly audits, nightly test generation — and offers 50% cost savings with up to a 24-hour processing window. This scenario fits perfectly: nightly test generation, no real-time consumer, deadline well within the batch window. You'd reach for batch any time a workload tolerates batch latency and benefits from the discount. It beats the runner-up because parallel synchronous calls do not get the 50% discount and still cost $2,800; batch cuts that to ~$1,400.
-- **A (plausible runner-up):** Parallel synchronous calls are a real and useful pattern when you need low latency for individual results and have rate-limit headroom. It correctly recognizes that parallelization improves wall-clock time. The reason it loses is the workload is explicitly latency-tolerant — there's no benefit to per-request speed, but there's a substantial cost penalty for not using batch. The stem signals batch-suitability ("nightly," "Friday morning," 8 AM deadline).
 - **C:** Streaming per-request reduces time-to-first-token but doesn't reduce total cost or address the bulk nature of the job. Streaming is appropriate for interactive user-facing applications.
 - **D:** Prompt caching helps with shared prefixes but doesn't approach the batch API's 50% across-the-board savings. Caching is appropriate for high-reuse synchronous workloads.
 
@@ -3921,22 +3907,22 @@ D) Use the synchronous API with caching of prompt prefixes to reduce cost; cache
 
 A) Use the batch API — its 50% cost savings outweighs latency concerns, and most batches actually complete in under 10 minutes anyway.
 B) Use a hybrid: try batch first for the 50% discount, and fall back to synchronous if the batch hasn't completed within 5 minutes.
-C) The batch API has no latency SLA and can take up to 24 hours — it is inappropriate for blocking pre-merge checks regardless of typical completion time.
+C) The batch API has no latency SLA and may take 24 hours — inappropriate for blocking pre-merge checks regardless of usual timing.
 D) Use batch for non-critical checks only; route critical checks (security, blocking) to synchronous calls within the same CI pipeline.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The principle is matching the API approach to workflow latency requirements. The batch API guarantees no real-time SLA — it can take up to 24 hours — so it is inappropriate for any blocking workflow where the result is required by a deadline measured in minutes. Pre-merge checks block the developer; an occasional 24-hour delay would be catastrophic regardless of how often batches complete quickly. This applies to any blocking workflow with hard deadlines. It beats the runner-up because the runner-up partially uses batch for the wrong workload type — if any "critical check" routes to batch you've reintroduced the blocking risk.
-- **D (plausible runner-up):** Splitting the workload by criticality is a real architectural pattern and is sensible when the non-critical portion truly tolerates latency. It correctly recognizes that not every check needs sub-minute completion. The issue is interpreting "non-critical" — if a check feeds into the merge decision in any way (style, documentation, formatting), batch latency still creates merge delays. Pure batch is appropriate only for workloads that don't gate the merge.
 - **A:** Typical batch completion time is not a guarantee — relying on the typical case for blocking workflows is unsafe. Typical-case reasoning is appropriate for tuning, not for SLA design.
 - **B:** Hybrid try-then-fallback complicates the pipeline and pays the synchronous cost on fallback anyway, eliminating much of the discount. Hybrid approaches are appropriate when the modal case is non-blocking and fallback is rare.
+- **C (correct):** The principle is matching the API approach to workflow latency requirements. The batch API guarantees no real-time SLA — it can take up to 24 hours — so it is inappropriate for any blocking workflow where the result is required by a deadline measured in minutes. Pre-merge checks block the developer; an occasional 24-hour delay would be catastrophic regardless of how often batches complete quickly. This applies to any blocking workflow with hard deadlines. It beats the runner-up because the runner-up partially uses batch for the wrong workload type — if any "critical check" routes to batch you've reintroduced the blocking risk.
+- **D:** Splitting the workload by criticality is a real architectural pattern and is sensible when the non-critical portion truly tolerates latency. It correctly recognizes that not every check needs sub-minute completion. The issue is interpreting "non-critical" — if a check feeds into the merge decision in any way (style, documentation, formatting), batch latency still creates merge delays. Pure batch is appropriate only for workloads that don't gate the merge.
 
 ---
 
@@ -3947,21 +3933,21 @@ D) Use batch for non-critical checks only; route critical checks (security, bloc
 A) Submit one batch per day at midnight; documents arriving at 11:55 PM still get processed within 24 hours and have time for shipping.
 B) Submit one batch per week with all documents accumulated through the week; per-document SLA is satisfied because batch processing fits.
 C) Submit batches on demand whenever 5,000 documents are accumulated, since cost-per-batch is independent of batch size.
-D) Submit one batch every 4 hours: worst-case wait for batch submission is 4 hours, plus 24 hours batch time equals 28 hours under the 30-hour SLA.
+D) Submit one batch every 4 hours: worst-case 4-hour wait plus 24 hours batch time equals 28 hours under the 30-hour SLA.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is calculating batch submission frequency from the SLA: if the batch API can take up to 24 hours and your SLA is 30 hours, the maximum wait time before submission is 30 − 24 = 6 hours; submitting every 4 hours gives a comfortable safety margin. This pattern applies to any batch-based SLA: subtract the worst-case batch latency from the SLA to get your maximum submission window. It beats the runner-up because once-daily submission can leave a document submitted just after the midnight cutoff waiting up to 48 hours total in the worst case.
-- **A (plausible runner-up):** Daily submission is a real cadence and is sensible when SLA budget allows it. It correctly recognizes that bundling improves utilization. The mistake is the math: a document submitted at 12:05 AM waits until the next midnight (≈24 hours) before submission, plus up to 24 hours of batch processing, totaling up to 48 hours — over the 30-hour SLA. The stem signals worst-case reasoning by setting a numeric SLA.
+- **A:** Daily submission is a real cadence and is sensible when SLA budget allows it. It correctly recognizes that bundling improves utilization. The mistake is the math: a document submitted at 12:05 AM waits until the next midnight (≈24 hours) before submission, plus up to 24 hours of batch processing, totaling up to 48 hours — over the 30-hour SLA. The stem signals worst-case reasoning by setting a numeric SLA.
 - **B:** Weekly submission cannot meet a 30-hour SLA — accumulated documents would wait days. Weekly cadence is appropriate for weekly-report style workflows.
 - **C:** Threshold-based submission decouples timing from SLA — slow weeks can leave documents waiting indefinitely. Threshold batching is appropriate for variable-load systems without hard time SLAs.
+- **D (correct):** The principle is calculating batch submission frequency from the SLA: if the batch API can take up to 24 hours and your SLA is 30 hours, the maximum wait time before submission is 30 − 24 = 6 hours; submitting every 4 hours gives a comfortable safety margin. This pattern applies to any batch-based SLA: subtract the worst-case batch latency from the SLA to get your maximum submission window. It beats the runner-up because once-daily submission can leave a document submitted just after the midnight cutoff waiting up to 48 hours total in the worst case.
 
 ---
 
@@ -3977,16 +3963,16 @@ D) Drop the 73 failed documents and report them as unprocessable to the customer
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** The principle is handling batch failures by resubmitting only the failed documents (identified by custom_id) with appropriate modifications — in this case, chunking documents that exceeded context limits. This minimizes cost (you only re-pay for the 73 documents, not 10,000) and addresses the actual cause of failure. This pattern is the canonical recovery flow for partial batch failures. It beats the runner-up because dropping unprocessable inputs is sometimes appropriate but here the failures have a known mechanical fix (chunking) that preserves customer value.
-- **D (plausible runner-up):** Dropping unprocessable inputs and reporting them is a legitimate recovery strategy when no fix is available — it's honest and avoids retry loops. It correctly recognizes that not every failure must be retried. The issue is that the cause here is mechanical (document size, not document quality), and chunking is a well-known fix that's worth attempting before declaring documents unprocessable. The stem signals chunkability by noting context-limit excess, which is a fixable size issue.
 - **A:** Resubmitting the entire batch pays for 10,000 documents to recover 73, a 137× cost overhead. Full resubmission is appropriate only when the cause of failure is unknown and the batch-level state is suspect.
 - **B:** Context-limit errors do not resolve over time; the documents are exactly as large tomorrow as today. Time-based retries are appropriate for transient infrastructure errors, not deterministic input-size errors.
+- **C (correct):** The principle is handling batch failures by resubmitting only the failed documents (identified by custom_id) with appropriate modifications — in this case, chunking documents that exceeded context limits. This minimizes cost (you only re-pay for the 73 documents, not 10,000) and addresses the actual cause of failure. This pattern is the canonical recovery flow for partial batch failures. It beats the runner-up because dropping unprocessable inputs is sometimes appropriate but here the failures have a known mechanical fix (chunking) that preserves customer value.
+- **D:** Dropping unprocessable inputs and reporting them is a legitimate recovery strategy when no fix is available — it's honest and avoids retry loops. It correctly recognizes that not every failure must be retried. The issue is that the cause here is mechanical (document size, not document quality), and chunking is a well-known fix that's worth attempting before declaring documents unprocessable. The stem signals chunkability by noting context-limit excess, which is a fixable size issue.
 
 ---
 
@@ -3994,7 +3980,7 @@ D) Drop the 73 failed documents and report them as unprocessable to the customer
 
 **Stem:** Your team plans to use the Message Batches API for nightly PR test generation. The current synchronous workflow includes a step where the model calls a tool to look up coverage data for the file, receives the result, and then generates tests. You wonder if this same workflow can be moved to batch. What is the correct understanding?
 
-A) Batch does not support multi-turn tool calling within a single request; you'd need to flatten the workflow so the tool result is included in the prompt.
+A) Batch does not support multi-turn tool calling within a single request; you'd need to flatten so the tool result is in the prompt.
 B) Batch supports the same multi-turn tool-calling workflows as synchronous — there is no functional difference between the two APIs, only timing.
 C) Batch supports tool calling but only with synchronous tools that resolve in under 100ms, so you'd need to make the coverage lookup faster.
 D) Batch only supports tool calling when the same tool is used by every request; differing tools across requests in a batch are not allowed.
@@ -4003,15 +3989,15 @@ D) Batch only supports tool calling when the same tool is used by every request;
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** The principle is that the batch API does not support multi-turn tool calling within a single request — you cannot execute tools mid-request and return results. To use batch, you must flatten the workflow: do the coverage lookup beforehand and include the result in the prompt sent to batch. This understanding shapes whether a workflow is even batch-eligible. You'd apply it whenever you consider batch-migrating a tool-using workflow. It beats the runner-up because the runner-up offers a more specific but inaccurate restriction (same tool across requests) — the actual limitation is multi-turn tool execution, not tool diversity.
-- **D (plausible runner-up):** This statement sounds technical and plausible — batch behavior often has surprising limitations — and it correctly recognizes that batch has constraints on tool use. The reason it loses is that it's simply not the actual restriction; batch can accept different tool definitions across requests, but it cannot execute tools mid-request and continue. The misunderstanding is at the wrong layer of the system.
 - **B:** Batch and synchronous APIs do differ in supported workflows; multi-turn tool calling within a request is the canonical difference. This claim is appropriate as a starting intuition but not as final understanding.
 - **C:** There is no synchronous-tool-with-100ms restriction; the limit is on multi-turn flow, not tool latency. Latency caps are appropriate concerns in real-time pipelines.
+- **D:** This statement sounds technical and plausible — batch behavior often has surprising limitations — and it correctly recognizes that batch has constraints on tool use. The reason it loses is that it's simply not the actual restriction; batch can accept different tool definitions across requests, but it cannot execute tools mid-request and continue. The misunderstanding is at the wrong layer of the system.
 
 ---
 
@@ -4022,21 +4008,21 @@ D) Batch only supports tool calling when the same tool is used by every request;
 A) Submit immediately because batch is cheap and iteration on failures gives more diverse coverage of edge cases than synthetic 200-sample testing.
 B) Submit all 50,000 in batch but with three different prompt variants in parallel; pick the best per document via post-hoc ensembling logic.
 C) Run both options in parallel and compare results; whichever produces fewer errors wins, and the cost of duplicate compute is acceptable.
-D) Iterate on samples first: refine the prompt synchronously until first-pass success rate is high, then submit batch; this minimizes expensive resubmissions.
+D) Iterate on samples first: refine the prompt synchronously until first-pass success is high, then submit batch; this minimizes resubmissions.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is using prompt refinement on a sample set before batch-processing large volumes to maximize first-pass success rates and reduce iterative resubmission costs. Synchronous iteration on 200 samples is fast (minutes per iteration) and lets you tighten the prompt before committing $X thousand to a full batch run. This pattern applies to any large batch workload where prompt quality is uncertain. It beats the runner-up because parallel prompt variants in batch still cost you full batch volume for each variant, multiplying cost rather than reducing it.
-- **B (plausible runner-up):** A/B testing prompt variants in parallel is a real ML pattern and is genuinely useful when you have unlimited compute and want statistical certainty. It correctly recognizes that you want to compare prompt variants. The mistake is doing this at full scale in batch, multiplying cost: three variants × 50,000 documents triples spend before you know which variant is best. The stem signals limited resources and a single launch — sample iteration is the proportionate response.
 - **A:** Iterating on failures from a 50,000-document batch costs orders of magnitude more than iterating on 200 samples first. Failure-mode iteration is appropriate for already-deployed pipelines, not for initial launch.
+- **B:** A/B testing prompt variants in parallel is a real ML pattern and is genuinely useful when you have unlimited compute and want statistical certainty. It correctly recognizes that you want to compare prompt variants. The mistake is doing this at full scale in batch, multiplying cost: three variants × 50,000 documents triples spend before you know which variant is best. The stem signals limited resources and a single launch — sample iteration is the proportionate response.
 - **C:** Running both options in parallel doubles cost for no expected benefit — option D strictly dominates. Parallel options are appropriate when both have non-overlapping benefits.
+- **D (correct):** The principle is using prompt refinement on a sample set before batch-processing large volumes to maximize first-pass success rates and reduce iterative resubmission costs. Synchronous iteration on 200 samples is fast (minutes per iteration) and lets you tighten the prompt before committing $X thousand to a full batch run. This pattern applies to any large batch workload where prompt quality is uncertain. It beats the runner-up because parallel prompt variants in batch still cost you full batch volume for each variant, multiplying cost rather than reducing it.
 
 ---
 
@@ -4047,21 +4033,21 @@ D) Iterate on samples first: refine the prompt synchronously until first-pass su
 A) Move the audit to the synchronous API entirely; it has guaranteed per-request latency but loses the 50% cost discount.
 B) Keep batch but submit twice on Sunday: once at midnight and once at 4 AM, splitting the documents to halve worst-case batch time.
 C) Reduce the document count from 18,000 to 9,000 by pre-filtering low-priority items; smaller batches complete faster on average.
-D) Move audit submission earlier in the week — submit Saturday at midnight, giving 57 hours of total budget for the 24-hour batch window.
+D) Move audit submission earlier — submit Saturday at midnight, giving 57 hours of total budget for the 24-hour batch window.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is calculating submission timing against the SLA: the batch API can take up to 24 hours with no guarantee, so to guarantee a Monday 9 AM deadline you must submit at least 24 hours before that with a safety margin. Submitting Saturday midnight gives 57 hours, comfortably absorbing worst-case 24-hour batch latency. This pattern applies whenever you have a hard delivery deadline and batch latency variance — push submission earlier rather than trying to make batches faster. It beats the runner-up because moving to synchronous loses the 50% discount across 18,000 documents weekly, an enormous cost just to avoid a few late completions.
-- **A (plausible runner-up):** Moving to synchronous is a legitimate response when latency guarantees are non-negotiable and budget allows. It correctly recognizes that synchronous has the deterministic latency you need. The issue is cost: doubling cost permanently for an occasional 3-out-of-26 late delivery is heavy-handed when shifting submission earlier achieves the guarantee at no extra cost. The stem signals "guarantee" can be cheaply achieved by timing, not by abandoning batch.
+- **A:** Moving to synchronous is a legitimate response when latency guarantees are non-negotiable and budget allows. It correctly recognizes that synchronous has the deterministic latency you need. The issue is cost: doubling cost permanently for an occasional 3-out-of-26 late delivery is heavy-handed when shifting submission earlier achieves the guarantee at no extra cost. The stem signals "guarantee" can be cheaply achieved by timing, not by abandoning batch.
 - **B:** Splitting one batch into two does not halve worst-case latency — each batch independently has up to 24-hour latency, so worst-case is unchanged. Batch splitting is appropriate when individual batches are at the volume limit, not for latency.
 - **C:** Reducing scope by pre-filtering may speed up the average case but does not change the worst-case latency guarantee from the API. Pre-filtering is appropriate for relevance, not for SLA.
+- **D (correct):** The principle is calculating submission timing against the SLA: the batch API can take up to 24 hours with no guarantee, so to guarantee a Monday 9 AM deadline you must submit at least 24 hours before that with a safety margin. Submitting Saturday midnight gives 57 hours, comfortably absorbing worst-case 24-hour batch latency. This pattern applies whenever you have a hard delivery deadline and batch latency variance — push submission earlier rather than trying to make batches faster. It beats the runner-up because moving to synchronous loses the 50% discount across 18,000 documents weekly, an enormous cost just to avoid a few late completions.
 
 ---
 
@@ -4077,15 +4063,15 @@ D) Run the review with a higher temperature on the second pass to encourage expl
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that a model retains reasoning context from generation, making it less likely to question its own decisions in the same session. An independent Claude instance — no prior context — reviews the code fresh and catches subtle bugs the generator's reasoning has rationalized. This pattern applies whenever you need rigorous review of generated content: separate the generator and reviewer instances. It beats the runner-up because extended thinking within the same session still operates with the generator's reasoning context, so the same blind spots persist.
-- **B (plausible runner-up):** Extended thinking is a real technique that improves quality on tasks requiring deep reasoning, and it correctly recognizes that the review step needs more depth. It would help marginally for some classes of bugs. The issue is that depth of thinking doesn't bypass the bias of "I just produced this and it looked right" — the model's reasoning is anchored to its own prior conclusions. The stem signals self-review limitations, which is the canonical case for independent instances.
 - **A:** Skeptical-tone prompts can help a little but are still within the same session and same anchoring. Skeptical prompts are appropriate for shallow review tasks.
+- **B:** Extended thinking is a real technique that improves quality on tasks requiring deep reasoning, and it correctly recognizes that the review step needs more depth. It would help marginally for some classes of bugs. The issue is that depth of thinking doesn't bypass the bias of "I just produced this and it looked right" — the model's reasoning is anchored to its own prior conclusions. The stem signals self-review limitations, which is the canonical case for independent instances.
+- **C (correct):** The principle is that a model retains reasoning context from generation, making it less likely to question its own decisions in the same session. An independent Claude instance — no prior context — reviews the code fresh and catches subtle bugs the generator's reasoning has rationalized. This pattern applies whenever you need rigorous review of generated content: separate the generator and reviewer instances. It beats the runner-up because extended thinking within the same session still operates with the generator's reasoning context, so the same blind spots persist.
 - **D:** Temperature variation doesn't change the underlying reasoning anchor; it changes token-level sampling. Temperature is appropriate for output diversity, not for context-bias correction.
 
 ---
@@ -4103,15 +4089,15 @@ D) Switch to a larger model with a bigger context window so the 14 files have en
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** The principle is splitting large multi-file reviews into focused per-file passes for local issues plus a separate integration pass for cross-file data flow. This directly addresses attention dilution: each per-file pass gets full attention on one file, ensuring consistent depth, while the integration pass handles relationships. This pattern applies to any review or analysis that mixes local and cross-cutting concerns at scale. It beats the runner-up because increasing context window doesn't fix attention quality — the model still divides attention unevenly across many files in one pass.
-- **D (plausible runner-up):** Larger context window is a real lever and is appropriate when the issue is genuine capacity (the content doesn't fit). It correctly recognizes that capacity-related issues need more space. The mistake is that 14 files is well within standard context windows; the issue is attention distribution within a single response, not raw capacity. The stem signals attention dilution ("some files get a sentence or two"), which capacity doesn't solve.
-- **C:** Shifting work to developers without improving the system is process punt, not architecture. Process changes are appropriate when the tool fundamentally cannot scale.
 - **B:** Prompt instructions to "give equal depth" do not reliably change behavior when attention is the bottleneck. Such instructions are appropriate for simple format consistency, not attention budgeting.
+- **C:** Shifting work to developers without improving the system is process punt, not architecture. Process changes are appropriate when the tool fundamentally cannot scale.
+- **D:** Larger context window is a real lever and is appropriate when the issue is genuine capacity (the content doesn't fit). It correctly recognizes that capacity-related issues need more space. The mistake is that 14 files is well within standard context windows; the issue is attention distribution within a single response, not raw capacity. The stem signals attention dilution ("some files get a sentence or two"), which capacity doesn't solve.
 
 ---
 
@@ -4120,23 +4106,23 @@ D) Switch to a larger model with a bigger context window so the 14 files have en
 **Stem:** Your PR review bot runs two passes: an initial pass that produces findings, and a self-review pass where the same instance critiques its own findings. You notice the self-review almost never disagrees with the original findings — it nods along, occasionally rephrasing but rarely removing or adding. The team wants meaningful second-pass feedback to catch false positives. What's the most effective change?
 
 A) Increase the temperature on the self-review pass so the model is more willing to disagree with its own earlier findings.
-B) Use an independent Claude instance for the second pass, with no awareness of the first pass's findings or reasoning context.
+B) Use an independent Claude instance for the second pass, with no awareness of the first pass's findings or reasoning.
 C) Add an explicit instruction in the self-review prompt: "you MUST disagree with at least 20% of the original findings."
 D) Have the self-review pass output a confidence score for each original finding; downstream code can drop low-confidence ones.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The principle is that independent review instances — without prior reasoning context — are more effective at catching subtle issues than self-review by the same instance. A fresh instance has no investment in the original findings and evaluates them as an outside observer would, surfacing genuine disagreements. This pattern applies whenever you need adversarial review: independent context, no priors. It beats the runner-up because confidence scoring from the same instance still reflects the original commitment bias.
-- **D (plausible runner-up):** Confidence scoring is a real signal in some pipelines and is genuinely useful when scores are well-calibrated. It correctly recognizes that some findings warrant lower trust. The issue is that the same instance providing both the original finding and the confidence score will be biased toward high confidence — it's the same reasoning process. The stem signals the problem is bias of self-review, which a fresh instance addresses directly.
 - **A:** Temperature variations affect token sampling, not reasoning bias. The same instance will still rationalize its earlier conclusions at any temperature.
+- **B (correct):** The principle is that independent review instances — without prior reasoning context — are more effective at catching subtle issues than self-review by the same instance. A fresh instance has no investment in the original findings and evaluates them as an outside observer would, surfacing genuine disagreements. This pattern applies whenever you need adversarial review: independent context, no priors. It beats the runner-up because confidence scoring from the same instance still reflects the original commitment bias.
 - **C:** Forced disagreement quotas produce artificial disagreement (often picking the easiest findings to drop), not meaningful critique. Quotas are appropriate when you want to guarantee output diversity, not quality.
+- **D:** Confidence scoring is a real signal in some pipelines and is genuinely useful when scores are well-calibrated. It correctly recognizes that some findings warrant lower trust. The issue is that the same instance providing both the original finding and the confidence score will be biased toward high confidence — it's the same reasoning process. The stem signals the problem is bias of self-review, which a fresh instance addresses directly.
 
 ---
 
@@ -4147,21 +4133,21 @@ D) Have the self-review pass output a confidence score for each original finding
 A) Have each instance see the others' findings and resolve contradictions through pairwise debate during the review run.
 B) Add a coordinator instance whose only job is to receive each reviewer's findings and resolve contradictions before posting to developers.
 C) Merge the three roles into a single instance with a single prompt covering security, style, and architecture, eliminating contradictions.
-D) Rank reviewers by domain authority (security highest), and on contradiction, automatically suppress the lower-priority reviewer's finding.
+D) Rank reviewers by domain authority (security highest); on contradiction, automatically suppress the lower-priority reviewer's finding.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The principle is that when independent reviewers disagree on the same artifact, you need an explicit resolution policy. Domain-priority ranking is a clear, deterministic rule that aligns with engineering practice (security overrides style and architecture concerns when they conflict in security-relevant ways). This pattern applies whenever multi-instance review produces contradictions: define authority once, apply it consistently. It beats the runner-up because a coordinator instance adds an LLM call, latency, cost, and another potential source of stochastic disagreement, when a deterministic rule resolves the issue cheaply.
-- **B (plausible runner-up):** Coordinator instances are a real architectural pattern and are appropriate when contradictions span complex multi-axis tradeoffs that need contextual judgment. It correctly recognizes that contradictions need resolution. The issue here is that the contradiction has a clean priority rule (security wins on security-adjacent disputes); using an LLM to "resolve" a deterministic rule is overkill and risks the coordinator itself producing inconsistent rulings. Use coordinators when the resolution logic is itself complex.
 - **A:** Pairwise debate among instances adds enormous complexity and stochasticity for limited benefit; reviewers can debate endlessly without converging. Debate is appropriate as a research technique, not as a CI pipeline pattern.
+- **B:** Coordinator instances are a real architectural pattern and are appropriate when contradictions span complex multi-axis tradeoffs that need contextual judgment. It correctly recognizes that contradictions need resolution. The issue here is that the contradiction has a clean priority rule (security wins on security-adjacent disputes); using an LLM to "resolve" a deterministic rule is overkill and risks the coordinator itself producing inconsistent rulings. Use coordinators when the resolution logic is itself complex.
 - **C:** Merging into a single instance recreates the original problem of attention dilution that drove the multi-instance design. Single-instance review is appropriate for small, focused tasks.
+- **D (correct):** The principle is that when independent reviewers disagree on the same artifact, you need an explicit resolution policy. Domain-priority ranking is a clear, deterministic rule that aligns with engineering practice (security overrides style and architecture concerns when they conflict in security-relevant ways). This pattern applies whenever multi-instance review produces contradictions: define authority once, apply it consistently. It beats the runner-up because a coordinator instance adds an LLM call, latency, cost, and another potential source of stochastic disagreement, when a deterministic rule resolves the issue cheaply.
 
 ---
 
@@ -4177,16 +4163,16 @@ D) Add extended thinking to the in-session review step so the model spends more 
 **Correct:** C
 
 **Plausibility:**
+- A: implausible
+- B: implausible
 - C: plausible-correct
 - D: plausible-runner-up
-- B: implausible
-- A: implausible
 
 **Explanation:**
-- **C (correct):** The principle is that an independent Claude instance — no prior reasoning context — is more effective at catching plan risks than self-review in the same session. The plan-generating instance has rationalized its own design and is unlikely to question it; a fresh instance reviews the plan as an outsider would. This pattern applies to plans, designs, and code alike: separate the producer and the critic. It beats the runner-up because extended thinking still happens within the producing instance's reasoning context, so the same blind spots persist.
-- **D (plausible runner-up):** Extended thinking is a real and useful feature, especially for complex multi-step reasoning, and it correctly recognizes that deeper reasoning could surface risks. The reason it loses is that thinking depth doesn't bypass the producer's bias toward defending its own plan. The stem signals "approved the plan" then "significant integration bug emerged," which is the classic self-review blind spot — addressable only by independence.
-- **B:** Running the same session twice with rephrased prompts produces correlated outputs because the reasoning context is shared. Rephrasing is appropriate for output format variation, not bias correction.
 - **A:** More granular plans may help but the fundamental issue is reviewer bias, not plan resolution. Granularity is appropriate when plans are too vague to act on.
+- **B:** Running the same session twice with rephrased prompts produces correlated outputs because the reasoning context is shared. Rephrasing is appropriate for output format variation, not bias correction.
+- **C (correct):** The principle is that an independent Claude instance — no prior reasoning context — is more effective at catching plan risks than self-review in the same session. The plan-generating instance has rationalized its own design and is unlikely to question it; a fresh instance reviews the plan as an outsider would. This pattern applies to plans, designs, and code alike: separate the producer and the critic. It beats the runner-up because extended thinking still happens within the producing instance's reasoning context, so the same blind spots persist.
+- **D:** Extended thinking is a real and useful feature, especially for complex multi-step reasoning, and it correctly recognizes that deeper reasoning could surface risks. The reason it loses is that thinking depth doesn't bypass the producer's bias toward defending its own plan. The stem signals "approved the plan" then "significant integration bug emerged," which is the classic self-review blind spot — addressable only by independence.
 
 ---
 
@@ -4195,23 +4181,23 @@ D) Add extended thinking to the in-session review step so the model spends more 
 **Stem:** Your team's review pipeline asks Claude to "rate your confidence in each finding from 1 to 5" alongside the finding itself. The team uses this to route low-confidence findings to a second reviewer and surface high-confidence ones directly. After deployment, you observe that nearly all findings are labeled 4 or 5, regardless of whether they later turn out to be true positives. What is the best architectural response?
 
 A) Re-train developers to ignore the confidence scores and treat all findings identically until calibration improves over time.
-B) Switch to a verification pass run by an independent Claude instance that self-reports its own confidence on each finding to enable calibrated routing.
+B) Switch to a verification pass by an independent Claude instance that self-reports confidence on each finding for calibrate
 C) Increase the confidence scale from 1-5 to 1-100 so the model has more resolution to distinguish high-confidence findings from medium ones.
 D) Add a step where the model must justify each confidence score with at least three sentences of reasoning before assigning it.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
-- C: implausible
 - A: implausible
+- B: plausible-correct
+- C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** The principle is running verification passes where the model self-reports confidence alongside each finding to enable calibrated review routing — and crucially, having that verification be an independent instance, not the original reviewer. When the original reviewer reports confidence, it's biased toward justifying its own findings; an independent verifier produces less-biased confidence scores. This pattern applies to any routing-by-confidence workflow. It beats the runner-up because more reasoning depth in the same instance still inherits the bias of that instance's own findings.
-- **D (plausible runner-up):** Requiring justification reasoning before scoring is a real chain-of-thought variant and can modestly improve calibration. It correctly identifies that confidence scores should be grounded. The issue is the same instance that produced the finding will produce a justification that validates its own work — bias is preserved. Justification reasoning is appropriate when the model needs to commit to evidence; for calibration, independence matters more.
-- **C:** A wider scale doesn't help if the model has no calibration anchor; you'll just get all 80s and 90s instead of all 4s and 5s. Scale resolution is appropriate when the model has well-calibrated outputs needing more granularity.
 - **A:** Ignoring the confidence score discards a potentially useful signal once calibration is fixed. Telemetry abandonment is appropriate only when signal is genuinely unrecoverable.
+- **B (correct):** The principle is running verification passes where the model self-reports confidence alongside each finding to enable calibrated review routing — and crucially, having that verification be an independent instance, not the original reviewer. When the original reviewer reports confidence, it's biased toward justifying its own findings; an independent verifier produces less-biased confidence scores. This pattern applies to any routing-by-confidence workflow. It beats the runner-up because more reasoning depth in the same instance still inherits the bias of that instance's own findings.
+- **C:** A wider scale doesn't help if the model has no calibration anchor; you'll just get all 80s and 90s instead of all 4s and 5s. Scale resolution is appropriate when the model has well-calibrated outputs needing more granularity.
+- **D:** Requiring justification reasoning before scoring is a real chain-of-thought variant and can modestly improve calibration. It correctly identifies that confidence scores should be grounded. The issue is the same instance that produced the finding will produce a justification that validates its own work — bias is preserved. Justification reasoning is appropriate when the model needs to commit to evidence; for calibration, independence matters more.
 
 ---
 
@@ -4228,55 +4214,42 @@ D) Cap PR size in CI by rejecting any PR with more than 5 files; developers must
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** The principle is splitting large multi-file reviews into focused per-file passes for local issues plus a separate integration pass for cross-file data flow analysis. This is the canonical architecture for scaling review quality with PR size: attention is preserved per file, and integration concerns get a dedicated pass. You'd apply this any time review quality drops as artifact size grows. It beats the runner-up because hard caps on PR size shift the burden to developers and don't improve the review system itself; some legitimate PRs cross 5 files.
-- **D (plausible runner-up):** Hard PR size caps are a real engineering policy and are appropriate in teams where smaller PRs are independently valuable for human review. It correctly identifies that smaller scope is easier to review well. The issue is the question asks about scaling review quality — that's an architectural improvement to the bot, not a process change shifting work to developers. The stem signals the system should adapt, not the input.
 - **B:** Training a classifier on past data is heavy infrastructure for limited benefit; per-file passes are simpler and more reliable. Classifier-based routing is appropriate when there are clear classes of work needing different treatment.
 - **C:** Batch API is about cost and latency, not review quality. Batch is appropriate for non-blocking workloads, not for PR-blocking CI checks.
+- **D:** Hard PR size caps are a real engineering policy and are appropriate in teams where smaller PRs are independently valuable for human review. It correctly identifies that smaller scope is easier to review well. The issue is the question asks about scaling review quality — that's an architectural improvement to the bot, not a process change shifting work to developers. The stem signals the system should adapt, not the input.
 
 ---
 
-## Self-Check Notes
-
-Reviewed 5 random questions (Q3, Q11, Q18, Q27, Q39) for length balance and plausibility tiering:
-
-- **Q3 (correct A):** Options A=18, B=22, C=20, D=21 words. A is not the longest. Plausibility: A=correct, B=plausible runner-up (confidence thresholds, well-defended), C/D=implausible (real patterns mis-applied). Pass.
-- **Q11 (correct D):** A=21, B=21, C=23, D=21 words. C is longest, not D. Plausibility: D=correct (few-shot), C=runner-up (enum field is real practice, well-defended), A/B=implausible. Pass.
-- **Q18 (correct A):** A=18, B=22, C=21, D=21 words. B is longest, not A. Plausibility: A=correct, C=runner-up (sentinel strings are real legacy pattern), B/D=implausible. Pass.
-- **Q27 (correct C):** A=21, B=21, C=22, D=18 words. Lengths nearly equal. Plausibility: C=correct, B=runner-up (retry with feedback is the canonical fix elsewhere), A/D=implausible. Pass.
-- **Q39 (correct D):** A=17, B=22, C=18, D=18 words. B is longest, not D. Plausibility: D=correct, B=runner-up (coordinator instances are real architectural pattern), A/C=implausible. Pass.
-
-Distribution verified: A=10, B=11, C=11, D=10. All within 10-13 target.
-
 
 ## Domain 5: Context Management & Reliability
-
 
 ### Q1 | Scenario 1 | TS 5.1 | difficulty: easy
 
 **Stem:** Your support agent handles long multi-issue calls. After about 20 turns, you observe that when the customer asks "did we ever sort out my $47.32 overcharge?", Claude responds with a vague summary about "a billing issue from earlier" rather than referencing the exact amount. Production transcripts show this pattern across many sessions: specific numbers and dates get smoothed into generalities as the conversation grows. What is the underlying cause you should address first?
 
 A) The model is hitting its effective context window and silently truncating earlier turns from the request payload.
-B) Progressive summarization is compressing transactional facts like dollar amounts and dates into vague natural-language summaries.
+B) Progressive summarization is compressing transactional facts like exact dollar amounts and dates into vague summaries.
 C) The agent is calling `lookup_order` too aggressively, flooding the context with irrelevant order fields.
 D) The customer's later messages contain ambiguous pronouns that the model cannot resolve back to specifics.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** This question tests recognition of progressive summarization risks, a core Task 5.1 concept. When conversations grow long, summarization steps that condense history routinely flatten precise numerical values, percentages, dates, and customer-stated expectations into hand-wavy phrases like "a billing issue." You should reach for this diagnosis whenever specific facts appear to "decay" across turns even though earlier turns clearly contained them. The fix — extracting transactional facts into a persistent case-facts block — directly counters this failure mode, which is why B beats the tool-volume runner-up.
-- **C (plausible runner-up):** Bloated tool outputs are a real Task 5.1 problem and definitely contribute to context pressure on long sessions; trimming verbose lookups is a legitimate intervention. What it gets almost right is that context bloat does correlate with degraded recall. However, the symptom here is specific (numbers becoming vague), not generic (model forgetting things), which points to summarization compression rather than raw token consumption. The "$47.32 becomes 'a billing issue'" detail is the signal you should have caught.
 - **A:** Silent truncation would produce hard forgetting (the model claiming no knowledge), not soft generalization to "a billing issue." Truncation is a real concern in extremely long sessions, but the symptom pattern doesn't match.
+- **B (correct):** This question tests recognition of progressive summarization risks, a core Task 5.1 concept. When conversations grow long, summarization steps that condense history routinely flatten precise numerical values, percentages, dates, and customer-stated expectations into hand-wavy phrases like "a billing issue." You should reach for this diagnosis whenever specific facts appear to "decay" across turns even though earlier turns clearly contained them. The fix — extracting transactional facts into a persistent case-facts block — directly counters this failure mode, which is why B beats the tool-volume runner-up.
+- **C:** Bloated tool outputs are a real Task 5.1 problem and definitely contribute to context pressure on long sessions; trimming verbose lookups is a legitimate intervention. What it gets almost right is that context bloat does correlate with degraded recall. However, the symptom here is specific (numbers becoming vague), not generic (model forgetting things), which points to summarization compression rather than raw token consumption. The "$47.32 becomes 'a billing issue'" detail is the signal you should have caught.
 - **D:** Pronoun resolution failures look different — the model would ask "which charge?" rather than confidently producing a vague paraphrase. Ambiguity-driven errors are a real category but not this one.
 
 ---
@@ -4287,21 +4260,21 @@ D) The customer's later messages contain ambiguous pronouns that the model canno
 
 A) Cache `lookup_order` results in an external store keyed by order_id and reference them via short identifiers in the conversation.
 B) Switch the agent to a model with a larger context window so all 47 fields can coexist without crowding out other content.
-C) Have the tool wrapper trim each `lookup_order` response to only the five refund-relevant fields before it reaches Claude's context.
+C) Have the tool wrapper trim each `lookup_order` response to only the five refund-relevant fields before it reaches Claude.
 D) Add an instruction to the system prompt telling Claude to ignore irrelevant fields in `lookup_order` outputs.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Task 5.1 explicitly calls out trimming verbose tool outputs to only relevant fields before they accumulate in context. The principle is that tool results consume tokens disproportionately to their actual relevance, and you should pay that cost only for fields you'll actually use. Apply this same approach whenever you see a wide schema with a narrow downstream use case (e.g., user profile lookups, document metadata). It beats the caching runner-up because trimming is simpler, requires no external state, and directly removes the noise from the model's working memory rather than indirecting around it.
-- **A (plausible runner-up):** External caching is a real and useful pattern, especially when the same record is referenced repeatedly or when you need to share state across agents. It almost works here because the cache would prevent re-fetching, reducing token cost. But it doesn't solve the underlying problem on the first lookup: those 47 fields still need to be presented to Claude at least once, and the question is about field volume per lookup, not lookup frequency. The "5 of 47 fields" detail in the stem points to trimming as the more targeted fix.
+- **A:** External caching is a real and useful pattern, especially when the same record is referenced repeatedly or when you need to share state across agents. It almost works here because the cache would prevent re-fetching, reducing token cost. But it doesn't solve the underlying problem on the first lookup: those 47 fields still need to be presented to Claude at least once, and the question is about field volume per lookup, not lookup frequency. The "5 of 47 fields" detail in the stem points to trimming as the more targeted fix.
 - **B:** Larger context windows don't solve attention quality issues — the model can still misquote amounts when surrounded by 40 irrelevant fields per order. Bigger windows help with sheer capacity, not with signal-to-noise ratio.
+- **C (correct):** Task 5.1 explicitly calls out trimming verbose tool outputs to only relevant fields before they accumulate in context. The principle is that tool results consume tokens disproportionately to their actual relevance, and you should pay that cost only for fields you'll actually use. Apply this same approach whenever you see a wide schema with a narrow downstream use case (e.g., user profile lookups, document metadata). It beats the caching runner-up because trimming is simpler, requires no external state, and directly removes the noise from the model's working memory rather than indirecting around it.
 - **D:** Prompt-only "please ignore X" instructions are unreliable for context hygiene; the irrelevant fields still consume tokens and still compete for attention regardless of what the prompt says.
 
 ---
@@ -4313,21 +4286,21 @@ D) Add an instruction to the system prompt telling Claude to ignore irrelevant f
 A) Increase the synthesis agent's max output tokens so it has room to disambiguate sources during writing.
 B) Have the coordinator re-summarize each subagent output into a shorter prose paragraph before forwarding it to synthesis.
 C) Run the synthesis agent in two passes: a first pass to identify sources and a second pass to write the final prose narrative.
-D) Modify the document-analysis subagent to return structured data with key facts, citations, and relevance scores instead of prose.
+D) Modify the document-analysis subagent to return structured data with key facts, citations, and relevance scores instead of p
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** This question targets the Task 5.1 skill of modifying upstream agents to return structured data when downstream agents have limited context budgets. Prose summaries are dense in tokens but sparse in machine-parseable signal, which is exactly the wrong tradeoff for a context-constrained synthesizer. Structured outputs (facts, citations, relevance scores) compress information losslessly for the downstream consumer and preserve provenance, which is why the synthesis agent stops conflating sources. Reach for this pattern any time you control both ends of an agent-to-agent handoff and the downstream side is the constrained one.
-- **B (plausible runner-up):** Compressing intermediate prose is a legitimate context-management tactic and frequently the right move when you can't change the upstream. It almost works here because shorter inputs do help a constrained synthesizer. The reason it falls short: re-summarization is exactly the operation that loses claim-source mappings and bleeds away the specifics, so it would worsen the confusion about which paper said what. The "confuses which paper said what" signal in the stem is the giveaway.
 - **A:** Output-token budget affects how much the model can write, not how well it processes inputs. The confusion is on the input side.
+- **B:** Compressing intermediate prose is a legitimate context-management tactic and frequently the right move when you can't change the upstream. It almost works here because shorter inputs do help a constrained synthesizer. The reason it falls short: re-summarization is exactly the operation that loses claim-source mappings and bleeds away the specifics, so it would worsen the confusion about which paper said what. The "confuses which paper said what" signal in the stem is the giveaway.
 - **C:** Multiple passes can help with attention dilution, but they don't fix a fundamental signal loss in the upstream format. You'd just dilute attention twice over the same prose.
+- **D (correct):** This question targets the Task 5.1 skill of modifying upstream agents to return structured data when downstream agents have limited context budgets. Prose summaries are dense in tokens but sparse in machine-parseable signal, which is exactly the wrong tradeoff for a context-constrained synthesizer. Structured outputs (facts, citations, relevance scores) compress information losslessly for the downstream consumer and preserve provenance, which is why the synthesis agent stops conflating sources. Reach for this pattern any time you control both ends of an agent-to-agent handoff and the downstream side is the constrained one.
 
 ---
 
@@ -4335,7 +4308,7 @@ D) Modify the document-analysis subagent to return structured data with key fact
 
 **Stem:** A customer's case touches three issues across a 30-turn conversation: a damaged item refund ($89.50), a billing correction ($12.10), and a shipping address change. The agent occasionally conflates which amount belongs to which issue, especially in turns 20+. You want the simplest reliable pattern to preserve these per-issue facts. Which approach should you implement?
 
-A) Maintain a structured "case facts" block (per-issue: order_id, amount, status, requested action) prepended to every turn's prompt.
+A) Maintain a structured "case facts" block (per issue: order_id, amount, status, action) prepended to each prompt.
 B) Instruct Claude in the system prompt to repeat all dollar amounts and order IDs verbatim whenever it references them.
 C) Add a tool call at the start of every turn that retrieves a transcript-derived summary from a server-side memory store.
 D) Periodically inject "remember: amounts are $89.50 and $12.10" reminders as user messages every five turns.
@@ -4344,14 +4317,14 @@ D) Periodically inject "remember: amounts are $89.50 and $12.10" reminders as us
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** This directly applies the Task 5.1 skill of extracting transactional facts into a persistent case-facts block included in each prompt, kept outside the summarized history. The principle: facts that matter to correctness should live in a structured layer the model sees on every turn, not buried in a recap that may smooth them away. You'd reach for this same pattern in any multi-issue session (insurance claims, multi-bug debugging, multi-leg travel rebookings). It beats the server-side memory runner-up because it doesn't require an extra round trip and the data is visible in the same prompt rather than fetched on demand.
-- **C (plausible runner-up):** External memory stores are absolutely a valid pattern, and many production agents rely on them for cross-session persistence and observability. The technique gets close here because the stored summary would in principle hold the per-issue facts. What it misses is that the question asks for the *simplest* reliable pattern: introducing a tool call every turn adds latency, failure modes, and another component, where a structured prompt block solves it directly. The "simplest reliable" framing is the key signal.
 - **B:** Prompt-only behavioral instructions are probabilistic; in long sessions Claude will eventually generalize "the $89.50 refund" into "the refund" despite the instruction.
+- **C:** External memory stores are absolutely a valid pattern, and many production agents rely on them for cross-session persistence and observability. The technique gets close here because the stored summary would in principle hold the per-issue facts. What it misses is that the question asks for the *simplest* reliable pattern: introducing a tool call every turn adds latency, failure modes, and another component, where a structured prompt block solves it directly. The "simplest reliable" framing is the key signal.
 - **D:** Injecting reminder messages pollutes the conversation transcript and isn't structured — the model still has to parse the reminders out of natural language, which is precisely the failure mode you're trying to avoid.
 
 ---
@@ -4362,21 +4335,21 @@ D) Periodically inject "remember: amounts are $89.50 and $12.10" reminders as us
 
 A) Re-order the aggregated input so the most important subagent's findings appear last, and trust position effects to do the rest.
 B) Split synthesis into four independent calls, each handling one subagent's output, then merge the four mini-syntheses.
-C) Place a key-findings summary at the start of the aggregated input and use explicit section headers to delineate each subagent's contribution.
+C) Place a key-findings summary at the start of the aggregated input and use section headers to delineate each subagent's contributions.
 D) Truncate each subagent's output to a fixed length so all four contributions compete on equal token footing.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** This targets the "lost in the middle" effect — a documented attention pattern where models reliably process information at the beginning and end of long inputs but underweight middle content. The Task 5.1 mitigation is exactly the combination described: a key-findings summary at the start (so important content lives in the high-attention region) plus explicit section headers (so middle content is anchored by structure rather than buried). You'd use the same approach for long RAG contexts, aggregated tool results, or any "wall of input" situation. It beats per-subagent independent synthesis because it preserves cross-subagent relationships that synthesis often needs.
-- **B (plausible runner-up):** Per-subagent synthesis is a real and valid technique, particularly when each subagent's findings are independent and a final merge can stitch them. It almost works because it sidesteps middle-position dilution entirely. The reason it falls short here: research synthesis often depends on cross-cutting comparison (e.g., contrasting findings across subagents), which a four-way split followed by merge tends to lose. The stem's framing as a single synthesis report points to keeping it unified with better structuring.
 - **A:** Trusting position effects alone is fragile — you only fix one of the underweighted subagents, and you've still left the others in the middle.
+- **B:** Per-subagent synthesis is a real and valid technique, particularly when each subagent's findings are independent and a final merge can stitch them. It almost works because it sidesteps middle-position dilution entirely. The reason it falls short here: research synthesis often depends on cross-cutting comparison (e.g., contrasting findings across subagents), which a four-way split followed by merge tends to lose. The stem's framing as a single synthesis report points to keeping it unified with better structuring.
+- **C (correct):** This targets the "lost in the middle" effect — a documented attention pattern where models reliably process information at the beginning and end of long inputs but underweight middle content. The Task 5.1 mitigation is exactly the combination described: a key-findings summary at the start (so important content lives in the high-attention region) plus explicit section headers (so middle content is anchored by structure rather than buried). You'd use the same approach for long RAG contexts, aggregated tool results, or any "wall of input" situation. It beats per-subagent independent synthesis because it preserves cross-subagent relationships that synthesis often needs.
 - **D:** Equalizing length doesn't address position; you'd just have equally underweighted middle entries.
 
 ---
@@ -4388,21 +4361,21 @@ D) Truncate each subagent's output to a fixed length so all four contributions c
 A) Schema validation is silently dropping middle-of-document entries that don't match the expected pattern.
 B) Tokenization quirks cause middle-document content to be encoded less efficiently and effectively truncated.
 C) The extraction prompt is too short to anchor the model on middle content during the long pass.
-D) The "lost in the middle" effect — models reliably attend to the start and end of long inputs but underweight middle content.
+D) The "lost in the middle" effect — models attend to the start and end of long inputs and underweight middle regions.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** The question is a direct test of recognizing the lost-in-the-middle attention pattern. The symptom — reliable extraction from start and end, omissions from the middle — is the canonical fingerprint. You should diagnose this whenever document length is the new variable and the failure is positional rather than content-type-related. Knowing the name and mechanism unlocks the right mitigations: re-organize so critical content lives at the boundaries, place a key-findings prompt section at the start, or chunk the input. It beats the prompt-length runner-up because prompt brevity affects task framing, not positional attention.
-- **C (plausible runner-up):** Prompt length and specificity do affect extraction quality, and a too-terse prompt can leave the model under-instructed about what counts as a line item or clause. That makes it a real failure mode worth knowing. But the failure here is specifically positional (middle vs. edges), which is the hallmark of attention placement, not prompt scope. If the prompt were the issue you'd see uniform misses across all pages, not a position-dependent pattern.
 - **A:** Schema validation drops outputs after the fact; it wouldn't selectively affect middle-document content because the model would either emit nothing or emit non-conforming JSON uniformly.
 - **B:** Tokenization is positionally uniform — there's no "middle of document" penalty in how tokens are encoded.
+- **C:** Prompt length and specificity do affect extraction quality, and a too-terse prompt can leave the model under-instructed about what counts as a line item or clause. That makes it a real failure mode worth knowing. But the failure here is specifically positional (middle vs. edges), which is the hallmark of attention placement, not prompt scope. If the prompt were the issue you'd see uniform misses across all pages, not a position-dependent pattern.
+- **D (correct):** The question is a direct test of recognizing the lost-in-the-middle attention pattern. The symptom — reliable extraction from start and end, omissions from the middle — is the canonical fingerprint. You should diagnose this whenever document length is the new variable and the failure is positional rather than content-type-related. Knowing the name and mechanism unlocks the right mitigations: re-organize so critical content lives at the boundaries, place a key-findings prompt section at the start, or chunk the input. It beats the prompt-length runner-up because prompt brevity affects task framing, not positional attention.
 
 ---
 
@@ -4410,7 +4383,7 @@ D) The "lost in the middle" effect — models reliably attend to the start and e
 
 **Stem:** Your synthesis agent receives outputs from a document-analysis subagent that summarizes academic papers. You notice the synthesis report says "research from this year shows declining yields" when the underlying paper was actually from 2017. Investigating, you find the subagent's output mentions "recent research" without dates, and "this region" without naming a region. What requirement should you add to the subagent's output schema?
 
-A) Require structured metadata fields including publication date, geographic scope, and source URL alongside each finding.
+A) Require structured metadata including publication date, geographic scope, and source URL alongside each finding.
 B) Require the subagent to write all findings in fully resolved prose that names dates and places inline within sentences.
 C) Have the synthesis agent re-fetch each source document to verify dates and places before composing the report.
 D) Switch the subagent to a smaller model less prone to using vague temporal language in its summaries.
@@ -4425,7 +4398,7 @@ D) Switch the subagent to a smaller model less prone to using vague temporal lan
 
 **Explanation:**
 - **A (correct):** This applies the Task 5.1 skill of requiring subagents to include metadata — dates, source locations, methodological context — in structured outputs to support accurate downstream synthesis. Structured fields are machine-checkable and impossible for the downstream agent to drop unintentionally, unlike prose. Reach for this whenever a downstream consumer needs to reason about provenance, temporal validity, or scope, which is true in nearly every research synthesis pipeline. It beats the resolved-prose runner-up because structure survives summarization steps, while embedded prose does not.
-- **B (plausible runner-up):** Requiring inline resolution ("research from a 2017 study in the Gulf of Maine") is a real improvement and would help in the short term. It almost works because it does put the facts in front of the synthesizer. The reason it falls short: prose is fragile across compression and re-summarization; the next synthesis pass can still smooth "research from a 2017 study" back into "recent research." Structured fields persist through transformations that prose doesn't survive.
+- **B:** Requiring inline resolution ("research from a 2017 study in the Gulf of Maine") is a real improvement and would help in the short term. It almost works because it does put the facts in front of the synthesizer. The reason it falls short: prose is fragile across compression and re-summarization; the next synthesis pass can still smooth "research from a 2017 study" back into "recent research." Structured fields persist through transformations that prose doesn't survive.
 - **C:** Re-fetching is expensive, slow, and reintroduces the original analysis cost. It also doesn't fix the upstream subagent.
 - **D:** Smaller models aren't reliably more precise about temporal language; if anything, they're more prone to vague phrasing.
 
@@ -4443,14 +4416,14 @@ D) Resolve the issue if Claude's self-reported confidence is above 0.85; otherwi
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Offering to resolve before escalating is the correct behavior in many cases — specifically when the customer is frustrated but hasn't explicitly asked for a human. It almost applies here because the customer is clearly frustrated and a simple issue could be solved. The reason it's wrong: the customer has explicitly demanded human contact, which Task 5.2 treats as a hard trigger to escalate immediately. The "I want to speak to a human right now" wording is the signal — explicit demand overrides the resolve-first preference.
 - **B (correct):** Task 5.2 is explicit: when a customer explicitly requests a human, the agent should honor that immediately rather than first attempting investigation. The principle is that customer autonomy on this specific request is non-negotiable; attempting to help first reads as ignoring the request. You apply this same rule any time a customer uses unambiguous human-agent language ("speak to a person," "transfer me," "talk to a manager"). It beats the diagnostic-first runner-up because the customer has already opted out of self-service, and ignoring that signal trades short-term containment for long-term trust.
-- **A (plausible runner-up):** Offering to resolve before escalating is the correct behavior in many cases — specifically when the customer is frustrated but hasn't explicitly asked for a human. It almost applies here because the customer is clearly frustrated and a simple issue could be solved. The reason it's wrong: the customer has explicitly demanded human contact, which Task 5.2 treats as a hard trigger to escalate immediately. The "I want to speak to a human right now" wording is the signal — explicit demand overrides the resolve-first preference.
 - **C:** Sentiment-based escalation is unreliable as a complexity proxy — high frustration doesn't mean the issue is complex, and low frustration doesn't mean it's simple.
 - **D:** Self-reported model confidence is poorly calibrated and not a reliable basis for escalation decisions.
 
@@ -4475,7 +4448,7 @@ D) Have the agent flip a weighted coin based on the customer's tenure and averag
 
 **Explanation:**
 - **A (correct):** Task 5.2 specifies that policy ambiguity or silence on a specific request is a canonical escalation trigger. The principle is that the agent should not invent policy in either direction; doing so creates inconsistent precedent that is hard to walk back. You apply this same approach for any request where the policy "almost covers" the situation but doesn't address it directly (returns past the window for unusual reasons, partial refunds for partial defects, special accommodations). It beats the default-refuse runner-up because the customer's request is reasonable and a human can decide whether to extend the policy — the agent's job is to recognize that decision belongs above its authority.
-- **B (plausible runner-up):** Defaulting to "no" when policy doesn't authorize is a defensible conservative stance and is correct for risky or financially significant gray-area requests where escalation is unavailable. It almost works because it avoids unauthorized payouts. The reason it falls short here: it locks in a one-way denial without giving a human the chance to interpret intent, and the customer experience cost of a uniform "no" on competitor matching is high. The "policy is silent" framing in the stem points to escalation, not default-deny.
+- **B:** Defaulting to "no" when policy doesn't authorize is a defensible conservative stance and is correct for risky or financially significant gray-area requests where escalation is unavailable. It almost works because it avoids unauthorized payouts. The reason it falls short here: it locks in a one-way denial without giving a human the chance to interpret intent, and the customer experience cost of a uniform "no" on competitor matching is high. The "policy is silent" framing in the stem points to escalation, not default-deny.
 - **C:** Defaulting to "yes" gives away revenue and creates expectations the business may not actually want to honor.
 - **D:** Heuristic-based granting based on tenure or order value is exactly the kind of inconsistent discretion the question identifies as the problem.
 
@@ -4487,21 +4460,21 @@ D) Have the agent flip a weighted coin based on the customer's tenure and averag
 
 A) Keep the immediate escalation; frustrated customers benefit from being routed straight to a human in all cases.
 B) Add a sentiment override — escalate only when frustration score exceeds 0.9 to keep current behavior for very angry customers.
-C) Acknowledge the customer's frustration and offer to resolve the refund directly, escalating only if they reiterate a preference for a human.
+C) Acknowledge the customer's frustration and offer to resolve the refund directly, escalating only if they prefer a human.
 D) Auto-process a full refund without further verification to make the case go away quickly and preserve goodwill.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Task 5.2 explicitly describes acknowledging frustration while offering resolution when the issue is within the agent's capability, escalating only if the customer reiterates their preference. The principle is that frustration is not a complexity signal — it's a tone signal — and a clear, within-policy refund is exactly the kind of case the agent should resolve. Apply this same pattern whenever the customer's emotional state is high but the underlying request is routine. It beats the sentiment-threshold runner-up because thresholds are brittle proxies for case complexity rather than for what the customer actually wants.
-- **B (plausible runner-up):** Tunable sentiment thresholds are a real engineering pattern and they can reduce obvious mis-escalations. They almost work here because raising the bar would prevent moderate-frustration cases from auto-escalating. The reason they fall short: thresholds remain a proxy for the wrong variable — frustration intensity isn't a meaningful proxy for whether the issue is in-scope. The stem's framing that refund eligibility is "clearly defined" and "well within capability" signals you should be using capability, not sentiment, as the gate.
 - **A:** Always escalating frustrated customers wastes human-agent capacity on cases the model can handle and frustrates customers further when human queues are long.
+- **B:** Tunable sentiment thresholds are a real engineering pattern and they can reduce obvious mis-escalations. They almost work here because raising the bar would prevent moderate-frustration cases from auto-escalating. The reason they fall short: thresholds remain a proxy for the wrong variable — frustration intensity isn't a meaningful proxy for whether the issue is in-scope. The stem's framing that refund eligibility is "clearly defined" and "well within capability" signals you should be using capability, not sentiment, as the gate.
+- **C (correct):** Task 5.2 explicitly describes acknowledging frustration while offering resolution when the issue is within the agent's capability, escalating only if the customer reiterates their preference. The principle is that frustration is not a complexity signal — it's a tone signal — and a clear, within-policy refund is exactly the kind of case the agent should resolve. Apply this same pattern whenever the customer's emotional state is high but the underlying request is routine. It beats the sentiment-threshold runner-up because thresholds are brittle proxies for case complexity rather than for what the customer actually wants.
 - **D:** Auto-refunding without verification bypasses required checks (was the order delivered? is it within window?) and creates fraud risk.
 
 ---
@@ -4513,21 +4486,21 @@ D) Auto-process a full refund without further verification to make the case go a
 A) Have the agent prefer the oldest account, since longer-tenured customers are less likely to be impersonators.
 B) Add a tie-breaking heuristic that picks the account with the most recent order matching the description in the chat.
 C) Train a re-ranker on resolved cases to score which "Jordan Lee" record is most likely to be the right one.
-D) Instruct the agent to ask the customer for an additional identifier (email, phone, or order number) rather than auto-selecting.
+D) Instruct the agent to ask the customer for an additional identifier (email, phone, or order number) instead of auto
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.2 specifies that multiple customer matches require clarification — asking for additional identifiers — rather than heuristic selection. The principle is that an agent operating on financial actions has no business picking among ambiguous identities; doing so accepts a known false-positive risk in exchange for one less customer-facing turn. Apply this same approach for any disambiguation in trust-sensitive flows (account access, document retrieval, medical records). It beats the order-match heuristic runner-up because heuristics produce confidently wrong matches that audits catch only after the refund is gone.
-- **B (plausible runner-up):** Tie-breaking on order context is a real and tempting design — it uses available signal and reduces customer effort. It almost works because the order described in the chat is in fact a strong disambiguator in many cases. The reason it falls short here: the stem reports that audits already found wrong-account refunds, meaning heuristic selection has a track record of failing. The principle for trust-sensitive actions is to defer to the customer rather than guess, and asking for one identifier is a small cost.
 - **A:** Oldest-account preference is just a different heuristic with no principled basis; it still occasionally picks the wrong Jordan Lee.
+- **B:** Tie-breaking on order context is a real and tempting design — it uses available signal and reduces customer effort. It almost works because the order described in the chat is in fact a strong disambiguator in many cases. The reason it falls short here: the stem reports that audits already found wrong-account refunds, meaning heuristic selection has a track record of failing. The principle for trust-sensitive actions is to defer to the customer rather than guess, and asking for one identifier is a small cost.
 - **C:** Trained re-rankers improve accuracy at the margins but still produce confident wrong picks; the question is about whether to guess at all, not how well to guess.
+- **D (correct):** Task 5.2 specifies that multiple customer matches require clarification — asking for additional identifiers — rather than heuristic selection. The principle is that an agent operating on financial actions has no business picking among ambiguous identities; doing so accepts a known false-positive risk in exchange for one less customer-facing turn. Apply this same approach for any disambiguation in trust-sensitive flows (account access, document retrieval, medical records). It beats the order-match heuristic runner-up because heuristics produce confidently wrong matches that audits catch only after the refund is gone.
 
 ---
 
@@ -4536,22 +4509,22 @@ D) Instruct the agent to ask the customer for an additional identifier (email, p
 **Stem:** Your team is writing the support agent's system prompt for escalation behavior. The current draft just says "escalate when appropriate." Production behavior is inconsistent — the agent escalates some routine refunds and resolves some policy-exception cases on its own. What addition to the prompt would most improve consistency?
 
 A) A long paragraph describing the philosophy of customer service and the importance of empathy in support interactions.
-B) Explicit escalation criteria with a few-shot block showing concrete examples of when to escalate versus when to resolve autonomously.
+B) Explicit escalation criteria with a few-shot block showing concrete examples of when to escalate versus resolve.
 C) A directive to always escalate when in doubt, since human review is cheaper than a wrong autonomous decision.
 D) A higher temperature setting so the model can be more creative in deciding when escalation is appropriate.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** This applies the Task 5.2 skill of adding explicit escalation criteria with few-shot examples demonstrating when to escalate versus resolve. The principle is that "appropriate" is too abstract to drive consistent behavior, and grounding the criteria in concrete contrasting examples is the highest-leverage prompt improvement. Reach for this pattern whenever a single phrase in a prompt is doing a lot of behavioral work — replace the phrase with criteria plus examples. It beats the always-escalate-when-in-doubt runner-up because the goal is consistency in both directions (don't over-escalate routine cases, don't under-escalate policy exceptions).
-- **C (plausible runner-up):** Defaulting to escalation when uncertain is a real and defensible pattern, particularly in high-stakes domains where false negatives are costly. It almost works because it would reduce one class of error (under-escalation). The reason it falls short here: the stem reports both over-escalation of routine refunds and under-escalation of policy exceptions, so a blanket "when in doubt, escalate" addresses only half the problem and burns human-agent capacity on cases the model should handle.
 - **A:** Philosophical framing doesn't translate to behavior change without concrete decision criteria.
+- **B (correct):** This applies the Task 5.2 skill of adding explicit escalation criteria with few-shot examples demonstrating when to escalate versus resolve. The principle is that "appropriate" is too abstract to drive consistent behavior, and grounding the criteria in concrete contrasting examples is the highest-leverage prompt improvement. Reach for this pattern whenever a single phrase in a prompt is doing a lot of behavioral work — replace the phrase with criteria plus examples. It beats the always-escalate-when-in-doubt runner-up because the goal is consistency in both directions (don't over-escalate routine cases, don't under-escalate policy exceptions).
+- **C:** Defaulting to escalation when uncertain is a real and defensible pattern, particularly in high-stakes domains where false negatives are costly. It almost works because it would reduce one class of error (under-escalation). The reason it falls short here: the stem reports both over-escalation of routine refunds and under-escalation of policy exceptions, so a blanket "when in doubt, escalate" addresses only half the problem and burns human-agent capacity on cases the model should handle.
 - **D:** Temperature affects token sampling, not policy reasoning; cranking it up makes the agent more random, not more consistent.
 
 ---
@@ -4575,7 +4548,7 @@ D) The high-confidence errors are statistically rare enough that the system is p
 
 **Explanation:**
 - **A (correct):** Task 5.2 explicitly identifies sentiment-based escalation and self-reported confidence scores as unreliable proxies for actual case complexity. The principle is that LLM-reported confidence isn't grounded in the world the way calibrated probability is — high confidence and wrong outcomes coexist frequently, and the right architectural response is to remove confidence from the gating path rather than retune it. You apply this same insight to any system that uses LLM self-rating as a control signal. It beats the threshold-tuning runner-up because the issue isn't where the threshold sits — it's that the underlying signal isn't fit for the job.
-- **B (plausible runner-up):** Threshold tuning is a real and frequently helpful exercise when an underlying signal is informative but the cut-point is wrong. It almost works because adjusting the threshold would change the ratio of false routes. The reason it falls short: the data shows both directions of error (escalating high-confidence cases, resolving high-confidence errors), which means the score isn't tracking the underlying truth at any threshold. The "above 0.9" appearing on both error sides is the diagnostic.
+- **B:** Threshold tuning is a real and frequently helpful exercise when an underlying signal is informative but the cut-point is wrong. It almost works because adjusting the threshold would change the ratio of false routes. The reason it falls short: the data shows both directions of error (escalating high-confidence cases, resolving high-confidence errors), which means the score isn't tracking the underlying truth at any threshold. The "above 0.9" appearing on both error sides is the diagnostic.
 - **C:** Fine-tuning self-reported confidence is brittle and out of scope for typical agent deployments; better to use a different gating signal.
 - **D:** 11% error on high-confidence cases is well outside what any customer support deployment treats as acceptable, especially for financial actions.
 
@@ -4587,21 +4560,21 @@ D) The high-confidence errors are statistically rare enough that the system is p
 
 A) Disable order-record-based duplicate detection entirely and always rely on the customer's stated experience for billing claims.
 B) Have the agent escalate after a single negative lookup since the customer's statement directly contradicts the system view.
-C) Recognize that the agent has insufficient ground truth to resolve the dispute and escalate, providing the human agent with the lookup result and the customer's statement.
+C) Recognize the agent has insufficient ground truth and escalate, providing the human agent the lookup result and customer's statement.
 D) Refund the customer immediately when their statement contradicts the order system, since customer-friendly defaults outperform investigation.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Task 5.2 lists "inability to make meaningful progress" as a canonical escalation trigger. The principle is that when the agent's available tools cannot reach the truth (here, the order system doesn't see the bank-side duplicate), continuing to push is not progress — it's friction. The right move is to escalate with structured context: what was checked, what the customer says, and what's missing. Reach for this whenever you detect a contradiction between system state and customer report on a financial action. It beats the immediate-after-one-lookup runner-up because the distinction is about *insufficient tooling*, not about lookup count.
-- **B (plausible runner-up):** Escalating on contradiction is the right behavior, and "after one lookup" gets very close to it. The miss is in framing: the principle isn't "escalate after one lookup" — it's "escalate when you've exhausted available evidence and progress isn't possible." A one-lookup rule could over-escalate cases where a second tool would resolve cleanly. The stem's phrasing emphasizes that the bank-side charge hasn't propagated, meaning the agent's tools fundamentally can't resolve this.
 - **A:** Always trusting customer statements over system records invites fraud and operational chaos.
+- **B:** Escalating on contradiction is the right behavior, and "after one lookup" gets very close to it. The miss is in framing: the principle isn't "escalate after one lookup" — it's "escalate when you've exhausted available evidence and progress isn't possible." A one-lookup rule could over-escalate cases where a second tool would resolve cleanly. The stem's phrasing emphasizes that the bank-side charge hasn't propagated, meaning the agent's tools fundamentally can't resolve this.
+- **C (correct):** Task 5.2 lists "inability to make meaningful progress" as a canonical escalation trigger. The principle is that when the agent's available tools cannot reach the truth (here, the order system doesn't see the bank-side duplicate), continuing to push is not progress — it's friction. The right move is to escalate with structured context: what was checked, what the customer says, and what's missing. Reach for this whenever you detect a contradiction between system state and customer report on a financial action. It beats the immediate-after-one-lookup runner-up because the distinction is about *insufficient tooling*, not about lookup count.
 - **D:** Auto-refunding on contradiction is precisely the pattern that creates duplicate refunds when the original charge does eventually appear in the system.
 
 ---
@@ -4613,21 +4586,21 @@ D) Refund the customer immediately when their statement contradicts the order sy
 A) The status field uses "error" instead of the more conventional "failure" naming, which confuses downstream parsing.
 B) The message is in English and should be in a structured machine-readable enum for reliable handling.
 C) The response is missing a timestamp field, making it hard to know when the failure occurred during the workflow.
-D) The generic error hides context — failure type, what was attempted, partial results, and alternative approaches — that the coordinator needs to recover intelligently.
+D) The generic error message hides recovery-critical context — failure type, attempt, partial results, and alternatives.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.3 is specifically about returning structured error context — failure type, what was attempted, partial results, alternative approaches — so the coordinator can decide whether to retry, route to a different subagent, accept partial output, or terminate. The principle is that generic statuses like "search unavailable" treat the coordinator as a dumb supervisor that can only proceed or halt. You apply this in any multi-agent system where subagents experience partial failures. It beats the enum runner-up because adding a single enum doesn't solve the deeper problem of missing context — it just makes the status field more machine-friendly without telling the coordinator what to do next.
-- **B (plausible runner-up):** Machine-readable enums for error types are real and useful — they support consistent dispatch logic and avoid free-text parsing. It almost works because an enum would in fact let the coordinator pattern-match. The reason it falls short: an enum alone (e.g., "TIMEOUT") still doesn't tell the coordinator what query was attempted, what partial results exist, or what alternatives the subagent considered. Task 5.3 emphasizes the full structured-context bundle, not just the status name.
 - **A:** "error" vs. "failure" is cosmetic naming; not the substantive issue.
+- **B:** Machine-readable enums for error types are real and useful — they support consistent dispatch logic and avoid free-text parsing. It almost works because an enum would in fact let the coordinator pattern-match. The reason it falls short: an enum alone (e.g., "TIMEOUT") still doesn't tell the coordinator what query was attempted, what partial results exist, or what alternatives the subagent considered. Task 5.3 emphasizes the full structured-context bundle, not just the status name.
 - **C:** Timestamps are nice-to-have but not the gating reliability issue described.
+- **D (correct):** Task 5.3 is specifically about returning structured error context — failure type, what was attempted, partial results, alternative approaches — so the coordinator can decide whether to retry, route to a different subagent, accept partial output, or terminate. The principle is that generic statuses like "search unavailable" treat the coordinator as a dumb supervisor that can only proceed or halt. You apply this in any multi-agent system where subagents experience partial failures. It beats the enum runner-up because adding a single enum doesn't solve the deeper problem of missing context — it just makes the status field more machine-friendly without telling the coordinator what to do next.
 
 ---
 
@@ -4635,7 +4608,7 @@ D) The generic error hides context — failure type, what was attempted, partial
 
 **Stem:** Your document-analysis subagent fetches a PDF; the fetch times out. Your web-search subagent runs a query and gets zero matching documents. Both subagents currently return the identical response `{"results": []}` to the coordinator. The coordinator handles both cases the same way: it logs "no findings" and moves on. You're seeing reports later that should have referenced the unavailable PDF. What change should you make?
 
-A) Have each subagent return distinguishable structured responses — access failures (with retry info, attempted target, error type) versus valid empty results.
+A) Have each subagent return distinguishable structured responses — access failures (retry info, target, error type) versus empty results.
 B) Add a timeout-only retry policy at the coordinator that automatically re-issues any subagent call that completed in less than 100ms.
 C) Always interpret `{"results": []}` as a possible failure and re-run the subagent up to three times before accepting an empty result.
 D) Increase the subagent's timeout budget so PDF fetches less frequently fail, reducing the chance of false-negative findings.
@@ -4644,14 +4617,14 @@ D) Increase the subagent's timeout budget so PDF fetches less frequently fail, r
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** This applies the Task 5.3 skill of distinguishing access failures from valid empty results in error reporting so the coordinator can make appropriate decisions. The principle is that "couldn't fetch" and "fetched, nothing found" are fundamentally different states for downstream reasoning, and collapsing them loses information the coordinator needs. Apply this same distinction in any system where absence-of-result and failure-to-attempt look alike — log analytics, web scraping, database queries against external systems. It beats the always-retry runner-up because retrying valid empty results wastes work without adding signal.
-- **C (plausible runner-up):** Retry-on-empty is a real pattern that can recover from flaky systems, especially when transient failures coexist with low expected zero-rates. It almost works because, in practice, many of the empties in question were timeouts. The reason it falls short: retrying every empty result is wasteful when most are legitimate, and it doesn't fix the underlying ambiguity — the coordinator still doesn't know whether the retry result is "really empty" or "timed out three times." The principled fix is to make the two states distinguishable upfront.
 - **B:** A duration heuristic is fragile and conflates fast successes with fast failures.
+- **C:** Retry-on-empty is a real pattern that can recover from flaky systems, especially when transient failures coexist with low expected zero-rates. It almost works because, in practice, many of the empties in question were timeouts. The reason it falls short: retrying every empty result is wasteful when most are legitimate, and it doesn't fix the underlying ambiguity — the coordinator still doesn't know whether the retry result is "really empty" or "timed out three times." The principled fix is to make the two states distinguishable upfront.
 - **D:** Bigger timeouts may help fewer PDFs fail, but it doesn't fix the reporting ambiguity that hid the failures from the coordinator.
 
 ---
@@ -4661,23 +4634,23 @@ D) Increase the subagent's timeout budget so PDF fetches less frequently fail, r
 **Stem:** Your web-search subagent encounters a single transient 503 response from one of its four target sources. It currently returns an error to the coordinator with that 503 as the failure type, and the coordinator escalates by aborting the research task. The other three sources succeeded with rich content. What architectural change is most appropriate?
 
 A) Have the coordinator absorb the abort logic and silently treat the subagent's error as success when at least one source worked.
-B) Have the subagent implement local retry for transient failures and only propagate errors it can't resolve, including what was attempted and any partial results.
+B) Have the subagent retry locally on transient failures and propagate only errors it can't resolve, with attempts and partial re
 C) Replace the 503-sensitive source with a more reliable alternative and remove the 503-handling code path entirely.
 D) Centralize all retry policy in the coordinator so subagents become pure pass-throughs that propagate raw HTTP responses.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** Task 5.3 explicitly recommends having subagents implement local recovery for transient failures and only propagate errors they cannot resolve, including what was attempted and partial results. The principle is layered reliability: each agent is responsible for handling failure modes within its own scope, and the coordinator should only see what the subagent genuinely couldn't fix. Apply this anywhere you have a tiered architecture — local retries for transient infrastructure issues, escalation for persistent ones. It beats the coordinator-centralizes-retries runner-up because the coordinator lacks the subagent's local context about which source failed and why.
-- **D (plausible runner-up):** Centralizing retry policy is a legitimate design choice in some systems — it gives you one place to reason about backoff, jitter, and budget. It almost works because consolidation does help observability. The reason it falls short here: the coordinator doesn't naturally know which of the four sources is retryable or what state the subagent was in mid-fetch. Local recovery preserves locality of knowledge, which is why Task 5.3 prefers it for transient cases.
 - **A:** Silently treating errors as success is precisely the anti-pattern Task 5.3 warns against — it hides information from the coordinator.
+- **B (correct):** Task 5.3 explicitly recommends having subagents implement local recovery for transient failures and only propagate errors they cannot resolve, including what was attempted and partial results. The principle is layered reliability: each agent is responsible for handling failure modes within its own scope, and the coordinator should only see what the subagent genuinely couldn't fix. Apply this anywhere you have a tiered architecture — local retries for transient infrastructure issues, escalation for persistent ones. It beats the coordinator-centralizes-retries runner-up because the coordinator lacks the subagent's local context about which source failed and why.
 - **C:** Replacing a source might be sensible operationally but doesn't fix the architectural retry pattern; the next flaky source will fail the same way.
+- **D:** Centralizing retry policy is a legitimate design choice in some systems — it gives you one place to reason about backoff, jitter, and budget. It almost works because consolidation does help observability. The reason it falls short here: the coordinator doesn't naturally know which of the four sources is retryable or what state the subagent was in mid-fetch. Local recovery preserves locality of knowledge, which is why Task 5.3 prefers it for transient cases.
 
 ---
 
@@ -4687,22 +4660,22 @@ D) Centralize all retry policy in the coordinator so subagents become pure pass-
 
 A) Add a top-line confidence percentage at the start of the report so readers can quickly gauge overall reliability.
 B) Append a bibliography section listing every source the subagents attempted, regardless of fetch success.
-C) Structure the report with explicit coverage annotations marking which findings are well-supported versus which topic areas have gaps due to unavailable sources.
+C) Structure the report with explicit coverage annotations marking well-supported findings versus areas with gaps.
 D) Withhold any topic area that doesn't have at least two successful source fetches, so unsupported claims never appear.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** Task 5.3 specifies structuring synthesis output with coverage annotations indicating which findings are well-supported versus which topic areas have gaps due to unavailable sources. The principle is to make uncertainty visible at the point of consumption — the reader should know what was confirmed and what was partial without having to dig through subagent logs. Apply this whenever you produce aggregated outputs from variable-reliability inputs (research reports, market analyses, threat assessments). It beats the withhold-incomplete-topics runner-up because withholding hides the gap entirely, which is the very behavior stakeholders are complaining about.
-- **D (plausible runner-up):** Refusing to report on under-sourced topics is a defensible conservative stance, and there are contexts where it's right — regulatory reports, formal evidence summaries. It almost works because it does prevent surprising single-source claims. The reason it falls short here: stakeholders need to know that certain topics were investigated but had source gaps, otherwise they may falsely believe the topic wasn't relevant. Coverage annotations preserve the signal "we looked here and couldn't confirm" rather than hiding it.
 - **A:** A single overall percentage compresses away the granularity stakeholders need; coverage is uneven per topic.
 - **B:** A flat bibliography doesn't tie sources to claims or indicate gap structure.
+- **C (correct):** Task 5.3 specifies structuring synthesis output with coverage annotations indicating which findings are well-supported versus which topic areas have gaps due to unavailable sources. The principle is to make uncertainty visible at the point of consumption — the reader should know what was confirmed and what was partial without having to dig through subagent logs. Apply this whenever you produce aggregated outputs from variable-reliability inputs (research reports, market analyses, threat assessments). It beats the withhold-incomplete-topics runner-up because withholding hides the gap entirely, which is the very behavior stakeholders are complaining about.
+- **D:** Refusing to report on under-sourced topics is a defensible conservative stance, and there are contexts where it's right — regulatory reports, formal evidence summaries. It almost works because it does prevent surprising single-source claims. The reason it falls short here: stakeholders need to know that certain topics were investigated but had source gaps, otherwise they may falsely believe the topic wasn't relevant. Coverage annotations preserve the signal "we looked here and couldn't confirm" rather than hiding it.
 
 ---
 
@@ -4718,16 +4691,16 @@ D) The coordinator is terminating the entire workflow on a single subagent failu
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.3 names terminating entire workflows on single failures as one of the two key anti-patterns (the other being silently suppressing errors). The principle is that a partial result is more valuable than no result for the user, provided you flag what's missing. Apply this anywhere subagents can fail independently — research, multi-doc extraction, aggregated data fetches. It beats the multi-agent runner-up because the immediate fix is to handle the partial output appropriately, not to add redundancy that the architecture doesn't need.
-- **C (plausible runner-up):** Multi-subagent parallelization with consensus is a real reliability pattern and a reasonable long-term improvement. It almost works because redundancy would reduce the impact of any single failure. The reason it falls short as the answer: the question asks for the most direct anti-pattern, and Task 5.3 calls out the termination behavior explicitly — adding more agents is a heavier architectural change that doesn't fix the termination logic on its own.
 - **A:** Trusting subagent status is reasonable when the status is structured; the issue here is about handling failure, not validating success.
 - **B:** Prose vs. structured outputs is a separate Task 5.1 concern and doesn't address the termination-on-failure anti-pattern.
+- **C:** Multi-subagent parallelization with consensus is a real reliability pattern and a reasonable long-term improvement. It almost works because redundancy would reduce the impact of any single failure. The reason it falls short as the answer: the question asks for the most direct anti-pattern, and Task 5.3 calls out the termination behavior explicitly — adding more agents is a heavier architectural change that doesn't fix the termination logic on its own.
+- **D (correct):** Task 5.3 names terminating entire workflows on single failures as one of the two key anti-patterns (the other being silently suppressing errors). The principle is that a partial result is more valuable than no result for the user, provided you flag what's missing. Apply this anywhere subagents can fail independently — research, multi-doc extraction, aggregated data fetches. It beats the multi-agent runner-up because the immediate fix is to handle the partial output appropriately, not to add redundancy that the architecture doesn't need.
 
 ---
 
@@ -4735,7 +4708,7 @@ D) The coordinator is terminating the entire workflow on a single subagent failu
 
 **Stem:** A subagent reports `{"status":"partial","attempted_query":"declining cod stocks 1990-2020","retrieved":3,"missing":1,"failed_sources":["fishery_bulletin_2018"]}`. The coordinator can now decide whether to (a) retry only the failed source, (b) proceed with three sources annotated, or (c) escalate to a human researcher. What property of this error format makes the coordinator's decision possible?
 
-A) It includes structured failure context — failure type, attempted query, partial results, and what specifically failed — to enable intelligent recovery.
+A) It carries structured failure context — failure type, attempted query, partial results, what failed — exactly what recovery needs.
 B) It uses JSON instead of plain text, which is the canonical machine-readable format for inter-agent communication.
 C) It includes a status field with a value other than "ok," which signals to the coordinator that special handling is needed.
 D) It distinguishes "partial" from "error" status, which is the only meaningful axis the coordinator needs for recovery decisions.
@@ -4744,15 +4717,15 @@ D) It distinguishes "partial" from "error" status, which is the only meaningful 
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** This directly tests recognition of the Task 5.3 principle that structured error context — failure type, attempted query, partial results, and alternatives — is what enables intelligent coordinator recovery. The example payload includes attempted query, retrieved count, and the specific failed source, which together let the coordinator route to any of the three recovery paths. Apply this whenever you design a subagent's failure contract. It beats the "partial vs error" runner-up because the distinguishing status alone wouldn't tell the coordinator which source failed or what was attempted.
-- **D (plausible runner-up):** The partial/error distinction is real and useful — Task 5.3 cares about distinguishing access failures from valid empty results, and "partial" is a related concept. It almost works because the status field does help the coordinator choose. The reason it falls short: the status alone wouldn't enable the granular retry-only-failed-source decision; that requires the failed_sources field, the attempted_query, and the partial counts. Structure beyond status is the deeper insight.
 - **B:** JSON is a transport choice; the substantive enabler is the schema content, not the format.
 - **C:** A non-ok status flags that something's different but doesn't supply the data needed to choose among recovery paths.
+- **D:** The partial/error distinction is real and useful — Task 5.3 cares about distinguishing access failures from valid empty results, and "partial" is a related concept. It almost works because the status field does help the coordinator choose. The reason it falls short: the status alone wouldn't enable the granular retry-only-failed-source decision; that requires the failed_sources field, the attempted_query, and the partial counts. Structure beyond status is the deeper insight.
 
 ---
 
@@ -4761,22 +4734,22 @@ D) It distinguishes "partial" from "error" status, which is the only meaningful 
 **Stem:** Your document-analysis subagent occasionally hits a parsing edge case where it gets 60% through a long PDF before encountering an unparseable embedded table. It currently returns `{"status":"error","reason":"parse_failure"}` and the coordinator discards the 60% of successful analysis. What change best aligns with Task 5.3 guidance?
 
 A) Have the subagent default to a streaming response so partial output is always available, regardless of where the parse failed.
-B) Have the subagent return structured output containing both the partial successful analysis and a description of where parsing failed and why.
+B) Have the subagent return structured output with both the partial successful analysis and a description of where parsing failed.
 C) Have the coordinator preemptively split long PDFs into single-page documents so any parse failure is isolated to one page's loss.
 D) Have the coordinator retry the entire PDF analysis on a different subagent instance, hoping the parse failure was transient.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Task 5.3 directly calls for returning structured error context that includes partial results alongside failure-type information so the coordinator can decide whether the partial is enough. The principle is that information already gathered shouldn't be thrown away by an all-or-nothing return contract. Apply this anywhere subagents do incremental work that can fail mid-stream — multi-step extraction, multi-section translation, multi-stage transformation. It beats the document-splitting runner-up because returning partials with context handles the issue at the source rather than restructuring how documents flow.
-- **C (plausible runner-up):** Pre-splitting PDFs is a real and useful technique, especially when downstream tools have known per-input failure modes. It almost works here because per-page isolation would in fact reduce the damage from a parse failure. The reason it falls short: it shifts complexity to the coordinator without changing the subagent's defective return contract, and many parse failures are cross-page (tables that span pages), making single-page isolation insufficient. Fixing the contract addresses the broader anti-pattern.
 - **A:** Streaming is an output-channel pattern; the question is about return-payload structure once an error occurs, not about delivery cadence.
+- **B (correct):** Task 5.3 directly calls for returning structured error context that includes partial results alongside failure-type information so the coordinator can decide whether the partial is enough. The principle is that information already gathered shouldn't be thrown away by an all-or-nothing return contract. Apply this anywhere subagents do incremental work that can fail mid-stream — multi-step extraction, multi-section translation, multi-stage transformation. It beats the document-splitting runner-up because returning partials with context handles the issue at the source rather than restructuring how documents flow.
+- **C:** Pre-splitting PDFs is a real and useful technique, especially when downstream tools have known per-input failure modes. It almost works here because per-page isolation would in fact reduce the damage from a parse failure. The reason it falls short: it shifts complexity to the coordinator without changing the subagent's defective return contract, and many parse failures are cross-page (tables that span pages), making single-page isolation insufficient. Fixing the contract addresses the broader anti-pattern.
 - **D:** Retry on a different instance assumes the failure is environmental; deterministic parse failures will fail identically on every instance.
 
 ---
@@ -4787,21 +4760,21 @@ D) Have the coordinator retry the entire PDF analysis on a different subagent in
 
 A) The developer's prompt style has drifted over the session, becoming less specific and leading to vaguer answers.
 B) The codebase has multiple refund handlers and Claude is now correctly noting the ambiguity it missed earlier.
-C) Context degradation in an extended session — Claude is referencing "typical patterns" rather than the specific classes discovered earlier.
+C) Context degradation across an extended session — Claude is leaning on "typical patterns" rather than discovered classes.
 D) A model version change occurred mid-session, switching to a model with different knowledge of the codebase.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** This is a textbook description of the Task 5.4 context-degradation phenomenon. The principle is that as a single session accumulates verbose exploration output, the model begins to lose grip on specific entities it discovered earlier and falls back to generic phrasing or "typical patterns." Recognize this signature whenever consistent specific answers degrade into vague or generic ones over the same session. The right mitigation — scratchpad files, summarization checkpoints, subagent delegation — depends on the diagnosis, which is why pinning down the cause matters. It beats the multiple-handlers runner-up because the inconsistency includes vague "typical handler" wording, not just naming alternatives.
-- **B (plausible runner-up):** Codebases often do have multiple refund handlers, and a careful model noting genuine ambiguity is a real phenomenon worth distinguishing. It almost works because two of the three answers are plausible class names. The reason it falls short: a model genuinely catching ambiguity would say "there are multiple — `RefundProcessor` and `OrderService` — which one do you mean?" not "the typical refund handler class." The drift to generic phrasing is the tell.
 - **A:** Prompt drift can affect quality, but it doesn't typically produce the specific symptom of generic placeholder phrasing.
+- **B:** Codebases often do have multiple refund handlers, and a careful model noting genuine ambiguity is a real phenomenon worth distinguishing. It almost works because two of the three answers are plausible class names. The reason it falls short: a model genuinely catching ambiguity would say "there are multiple — `RefundProcessor` and `OrderService` — which one do you mean?" not "the typical refund handler class." The drift to generic phrasing is the tell.
+- **C (correct):** This is a textbook description of the Task 5.4 context-degradation phenomenon. The principle is that as a single session accumulates verbose exploration output, the model begins to lose grip on specific entities it discovered earlier and falls back to generic phrasing or "typical patterns." Recognize this signature whenever consistent specific answers degrade into vague or generic ones over the same session. The right mitigation — scratchpad files, summarization checkpoints, subagent delegation — depends on the diagnosis, which is why pinning down the cause matters. It beats the multiple-handlers runner-up because the inconsistency includes vague "typical handler" wording, not just naming alternatives.
 - **D:** Model versions don't switch mid-session in normal deployments; this is rarely the actual cause.
 
 ---
@@ -4813,21 +4786,21 @@ D) A model version change occurred mid-session, switching to a model with differ
 A) Restart the session from scratch and let Claude rediscover the codebase, since the current context is corrupted.
 B) Manually paste in a short list of files-already-edited at the start of each turn so Claude has the running state.
 C) Switch to a model with a larger context window and continue the same conversation with no other changes.
-D) Use `/compact` to reduce context usage by summarizing the conversation while preserving the high-level state of progress.
+D) Use `/compact` to reduce overall context usage by summarizing the conversation while preserving the high-level state.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.4 specifically calls out using `/compact` to reduce context usage during extended exploration sessions when context fills with verbose discovery output. The principle is that `/compact` summarizes the prior conversation into a condensed form while preserving the gist, freeing up effective context budget for continued work. Reach for this whenever a long Claude Code session starts losing track of state but you don't want to start over. It beats the manual-files-list runner-up because compaction handles the entire context (not just one piece of state) and is the canonical tool for this exact situation.
-- **B (plausible runner-up):** A manually maintained files-edited list is a legitimate scratchpad-style pattern and can work in a pinch. It almost works because it directly supplies the state that's being forgotten. The reason it falls short: it addresses only one symptom (file-edit tracking) while leaving the rest of the context bloated, and `/compact` is the purpose-built tool for the broader problem. Compaction also gives Claude a clean summarized base to build on rather than competing with stale verbose history.
 - **A:** Restarting loses the accumulated session understanding that the developer explicitly wants to preserve.
+- **B:** A manually maintained files-edited list is a legitimate scratchpad-style pattern and can work in a pinch. It almost works because it directly supplies the state that's being forgotten. The reason it falls short: it addresses only one symptom (file-edit tracking) while leaving the rest of the context bloated, and `/compact` is the purpose-built tool for the broader problem. Compaction also gives Claude a clean summarized base to build on rather than competing with stale verbose history.
 - **C:** A bigger window delays the problem rather than fixing the context-quality dilution.
+- **D (correct):** Task 5.4 specifically calls out using `/compact` to reduce context usage during extended exploration sessions when context fills with verbose discovery output. The principle is that `/compact` summarizes the prior conversation into a condensed form while preserving the gist, freeing up effective context budget for continued work. Reach for this whenever a long Claude Code session starts losing track of state but you don't want to start over. It beats the manual-files-list runner-up because compaction handles the entire context (not just one piece of state) and is the canonical tool for this exact situation.
 
 ---
 
@@ -4835,7 +4808,7 @@ D) Use `/compact` to reduce context usage by summarizing the conversation while 
 
 **Stem:** Your main coordinator agent is helping a developer trace a deeply nested dependency graph in a legacy module. To investigate "all files importing the `RefundQueue` class," running the trace inline would pull dozens of file contents into the main session. You want to keep the main agent focused on high-level coordination. What is the most appropriate design?
 
-A) Spawn a subagent to investigate the import graph, returning a concise summary of findings while keeping verbose output isolated from the main session.
+A) Spawn a subagent to investigate the import graph, returning a concise summary while keeping verbose output isolated.
 B) Run the trace inline in the main agent but use a longer system prompt that instructs it to ignore irrelevant file contents.
 C) Have the developer run `grep -r RefundQueue` manually and paste only the summarized results into the main session.
 D) Have the main agent open and read each file one at a time, summarizing as it goes to keep the active context lean.
@@ -4844,15 +4817,15 @@ D) Have the main agent open and read each file one at a time, summarizing as it 
 
 **Plausibility:**
 - A: plausible-correct
-- D: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
 - **A (correct):** This applies the Task 5.4 skill of spawning subagents to investigate specific questions while the main agent preserves high-level coordination. The principle is context isolation: verbose exploration output stays in the subagent's working memory and only the distilled findings reach the main agent. Apply this for any well-scoped investigation that would otherwise dump bulk content into the main session — dependency tracing, test-file enumeration, log analysis. It beats the read-one-at-a-time runner-up because even with summarization, the main agent still accumulates file contents in its working memory before summarizing.
-- **D (plausible runner-up):** Streaming reads with inline summarization is a real approach and can work for small explorations. It almost works because it does try to keep the running context lean. The reason it falls short: each file's content still passes through the main agent's context before being summarized, polluting the high-level coordination flow. Subagent delegation cleanly separates the noisy investigation from the main agent's working memory.
 - **B:** Prompt-only "ignore irrelevant content" instructions don't actually stop the tokens from consuming context budget.
 - **C:** Outsourcing to the human defeats the purpose of having Claude do the trace; the human's manual summary is also less reliable than a focused subagent.
+- **D:** Streaming reads with inline summarization is a real approach and can work for small explorations. It almost works because it does try to keep the running context lean. The reason it falls short: each file's content still passes through the main agent's context before being summarized, polluting the high-level coordination flow. Subagent delegation cleanly separates the noisy investigation from the main agent's working memory.
 
 ---
 
@@ -4868,14 +4841,14 @@ D) Rely on Claude's training-data memory of common codebase patterns rather than
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Dumping a session-summary monologue is a real and tempting pattern — it's low-effort and captures everything. It almost works because the new session does start with prior context loaded. The reason it falls short: an unstructured monologue inherits the same volume/quality tradeoff the original session suffered, while a scratchpad lets you choose what's important. Long-form transcripts also re-introduce middle-of-context dilution as they accumulate across days.
 - **B (correct):** Task 5.4 explicitly recommends having agents maintain scratchpad files recording key findings, then referencing them for subsequent questions. The principle is that file-system persistence survives any context boundary — a fresh session can pick up where the previous one left off without re-explanation. Apply this any time investigation spans multiple sessions, machines, or team members. It beats the verbose monologue runner-up because a curated scratchpad is structured, signal-dense, and reusable, while a transcript-style monologue carries forward noise and bloats the next session's starting context.
-- **A (plausible runner-up):** Dumping a session-summary monologue is a real and tempting pattern — it's low-effort and captures everything. It almost works because the new session does start with prior context loaded. The reason it falls short: an unstructured monologue inherits the same volume/quality tradeoff the original session suffered, while a scratchpad lets you choose what's important. Long-form transcripts also re-introduce middle-of-context dilution as they accumulate across days.
 - **C:** Indefinite sessions accumulate exactly the degradation Task 5.4 warns about.
 - **D:** Training-data memory of "common patterns" is the *opposite* of what you want — it's the symptom of context degradation, not a solution.
 
@@ -4887,21 +4860,21 @@ D) Rely on Claude's training-data memory of common codebase patterns rather than
 
 A) Add a wrapper that retries the entire exploration from scratch up to three times if the previous attempt didn't complete.
 B) Have the coordinator's prompt include an instruction to "remember where you left off if interrupted," relying on prompt-driven recovery.
-C) Have each subagent export structured state to a known location and the coordinator load a manifest on resume to inject into agent prompts.
+C) Have each subagent export structured state to a known location and the coordinator load a manifest on resume to inject into prompts.
 D) Increase host machine reliability — provision redundant hardware to eliminate the crash class rather than handling recovery in software.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** This applies the Task 5.4 skill of designing crash recovery using structured agent state exports (manifests) that the coordinator loads on resume and injects into agent prompts. The principle is that durability requires writing state to a known location outside process memory, and resumption requires deterministic reconstruction of where each agent was. Apply this for any long-running multi-agent workflow where mid-flight loss is unacceptable (long syntheses, multi-day data extraction). It beats the retry-from-scratch runner-up because retrying loses all progress and is expensive on long explorations, while structured resume preserves the investment.
-- **A (plausible runner-up):** Retry-from-scratch is a real and acceptable strategy for short, idempotent operations where re-running is cheap. It almost works because it does eventually produce a complete result if one of the attempts succeeds end-to-end. The reason it falls short here: the scenario is a long-running exploration where re-running every subagent is wasteful, and there's no guarantee a fresh run won't hit the same kind of failure at the same place. Stateful resume is the proper pattern.
+- **A:** Retry-from-scratch is a real and acceptable strategy for short, idempotent operations where re-running is cheap. It almost works because it does eventually produce a complete result if one of the attempts succeeds end-to-end. The reason it falls short here: the scenario is a long-running exploration where re-running every subagent is wasteful, and there's no guarantee a fresh run won't hit the same kind of failure at the same place. Stateful resume is the proper pattern.
 - **B:** Prompt-driven "remember where you left off" can't work because the model has no memory of the prior in-process state after a crash.
+- **C (correct):** This applies the Task 5.4 skill of designing crash recovery using structured agent state exports (manifests) that the coordinator loads on resume and injects into agent prompts. The principle is that durability requires writing state to a known location outside process memory, and resumption requires deterministic reconstruction of where each agent was. Apply this for any long-running multi-agent workflow where mid-flight loss is unacceptable (long syntheses, multi-day data extraction). It beats the retry-from-scratch runner-up because retrying loses all progress and is expensive on long explorations, while structured resume preserves the investment.
 - **D:** Hardware redundancy reduces failure rate but doesn't provide resume capability for the inevitable failures that still occur.
 
 ---
@@ -4918,16 +4891,16 @@ D) Summarize the key findings from the current exploration phase, then inject th
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.4 explicitly recommends summarizing key findings from one exploration phase before spawning subagents, then injecting summaries into initial context. The principle is that a curated, condensed handoff gives each subagent the signal it needs without the noise that would dilute its working memory. Apply this whenever you fan out from a coordinator that has accumulated context the subagents need but shouldn't inherit verbosely. It beats the transcript-passing runner-up because the transcript carries forward all the verbose exploration that was the original problem.
-- **A (plausible runner-up):** Having subagents ingest the full transcript is a real pattern and is occasionally appropriate — when the subagents need raw evidence the summary would omit. It almost works because it does provide full context. The reason it falls short here: the question stipulates "simplest effective preparation," and dumping a long transcript into each of three subagents wastes their context budgets on noise that the main agent has already filtered into findings.
-- **C:** Skipping handoff means subagents rediscover what the main agent already knows, wasting effort and time.
+- **A:** Having subagents ingest the full transcript is a real pattern and is occasionally appropriate — when the subagents need raw evidence the summary would omit. It almost works because it does provide full context. The reason it falls short here: the question stipulates "simplest effective preparation," and dumping a long transcript into each of three subagents wastes their context budgets on noise that the main agent has already filtered into findings.
 - **B:** Subagents don't share context windows with the coordinator; they have their own isolated working memory.
+- **C:** Skipping handoff means subagents rediscover what the main agent already knows, wasting effort and time.
+- **D (correct):** Task 5.4 explicitly recommends summarizing key findings from one exploration phase before spawning subagents, then injecting summaries into initial context. The principle is that a curated, condensed handoff gives each subagent the signal it needs without the noise that would dilute its working memory. Apply this whenever you fan out from a coordinator that has accumulated context the subagents need but shouldn't inherit verbosely. It beats the transcript-passing runner-up because the transcript carries forward all the verbose exploration that was the original problem.
 
 ---
 
@@ -4935,7 +4908,7 @@ D) Summarize the key findings from the current exploration phase, then inject th
 
 **Stem:** Over a long codebase exploration, you've asked Claude five questions in sequence: about authentication, then refunds, then logging, then sessions, then now back to authentication. Claude's answer about authentication on question 5 contradicts what it said on question 1 — it now references "typical auth patterns" instead of the specific `AuthHandler` class it identified initially. You want to prevent this drift. What's the most direct mitigation?
 
-A) Maintain a scratchpad file that records the key findings from each topic (the specific `AuthHandler` class identified in question 1), referenced when revisiting topics.
+A) Maintain a scratchpad file recording findings per topic (the specific `AuthHandler` class), referenced when revisiting.
 B) Constrain the developer to one topic per session, so Claude doesn't have to context-switch and lose specific entity references.
 C) Add `temperature: 0` to all calls so Claude's answers are perfectly deterministic and can't contradict each other.
 D) Run a second Claude instance in parallel that fact-checks every answer of the first instance against earlier conversation turns.
@@ -4950,7 +4923,7 @@ D) Run a second Claude instance in parallel that fact-checks every answer of the
 
 **Explanation:**
 - **A (correct):** This applies the Task 5.4 skill of using scratchpad files to record key findings and counteract context degradation when revisiting topics. The principle is that the specific entities discovered earlier (the `AuthHandler` class name) deserve durable storage outside the conversation, so revisiting the topic loads the precise reference rather than relying on Claude's degraded recall. Apply this any time exploration cycles back through previously visited topics. It beats the one-topic-per-session runner-up because it preserves the natural exploration flow rather than constraining the human.
-- **B (plausible runner-up):** Single-topic sessions are a real productivity pattern and do reduce context-switching costs. They almost work because they avoid the specific drift seen here. The reason they fall short: real exploration is rarely linear, and forcing the developer to silo by topic is an organizational cost the question hints at avoiding. The scratchpad pattern preserves the freedom to revisit while keeping facts stable.
+- **B:** Single-topic sessions are a real productivity pattern and do reduce context-switching costs. They almost work because they avoid the specific drift seen here. The reason they fall short: real exploration is rarely linear, and forcing the developer to silo by topic is an organizational cost the question hints at avoiding. The scratchpad pattern preserves the freedom to revisit while keeping facts stable.
 - **C:** Temperature 0 affects sampling determinism, not factual recall from long context.
 - **D:** Running a fact-checker doubles cost and complexity for what the scratchpad pattern solves directly.
 
@@ -4961,23 +4934,23 @@ D) Run a second Claude instance in parallel that fact-checks every answer of the
 **Stem:** Your extraction pipeline reports 97% accuracy on validation data and you're considering reducing human review to spot-checks. Before automating high-confidence extractions, your QA lead asks for a breakdown by document type. The breakdown shows 99% accuracy on invoices, 98% on purchase orders, but 78% on multi-party contracts. What does this tell you?
 
 A) Aggregate accuracy is the correct headline figure; the contract category is a small slice and doesn't materially affect overall reliability.
-B) Aggregate accuracy masks poor performance on a specific document type, so contracts shouldn't be automated until their accuracy improves.
+B) Aggregate accuracy masks the poor performance on a specific document category, so contracts should not be automated until their accuracy improves.
 C) The contract accuracy will naturally rise toward the average over time as the model sees more contract examples through ongoing usage.
 D) The 78% figure is likely a sampling artifact and would converge to 97% with a larger validation set.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
-- D: plausible-runner-up
 - A: implausible
+- B: plausible-correct
 - C: implausible
+- D: plausible-runner-up
 
 **Explanation:**
-- **B (correct):** Task 5.5 explicitly warns that aggregate accuracy metrics may mask poor performance on specific document types or fields. The principle is that an overall number averages out the worst segments, and automating based on aggregate accuracy will produce disproportionate errors in those weakest segments. Apply this any time you're considering reducing human review on a heterogeneous pipeline — always validate per-segment before per-aggregate. It beats the sampling-artifact runner-up because the 20-point gap is too large to attribute to variance and the right move is to investigate the segment, not dismiss it.
-- **D (plausible runner-up):** Sample-size variance is a real concern, and small validation slices can produce unstable accuracy estimates. It almost works because if the contracts slice were tiny, the 78% might be noise. The reason it falls short: the appropriate response to a worrying segment metric isn't to dismiss it as noise but to investigate — either confirm with more samples or treat it as real until disproven. Walking past a 20-point segment gap because it might be noise is precisely the risk Task 5.5 warns about.
 - **A:** Treating aggregate as the headline misses the exact failure Task 5.5 calls out.
+- **B (correct):** Task 5.5 explicitly warns that aggregate accuracy metrics may mask poor performance on specific document types or fields. The principle is that an overall number averages out the worst segments, and automating based on aggregate accuracy will produce disproportionate errors in those weakest segments. Apply this any time you're considering reducing human review on a heterogeneous pipeline — always validate per-segment before per-aggregate. It beats the sampling-artifact runner-up because the 20-point gap is too large to attribute to variance and the right move is to investigate the segment, not dismiss it.
 - **C:** "Will improve over time" is not a deployment-readiness criterion.
+- **D:** Sample-size variance is a real concern, and small validation slices can produce unstable accuracy estimates. It almost works because if the contracts slice were tiny, the 78% might be noise. The reason it falls short: the appropriate response to a worrying segment metric isn't to dismiss it as noise but to investigate — either confirm with more samples or treat it as real until disproven. Walking past a 20-point segment gap because it might be noise is precisely the risk Task 5.5 warns about.
 
 ---
 
@@ -4987,21 +4960,21 @@ D) The 78% figure is likely a sampling artifact and would converge to 97% with a
 
 A) Randomly sample 1% of all extractions for human review regardless of confidence to maintain a baseline error-rate measurement.
 B) Manually pick the 100 most "interesting" extractions each week and review those, relying on reviewer intuition to find new failure modes.
-C) Stratified random sampling of the high-confidence pool by document type and field, so each segment is independently measured for ongoing error rates.
+C) Stratified random sampling of the high-confidence pool by document type and field, so each segment is measured independently for new errors.
 D) Review only extractions flagged by downstream consumers (customers, accounting), trusting field complaints to surface real-world errors.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
 - A: plausible-runner-up
 - B: implausible
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Task 5.5 specifies stratified random sampling of high-confidence extractions for ongoing error-rate measurement and novel pattern detection. The principle is that stratification ensures every segment (document type, field) gets its own independent error estimate, so a problem in one stratum can't hide behind a healthy aggregate. Apply this anywhere you've reduced uniform human review and want to keep visibility into per-segment drift. It beats the flat-random runner-up because flat random under-samples small but important segments.
-- **A (plausible runner-up):** Flat random sampling is a real and simpler approach, and it does provide an unbiased aggregate error estimate. It almost works because randomness is statistically defensible. The reason it falls short for this scenario: it gives proportionally tiny samples to small segments, so a problem in (say) multi-party contracts wouldn't show up until many errors accumulated. Stratified sampling allocates review capacity per segment, which is the more principled choice when segments have different risk profiles.
+- **A:** Flat random sampling is a real and simpler approach, and it does provide an unbiased aggregate error estimate. It almost works because randomness is statistically defensible. The reason it falls short for this scenario: it gives proportionally tiny samples to small segments, so a problem in (say) multi-party contracts wouldn't show up until many errors accumulated. Stratified sampling allocates review capacity per segment, which is the more principled choice when segments have different risk profiles.
 - **B:** Reviewer-intuition selection biases toward whatever the reviewer already expects to find and misses novel patterns by definition.
+- **C (correct):** Task 5.5 specifies stratified random sampling of high-confidence extractions for ongoing error-rate measurement and novel pattern detection. The principle is that stratification ensures every segment (document type, field) gets its own independent error estimate, so a problem in one stratum can't hide behind a healthy aggregate. Apply this anywhere you've reduced uniform human review and want to keep visibility into per-segment drift. It beats the flat-random runner-up because flat random under-samples small but important segments.
 - **D:** Customer complaints are a lagging indicator and miss errors that don't generate complaints; they're not a substitute for proactive sampling.
 
 ---
@@ -5013,21 +4986,21 @@ D) Review only extractions flagged by downstream consumers (customers, accountin
 A) Show reviewers the raw source document alongside the extraction so they can quickly spot-check obvious correctness without per-field signals.
 B) Sort reviewer queues by document age so older extractions are reviewed first, since the model may have drifted over time.
 C) Limit reviewers to a fixed time budget per document so they're forced to prioritize attention without explicit guidance.
-D) Have the model output field-level confidence scores, calibrated against labeled validation data, and route fields below threshold to human review.
+D) Have the model output field-level confidence scores, calibrated against labeled data, and route fields below threshold to human review.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
-- C: implausible
 - B: implausible
+- C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.5 explicitly calls for having models output field-level confidence scores, calibrating them using labeled validation sets, and using those scores to route review attention. The principle is that reviewer time is the scarce resource, and field-level confidence — when properly calibrated — lets you allocate that time to the fields most likely to be wrong. Apply this anywhere review capacity is finite and per-output uncertainty varies. It beats the raw-document-alongside runner-up because visual side-by-side review still spends equal time per field, just with better evidence.
-- **A (plausible runner-up):** Showing the source document is a real and helpful reviewer ergonomic, and you'd often combine it with confidence-based routing. It almost works because reviewers do work faster with source context. The reason it falls short as the answer: it doesn't redirect attention based on uncertainty — reviewers still cover every field, just with more evidence. The question specifically asks how to focus on uncertain extractions, which calls for confidence-based routing.
-- **C:** Time-budget caps don't tell the reviewer where to focus, just when to stop.
+- **A:** Showing the source document is a real and helpful reviewer ergonomic, and you'd often combine it with confidence-based routing. It almost works because reviewers do work faster with source context. The reason it falls short as the answer: it doesn't redirect attention based on uncertainty — reviewers still cover every field, just with more evidence. The question specifically asks how to focus on uncertain extractions, which calls for confidence-based routing.
 - **B:** Age-based ordering doesn't correlate with which extractions are uncertain.
+- **C:** Time-budget caps don't tell the reviewer where to focus, just when to stop.
+- **D (correct):** Task 5.5 explicitly calls for having models output field-level confidence scores, calibrating them using labeled validation sets, and using those scores to route review attention. The principle is that reviewer time is the scarce resource, and field-level confidence — when properly calibrated — lets you allocate that time to the fields most likely to be wrong. Apply this anywhere review capacity is finite and per-output uncertainty varies. It beats the raw-document-alongside runner-up because visual side-by-side review still spends equal time per field, just with better evidence.
 
 ---
 
@@ -5035,7 +5008,7 @@ D) Have the model output field-level confidence scores, calibrated against label
 
 **Stem:** You've decided to automate high-confidence extractions across all document types. Aggregate accuracy is 96%. A team member proposes a "ship it" plan that turns off human review immediately. What pre-deployment check most directly aligns with Task 5.5 guidance before reducing review?
 
-A) Analyze accuracy by document type and field segment, verifying consistent performance across all segments before reducing human review.
+A) Analyze accuracy by document type and field segment, verifying consistent performance across every segment before lowering review.
 B) Run a one-week parallel pilot where automation and humans both process each document and only compare final aggregate counts.
 C) Survey reviewers about whether they feel their review of recent extractions has been catching many errors.
 D) Schedule a kickoff meeting to align stakeholders on the reduced-review plan and document the rollback procedure.
@@ -5050,7 +5023,7 @@ D) Schedule a kickoff meeting to align stakeholders on the reduced-review plan a
 
 **Explanation:**
 - **A (correct):** Task 5.5 explicitly cites the importance of validating accuracy by document type and field segment before automating high-confidence extractions. The principle is that aggregate numbers can hide segment-level failure modes (a 96% overall might be 99/99/65 across three segments), and automating uniformly across segments amplifies the weak-segment problem. Apply this for any reduce-review or expand-automation decision. It beats the parallel-pilot runner-up because pilot comparisons measured at aggregate level reproduce the same blind spot the segment analysis is designed to expose.
-- **B (plausible runner-up):** Parallel pilots are a real and useful validation strategy and are often complementary to segment analysis. They almost work because they generate real-world evidence under shadow conditions. The reason this option falls short as written: it specifically compares "final aggregate counts," which is the same aggregate-blindness problem you're trying to avoid. A pilot that reported per-segment results would be valuable; one that only reports aggregates inherits the original risk.
+- **B:** Parallel pilots are a real and useful validation strategy and are often complementary to segment analysis. They almost work because they generate real-world evidence under shadow conditions. The reason this option falls short as written: it specifically compares "final aggregate counts," which is the same aggregate-blindness problem you're trying to avoid. A pilot that reported per-segment results would be valuable; one that only reports aggregates inherits the original risk.
 - **C:** Reviewer self-report is a poor signal and doesn't substitute for measured per-segment accuracy.
 - **D:** Stakeholder alignment is operational hygiene, not a technical validation step.
 
@@ -5061,21 +5034,21 @@ D) Schedule a kickoff meeting to align stakeholders on the reduced-review plan a
 **Stem:** Your extraction model outputs a per-field confidence score that ranges 0.0–1.0. You're using 0.85 as the threshold above which a field is auto-approved. Audit shows 8% of fields with confidence above 0.85 are actually wrong. The team wants to raise the threshold to 0.95 to reduce errors. What's the more principled response?
 
 A) Raising the threshold to 0.95 is correct because it reduces the share of incorrect auto-approvals and is a cheap, fast change.
-B) Calibrate confidence scores against a labeled validation set to learn what threshold corresponds to your target error rate per field, rather than guessing.
+B) Calibrate confidence scores against a labeled validation set so you pick the threshold that matches your target error rate per field.
 C) Disable confidence-based routing entirely and have humans review every extraction until model accuracy is uniformly above 95%.
 D) Switch the confidence output from a continuous score to a categorical "high/medium/low" tag for easier reasoning.
 
 **Correct:** B
 
 **Plausibility:**
-- B: plausible-correct
 - A: plausible-runner-up
+- B: plausible-correct
 - C: implausible
 - D: implausible
 
 **Explanation:**
+- **A:** Raising the threshold is a real and reasonable first-pass fix and would in practice reduce errors. It almost works because the direction of the change is correct. The reason it falls short as the principled response: it's still a guess — 0.95 might give 2% wrong or 0.5% wrong, and you wouldn't know without measuring. Calibration is the principled version of the same instinct.
 - **B (correct):** Task 5.5 explicitly calls for calibrating review thresholds using labeled validation sets — the principle being that raw model confidence is not naturally aligned with empirical correctness, and treating it as a calibrated probability without validation produces exactly this kind of "8% wrong above the threshold" surprise. Calibration learns the score-to-correctness mapping per field. Apply this any time you're using a model confidence as a control signal. It beats the raise-to-0.95 runner-up because guessing at a higher threshold without calibration is no more principled than the original 0.85 guess.
-- **A (plausible runner-up):** Raising the threshold is a real and reasonable first-pass fix and would in practice reduce errors. It almost works because the direction of the change is correct. The reason it falls short as the principled response: it's still a guess — 0.95 might give 2% wrong or 0.5% wrong, and you wouldn't know without measuring. Calibration is the principled version of the same instinct.
 - **C:** Disabling routing throws away the value of confidence scores entirely; the right move is to calibrate them, not abandon them.
 - **D:** Categorical buckets are coarser than the continuous score and don't address the underlying calibration issue.
 
@@ -5087,21 +5060,21 @@ D) Switch the confidence output from a continuous score to a categorical "high/m
 
 A) Review extraction X first because high-confidence cases are easy wins that drain the queue quickly.
 B) Review both with equal priority since both are still within the pre-threshold review pool.
-C) Prioritize extraction Y for review because low confidence is exactly the signal pointing to uncertain extractions that benefit from human attention.
+C) Prioritize extraction Y for review since low confidence is the signal pointing to extractions that need verification.
 D) Skip both — when reviewer capacity is tight, the model's own confidence ranking should be trusted to filter cases.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
+- C: plausible-correct
 - D: implausible
 
 **Explanation:**
-- **C (correct):** Task 5.5 directly calls for routing extractions with low model confidence (or ambiguous/contradictory source documents) to human review, prioritizing limited reviewer capacity. The principle is that reviewer time should follow uncertainty — fields the model is confident about have a high prior of being correct, while low-confidence outputs are where human judgment adds the most value. Apply this any time you're triaging a queue with finite review capacity. It beats the equal-priority runner-up because equal priority wastes scarce capacity reviewing things that are most likely already right.
-- **B (plausible runner-up):** Equal-priority review is a real and conservative default, and there are contexts where it makes sense (e.g., regulatory environments where every extraction must be eyeballed regardless of confidence). It almost works because it doesn't skip anything. The reason it falls short here: the stem specifies tight reviewer capacity and asks where the budget matters most, so the right answer leans into prioritization rather than uniform coverage.
 - **A:** Reviewing easy high-confidence cases first burns capacity on low-yield work.
+- **B:** Equal-priority review is a real and conservative default, and there are contexts where it makes sense (e.g., regulatory environments where every extraction must be eyeballed regardless of confidence). It almost works because it doesn't skip anything. The reason it falls short here: the stem specifies tight reviewer capacity and asks where the budget matters most, so the right answer leans into prioritization rather than uniform coverage.
+- **C (correct):** Task 5.5 directly calls for routing extractions with low model confidence (or ambiguous/contradictory source documents) to human review, prioritizing limited reviewer capacity. The principle is that reviewer time should follow uncertainty — fields the model is confident about have a high prior of being correct, while low-confidence outputs are where human judgment adds the most value. Apply this any time you're triaging a queue with finite review capacity. It beats the equal-priority runner-up because equal priority wastes scarce capacity reviewing things that are most likely already right.
 - **D:** Skipping review entirely throws away the human-review signal that detects calibration drift.
 
 ---
@@ -5113,21 +5086,21 @@ D) Skip both — when reviewer capacity is tight, the model's own confidence ran
 A) Pre-deployment red-team exercises where adversaries try to break the extractor with malicious inputs to find robustness gaps.
 B) Pre-deployment latency benchmarking under load to ensure the extraction system meets accounts-payable processing SLAs.
 C) Pre-deployment chaos testing where individual fields are randomly nulled to verify downstream systems handle missing data.
-D) Pre-deployment per-field accuracy analysis on labeled data, segmenting by document type and field, before treating aggregate as the deployment criterion.
+D) Pre-deployment per-field accuracy analysis on labeled data, segmenting by document type and field, before deployment.
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
 - A: plausible-runner-up
 - B: implausible
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.5 specifies analyzing accuracy by document type and field to verify consistent performance across all segments before reducing human review. The principle is that aggregate numbers average across segments and hide field-specific weak spots, and you should know your per-field accuracy before treating any aggregate as a deployment criterion. Apply this every time before automating or reducing review on a multi-field extractor. It beats the red-team runner-up because the failure here isn't adversarial — it's structural under normal inputs — so per-field accuracy measurement is the direct missing practice.
-- **A (plausible runner-up):** Red-teaming is a real and valuable practice for finding robustness gaps and adversarial weaknesses. It almost works because it does surface failure modes pre-deployment. The reason it falls short: the failure described isn't a robustness gap — it's a known-input performance gap that ordinary segmented evaluation would have surfaced without any adversarial exercise. Red-teaming would have found different problems.
+- **A:** Red-teaming is a real and valuable practice for finding robustness gaps and adversarial weaknesses. It almost works because it does surface failure modes pre-deployment. The reason it falls short: the failure described isn't a robustness gap — it's a known-input performance gap that ordinary segmented evaluation would have surfaced without any adversarial exercise. Red-teaming would have found different problems.
 - **B:** Latency isn't accuracy; benchmarking throughput wouldn't have surfaced the 84% vendor-name issue.
 - **C:** Chaos testing on missing fields tests downstream handling, not extraction accuracy.
+- **D (correct):** Task 5.5 specifies analyzing accuracy by document type and field to verify consistent performance across all segments before reducing human review. The principle is that aggregate numbers average across segments and hide field-specific weak spots, and you should know your per-field accuracy before treating any aggregate as a deployment criterion. Apply this every time before automating or reducing review on a multi-field extractor. It beats the red-team runner-up because the failure here isn't adversarial — it's structural under normal inputs — so per-field accuracy measurement is the direct missing practice.
 
 ---
 
@@ -5135,7 +5108,7 @@ D) Pre-deployment per-field accuracy analysis on labeled data, segmenting by doc
 
 **Stem:** Your research system synthesizes findings from four document-analysis subagents. The synthesis agent currently summarizes each subagent's findings into a single paragraph, dropping any source URLs from the original outputs. Stakeholders complain that they can't trace claims in the final report back to specific documents. What's the most direct fix?
 
-A) Require subagents to output structured claim-source mappings — source URLs, document names, and relevant excerpts — that downstream agents preserve through synthesis.
+A) Require subagents to output structured claim-source mappings — URLs, document names, and excerpts — preserved through synt
 B) Have the synthesis agent add a footnote at the end of each paragraph estimating which source likely supported the claim.
 C) Append the full subagent outputs as raw appendices at the back of the report so readers can search them manually.
 D) Train the synthesis agent on examples that emphasize citing sources, hoping the trained behavior is preserved at inference.
@@ -5144,14 +5117,14 @@ D) Train the synthesis agent on examples that emphasize citing sources, hoping t
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Task 5.6 directly specifies requiring subagents to output structured claim-source mappings (source URLs, document names, relevant excerpts) that downstream agents preserve through synthesis. The principle is that provenance must be encoded in a structured form that survives summarization steps — prose paraphrasing loses source attribution by design. Apply this any time a synthesis stage will consume multi-source input and downstream consumers need to trace claims. It beats the appendix runner-up because appendices don't link individual claims to specific sources; readers are left to search.
-- **C (plausible runner-up):** Raw appendices are a real and useful supplementary practice — they preserve full subagent output for the curious reader. They almost work because they do preserve the evidence. The reason they fall short as the primary fix: they don't tie claims in the synthesis to specific sources, just provide a bulk dump. A reader chasing "where did the claim about 20% decline come from?" still has to manually search the appendix.
 - **B:** Estimated footnotes after the fact reconstruct provenance from memory, which is exactly the lossy approach that caused the problem.
+- **C:** Raw appendices are a real and useful supplementary practice — they preserve full subagent output for the curious reader. They almost work because they do preserve the evidence. The reason they fall short as the primary fix: they don't tie claims in the synthesis to specific sources, just provide a bulk dump. A reader chasing "where did the claim about 20% decline come from?" still has to manually search the appendix.
 - **D:** Fine-tuning/training is out of scope and wouldn't deterministically preserve citations.
 
 ---
@@ -5161,22 +5134,22 @@ D) Train the synthesis agent on examples that emphasize citing sources, hoping t
 **Stem:** Your research report covers a contentious topic where some claims have strong consensus and others have only one source. Currently, all findings are presented in uniform prose paragraphs without distinguishing the two. Reviewers report being unable to tell what's well-established versus what's tentative. What structural change addresses this?
 
 A) Sort findings by source count so the most-supported claims appear at the top and least-supported at the bottom of the report.
-B) Structure the report with explicit sections distinguishing well-established findings from contested ones, preserving original source characterizations.
+B) Structure the report with explicit sections that distinguish well-established findings from contested ones, preserving sources.
 C) Remove all single-source claims from the report to ensure only well-established findings are reported to stakeholders.
 D) Add a single overall confidence rating at the top of the report giving readers a directional sense of overall reliability.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** Task 5.6 specifies structuring reports with explicit sections distinguishing well-established findings from contested ones, preserving original source characterizations and methodological context. The principle is that reviewers need to apply different levels of skepticism to different claims, and bundling everything into uniform prose strips that signal. Apply this in any report combining sources of varying strength — research, market intel, threat assessments. It beats the remove-single-source runner-up because removing claims hides legitimate but tentative findings rather than letting readers calibrate their confidence in them.
-- **C (plausible runner-up):** Suppressing single-source claims is a real and conservative approach, defensible when the report's audience treats anything published as authoritative and you want to avoid spreading weakly supported claims. It almost works because it does ensure only strong claims appear. The reason it falls short here: stakeholders are actually asking for the distinction, not for less content — they want to see the tentative findings *and* know they're tentative.
 - **A:** Sorting by source count is a related signal but doesn't separate established from contested with clear structure.
+- **B (correct):** Task 5.6 specifies structuring reports with explicit sections distinguishing well-established findings from contested ones, preserving original source characterizations and methodological context. The principle is that reviewers need to apply different levels of skepticism to different claims, and bundling everything into uniform prose strips that signal. Apply this in any report combining sources of varying strength — research, market intel, threat assessments. It beats the remove-single-source runner-up because removing claims hides legitimate but tentative findings rather than letting readers calibrate their confidence in them.
+- **C:** Suppressing single-source claims is a real and conservative approach, defensible when the report's audience treats anything published as authoritative and you want to avoid spreading weakly supported claims. It almost works because it does ensure only strong claims appear. The reason it falls short here: stakeholders are actually asking for the distinction, not for less content — they want to see the tentative findings *and* know they're tentative.
 - **D:** A single overall rating compresses away the granularity reviewers need at the per-claim level.
 
 ---
@@ -5188,21 +5161,21 @@ D) Add a single overall confidence rating at the top of the report giving reader
 A) Average the two reported declines (22.5%) and present that as a balanced consensus figure across both sources.
 B) Have the synthesis agent flag the discrepancy to a human researcher and pause until a manual decision resolves the conflict.
 C) Always favor the source with the more rigorous methodology section, regardless of publication date or stated effect size.
-D) Have the document-analysis subagents output both values with full source attribution, letting the coordinator decide reconciliation before synthesis.
+D) Have the document-analysis subagents output both values with full source attribution, letting the coordinator reconcile be
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- B: plausible-runner-up
 - A: implausible
+- B: plausible-runner-up
 - C: implausible
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.6 directly addresses this: completing document analysis with conflicting values included and explicitly annotated, letting the coordinator decide how to reconcile before passing to synthesis. The principle is that conflicts among credible sources are information, not noise — silently resolving them at the subagent layer strips signal the coordinator and ultimately the reader need. Apply this whenever multiple sources disagree on a fact. It beats the human-pause runner-up because the structural fix (preserve both values with attribution) handles the long tail of conflicts without requiring synchronous human intervention on every one.
-- **B (plausible runner-up):** Human review of conflicts is a real and valid pattern for high-stakes synthesis where consensus matters. It almost works because it does prevent automatic mis-resolution. The reason it falls short as the architectural answer: it doesn't scale to the volume of conflicts that arise in multi-source research, and it doesn't address the structural problem — the subagents are still silently picking one value before the human sees anything. The principle is to surface the conflict in structured form, with human review as one possible downstream decision.
 - **A:** Averaging credible-source disagreements invents a number neither source reported.
+- **B:** Human review of conflicts is a real and valid pattern for high-stakes synthesis where consensus matters. It almost works because it does prevent automatic mis-resolution. The reason it falls short as the architectural answer: it doesn't scale to the volume of conflicts that arise in multi-source research, and it doesn't address the structural problem — the subagents are still silently picking one value before the human sees anything. The principle is to surface the conflict in structured form, with human review as one possible downstream decision.
 - **C:** "Always favor methodology" is its own form of silent resolution and ignores cases where methodologies are equally rigorous but conclusions differ.
+- **D (correct):** Task 5.6 directly addresses this: completing document analysis with conflicting values included and explicitly annotated, letting the coordinator decide how to reconcile before passing to synthesis. The principle is that conflicts among credible sources are information, not noise — silently resolving them at the subagent layer strips signal the coordinator and ultimately the reader need. Apply this whenever multiple sources disagree on a fact. It beats the human-pause runner-up because the structural fix (preserve both values with attribution) handles the long tail of conflicts without requiring synchronous human intervention on every one.
 
 ---
 
@@ -5212,22 +5185,22 @@ D) Have the document-analysis subagents output both values with full source attr
 
 A) Add a synthesis-time rule that filters out older studies in favor of newer ones to avoid mixing periods.
 B) Have the synthesis agent ask the user for clarification whenever two numerical values from different sources don't match.
-C) Require subagents to include publication date and data-collection date range in structured outputs to enable correct temporal interpretation.
+C) Require subagents to include publication date and data-collection date range in structured outputs for correct temporal 
 D) Switch synthesis to a per-study format that simply lists each study's findings without attempting cross-study reconciliation.
 
 **Correct:** C
 
 **Plausibility:**
-- C: plausible-correct
-- D: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-correct
+- D: plausible-runner-up
 
 **Explanation:**
-- **C (correct):** Task 5.6 explicitly addresses this by requiring subagents to include publication or data-collection dates in structured outputs so temporal differences aren't misinterpreted as contradictions. The principle is that what looks like a numerical conflict often vanishes once temporal context is included — different windows producing different deltas is the normal case, not a conflict. Apply this for any longitudinal or trend data combined across sources. It beats the per-study runner-up because per-study listing fails to integrate findings into a coherent synthesis at all.
-- **D (plausible runner-up):** Per-study listing is a real and conservative format and is sometimes appropriate (annotated bibliographies, literature reviews). It almost works because it never falsely reconciles. The reason it falls short here: the synthesis is supposed to produce a coherent picture, and listing five studies side by side without integrating them defeats the synthesis purpose. Adding date metadata lets you keep the synthesis while correctly distinguishing temporal cohorts.
 - **A:** Filtering older studies discards legitimate longitudinal evidence; both studies in this case are valuable.
 - **B:** Asking the user to disambiguate is fine occasionally but doesn't scale and doesn't address the root cause.
+- **C (correct):** Task 5.6 explicitly addresses this by requiring subagents to include publication or data-collection dates in structured outputs so temporal differences aren't misinterpreted as contradictions. The principle is that what looks like a numerical conflict often vanishes once temporal context is included — different windows producing different deltas is the normal case, not a conflict. Apply this for any longitudinal or trend data combined across sources. It beats the per-study runner-up because per-study listing fails to integrate findings into a coherent synthesis at all.
+- **D:** Per-study listing is a real and conservative format and is sometimes appropriate (annotated bibliographies, literature reviews). It almost works because it never falsely reconciles. The reason it falls short here: the synthesis is supposed to produce a coherent picture, and listing five studies side by side without integrating them defeats the synthesis purpose. Adding date metadata lets you keep the synthesis while correctly distinguishing temporal cohorts.
 
 ---
 
@@ -5235,7 +5208,7 @@ D) Switch synthesis to a per-study format that simply lists each study's finding
 
 **Stem:** Your synthesis agent renders all findings as uniform prose paragraphs — financial figures, news quotes, and technical performance benchmarks alike. Readers complain that financial data is hard to compare across companies in paragraph form, and benchmark data feels muddled. You want to render content types in their appropriate forms. Which approach aligns with Task 5.6 guidance?
 
-A) Render different content types appropriately — financial data as tables, news as prose, technical findings as structured lists — rather than forcing a uniform format.
+A) Render different content types appropriately — financial as tables, news as prose, technical as lists — rather than a uniform format.
 B) Convert everything into prose for narrative consistency, since the report's main job is to tell a coherent story to non-technical stakeholders.
 C) Convert everything into tables for visual consistency, even narrative news and qualitative interviews, since tables are scannable.
 D) Have the synthesis agent randomize formatting choices to keep readers engaged with varied visual structure.
@@ -5244,14 +5217,14 @@ D) Have the synthesis agent randomize formatting choices to keep readers engaged
 
 **Plausibility:**
 - A: plausible-correct
-- C: plausible-runner-up
 - B: implausible
+- C: plausible-runner-up
 - D: implausible
 
 **Explanation:**
 - **A (correct):** Task 5.6 explicitly calls for rendering different content types appropriately — financial data as tables, news as prose, technical findings as structured lists — rather than converting everything to a uniform format. The principle is that form should match content because each content type has a structure readers expect (tables for comparable rows, prose for narrative, lists for parallel technical items). Apply this in any multi-content report. It beats the uniform-tables runner-up because tables are wrong for narrative content, just as prose is wrong for comparable numerical data.
-- **C (plausible runner-up):** Uniform tabular rendering is a real and tempting choice — scannable, dense, machine-friendly. It almost works for comparable structured data. The reason it falls short: forcing narrative content (qualitative interviews, news context) into tables strips the narrative thread, and tables don't accommodate connective tissue between claims. The right move is to match form to content type per section, not to unify.
 - **B:** Forcing tables into prose is the original complaint about financial data being hard to compare.
+- **C:** Uniform tabular rendering is a real and tempting choice — scannable, dense, machine-friendly. It almost works for comparable structured data. The reason it falls short: forcing narrative content (qualitative interviews, news context) into tables strips the narrative thread, and tables don't accommodate connective tissue between claims. The right move is to match form to content type per section, not to unify.
 - **D:** Random formatting is hostile to readers and adds no signal.
 
 ---
@@ -5261,22 +5234,22 @@ D) Have the synthesis agent randomize formatting choices to keep readers engaged
 **Stem:** Your research workflow's synthesis step currently produces a paragraph like: "Multiple sources confirm declines in regional fish populations, with one study reporting a 30% decline over the decade." A stakeholder asks "which study? where can I find it?" and your team can't reconstruct the answer. What was the root failure?
 
 A) The 30% figure was likely wrong, and the synthesis agent should have validated numerical claims against the original sources.
-B) Source attribution was lost during synthesis when findings were compressed into prose without preserving claim-source mappings.
+B) Source attribution was lost during synthesis when findings were compressed into prose without preserving claim-source ma
 C) The stakeholder should have been given access to the underlying subagent outputs at the time of the original delivery.
 D) The synthesis agent should have refused to produce the report when source attribution wasn't possible.
 
 **Correct:** B
 
 **Plausibility:**
+- A: implausible
 - B: plausible-correct
 - C: plausible-runner-up
-- A: implausible
 - D: implausible
 
 **Explanation:**
-- **B (correct):** This is a direct test of Task 5.6's headline concept: source attribution is lost during summarization steps when findings are compressed without preserving claim-source mappings. The principle is that prose synthesis is inherently lossy unless explicit structure carries source attribution through every compression step. Recognize this pattern any time a final report has claims that can't be traced back to specific inputs. The fix is structured claim-source mappings that propagate through synthesis. It beats the access-to-subagent runner-up because the underlying issue is the lost mapping, not whether the raw outputs were shareable.
-- **C (plausible runner-up):** Giving stakeholders access to raw subagent outputs is a real practice (transparency, auditability). It almost works because, in principle, the stakeholder could search the raw outputs and find the 30% claim. The reason it falls short: it doesn't address the root cause — even with access, the stakeholder shouldn't have to manually search; the claim-source mapping should have been preserved through synthesis so the answer is in the report itself.
 - **A:** Validation is a separate concern; the question is about lost attribution, not numerical correctness.
+- **B (correct):** This is a direct test of Task 5.6's headline concept: source attribution is lost during summarization steps when findings are compressed without preserving claim-source mappings. The principle is that prose synthesis is inherently lossy unless explicit structure carries source attribution through every compression step. Recognize this pattern any time a final report has claims that can't be traced back to specific inputs. The fix is structured claim-source mappings that propagate through synthesis. It beats the access-to-subagent runner-up because the underlying issue is the lost mapping, not whether the raw outputs were shareable.
+- **C:** Giving stakeholders access to raw subagent outputs is a real practice (transparency, auditability). It almost works because, in principle, the stakeholder could search the raw outputs and find the 30% claim. The reason it falls short: it doesn't address the root cause — even with access, the stakeholder shouldn't have to manually search; the claim-source mapping should have been preserved through synthesis so the answer is in the report itself.
 - **D:** Refusing to produce reports without attribution is too rigid; the right move is to preserve attribution rather than refuse output.
 
 ---
@@ -5288,20 +5261,20 @@ D) The synthesis agent should have refused to produce the report when source att
 A) Have the synthesis agent generate a synthetic methodology paragraph after the fact based on what it thinks the methodology probably was.
 B) Have the synthesis agent ask senior researchers per claim whether they want methodology included for that specific finding.
 C) Move methodology to an end-of-report appendix that's stripped of any link to specific claims, but available for reference.
-D) Preserve original source characterizations and methodological context in the synthesis output so consumers can evaluate competing claims.
+D) Preserve original source characterizations and methodological context in the synthesis output so consumers can evaluate competing 
 
 **Correct:** D
 
 **Plausibility:**
-- D: plausible-correct
-- C: plausible-runner-up
 - A: implausible
 - B: implausible
+- C: plausible-runner-up
+- D: plausible-correct
 
 **Explanation:**
-- **D (correct):** Task 5.6 directly calls for structuring reports to preserve original source characterizations and methodological context so consumers can weigh findings appropriately. The principle is that methodology is part of the meaning of a finding, not an optional detail — a 30% number from a 2,300-firm survey is different from a 30% number from a single case study, and the report should let the reader see that. Apply this in any synthesis whose audience needs to evaluate claim strength. It beats the appendix runner-up because an unlinked appendix doesn't help readers evaluate specific claims; the methodology has to ride with the claim.
-- **C (plausible runner-up):** A methodology appendix is a real and common practice in published research, and it does provide reference material. It almost works because the methodology is preserved somewhere. The reason it falls short here: the senior researchers want to evaluate claims in context, and an unlinked appendix forces them to manually correlate claim-level findings with methodology entries. The principle is to keep methodology adjacent to the claim it qualifies.
 - **A:** Generating synthetic methodology fabricates information; this is worse than omitting it.
 - **B:** Per-claim escalation is operationally heavy and undercuts the purpose of automated synthesis.
+- **C:** A methodology appendix is a real and common practice in published research, and it does provide reference material. It almost works because the methodology is preserved somewhere. The reason it falls short here: the senior researchers want to evaluate claims in context, and an unlinked appendix forces them to manually correlate claim-level findings with methodology entries. The principle is to keep methodology adjacent to the claim it qualifies.
+- **D (correct):** Task 5.6 directly calls for structuring reports to preserve original source characterizations and methodological context so consumers can weigh findings appropriately. The principle is that methodology is part of the meaning of a finding, not an optional detail — a 30% number from a 2,300-firm survey is different from a 30% number from a single case study, and the report should let the reader see that. Apply this in any synthesis whose audience needs to evaluate claim strength. It beats the appendix runner-up because an unlinked appendix doesn't help readers evaluate specific claims; the methodology has to ride with the claim.
 
-
+---

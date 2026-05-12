@@ -1,4 +1,5 @@
-// CCA-F practice questions v2 — 210 total, 42 per domain.
+// CCA-F practice questions v3 (length-rebalanced) — 210 total, 42 per domain.
+// Length-as-tell defeated: correct option ranks 1/2/3/4 with ~25/21/23/31% distribution.
 // Each: { id, domain, scenario, taskStatement, difficulty, stem, options:{A,B,C,D}, correct, plausibility:{A,B,C,D}, explanations:{A,B,C,D} }
 
 window.QUESTIONS = [
@@ -64,7 +65,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "A junior teammate proposes terminating the support agent's loop \"as soon as the assistant produces text content but no tool_use blocks, because that means it's done.\" You suspect this will misbehave. Which characterization best describes why relying on the presence-of-text-without-tool-use as the termination signal is fragile compared to checking `stop_reason`?",
     "options": {
-      "A": "`stop_reason` is the authoritative API field for turn termination, while text-vs-tool inference is a derived heuristic that can misclassify legitimate intermediate turns or edge cases.",
+      "A": "`stop_reason` is the authoritative API field for turn termination; text-vs-tool inference is a derived heuristic that can misclassify legitimate intermediate turns.",
       "B": "Text without tool_use always implies completion, but the API can sometimes return malformed content blocks, so a defensive check on `stop_reason` is a useful redundancy on top of it.",
       "C": "The Messages API can return either a text block or a tool_use block per turn but never both, so checking for text-only is equivalent to checking `stop_reason: end_turn` reliably.",
       "D": "`stop_reason` is most useful for cost analytics, while loop termination should be driven by counting consecutive turns lacking new tool_use calls instead of API fields."
@@ -94,7 +95,7 @@ window.QUESTIONS = [
       "A": "Truncate Grep output to the first 50 lines so the model focuses on the most relevant matches and is less likely to hallucinate downstream file paths.",
       "B": "Add an explicit system prompt instruction that the agent must only Read files that appeared verbatim in the most recent Grep tool result block.",
       "C": "Switch from Grep to Glob for file discovery so the tool returns paths only, removing the line-content noise that distracts the model's attention.",
-      "D": "Return the raw tool output as the tool_result so the model reasons over actual evidence; the summarization step strips the data it needs to act correctly."
+      "D": "Return raw tool output as the `tool_result` so the model reasons over actual evidence; summarization strips the data it needs to act correctly."
     },
     "correct": "D",
     "plausibility": {
@@ -174,7 +175,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Allow direct subagent-to-subagent calls but add a shared message bus so the coordinator can observe traffic and intervene when latency thresholds are breached.",
       "B": "Keep direct subagent-to-subagent calls for performance, but require each subagent to emit structured trace events the coordinator can aggregate after the run completes.",
-      "C": "Route all inter-subagent communication through the coordinator (hub-and-spoke), so it owns task delegation, error handling, and information flow between subagents end-to-end.",
+      "C": "Route inter-subagent communication through the coordinator (hub-and-spoke), so it owns task delegation, error handling, and information flow between subagents.",
       "D": "Use a peer-to-peer ring topology where each subagent forwards intermediate results to the next, with the coordinator acting only as a final aggregator at completion."
     },
     "correct": "C",
@@ -202,7 +203,7 @@ window.QUESTIONS = [
       "A": "Replace the coordinator with a single-shot Claude call for queries under 20 words, bypassing the multi-agent system entirely for short factual requests.",
       "B": "Add a system-prompt rule instructing the coordinator to skip document_analysis when the synthesis subagent reports high confidence in the initial web_search results.",
       "C": "Parallelize the existing pipeline so document_analysis and synthesis run concurrently after web_search, reducing wall-clock latency for these short factual queries.",
-      "D": "Have the coordinator analyze each query and dynamically choose which subagents to invoke, skipping subagents whose contribution is unnecessary for that query's complexity."
+      "D": "Have the coordinator analyze each query and dynamically choose which subagents to invoke, skipping ones whose contribution is unnecessary for that query."
     },
     "correct": "D",
     "plausibility": {
@@ -226,7 +227,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You launch a multi-agent research run on \"compare grid-scale battery chemistries for utilities in 2024.\" The coordinator decomposes into three subagent tasks: \"summarize lithium-iron-phosphate,\" \"summarize lithium-ion NMC,\" and \"summarize sodium-ion.\" The final report ignores flow batteries and solid-state, which were active 2024 utility-scale topics. Which root-cause description fits and how should you address it?",
     "options": {
-      "A": "The coordinator decomposed too narrowly along a preconceived axis; redesign decomposition to first survey the space, then delegate by discovered subtopics, not assumed ones.",
+      "A": "The coordinator decomposed too narrowly along a preconceived axis; redesign decomposition to first survey the space, then delegate by discovered subtopics rather than assumed ones.",
       "B": "The web_search subagent returned only the chemistries it was asked about; expand its toolset to include autonomous follow-up searches not authorized by the coordinator's prompt.",
       "C": "The synthesis subagent filtered out chemistries with sparse evidence; relax its citation-threshold parameter so low-evidence chemistries still appear in the final report output.",
       "D": "The report_generation subagent enforced a three-section template; modify the template to allow up to seven sections so additional chemistries can be included in output."
@@ -254,7 +255,7 @@ window.QUESTIONS = [
     "stem": "Your coordinator's first synthesis pass on \"global semiconductor supply chain risk in 2024\" produces a report that covers Taiwan and the US but says nothing about EU or ASEAN exposure. You want the coordinator to detect this gap and act on it. Which iterative-refinement design best matches the coordinator's role?",
     "options": {
       "A": "Re-run the entire research pipeline from scratch with a longer system prompt enumerating every region the report should cover for completeness in the next iteration.",
-      "B": "The coordinator evaluates synthesis output for coverage gaps, re-delegates targeted searches and analyses for EU and ASEAN, and re-invokes synthesis until coverage is sufficient.",
+      "B": "The coordinator evaluates synthesis for coverage gaps, re-delegates targeted searches for EU and ASEAN, then re-invokes synthesis until coverage is sufficient.",
       "C": "Hand the partial report to the report_generation subagent and have it pad the missing sections from its own model knowledge, bypassing further web_search calls entirely.",
       "D": "Add a post-synthesis validation hook that rejects any report missing predefined regions and surfaces the error to the user to request a manual rerun of the run."
     },
@@ -283,7 +284,7 @@ window.QUESTIONS = [
       "A": "Add a confidence-score reconciler that takes both subagent outputs and selects the higher-confidence response before returning a unified reply to the customer.",
       "B": "Run subagents in series (billing first, then returns) so the second one can see the first one's output and avoid contradicting it in the final response to the customer.",
       "C": "Remove the multi-agent setup and merge billing and returns into a single agent with both tool sets, since two subagents add cost without adding capability for this task.",
-      "D": "Have the coordinator classify the query intent and invoke only the relevant subagent, falling back to invoking both only when the query genuinely spans billing and returns."
+      "D": "Have the coordinator classify query intent and invoke only the relevant subagent, falling back to both only when the query genuinely spans billing and returns."
     },
     "correct": "D",
     "plausibility": {
@@ -309,7 +310,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Subagents are stateless and cannot retry idempotently, so the coordinator must handle errors because only it persists state across subagent invocations and retries.",
       "B": "Subagents are required by the SDK to bubble errors upward by default, and the coordinator simply receives them; this is enforced at the framework level automatically.",
-      "C": "Centralizing error handling in the coordinator gives one place to observe, retry, route around failures, and keep information flow controlled across all subagents consistently.",
+      "C": "Centralizing error handling in the coordinator gives one place to observe, retry, route around failures, and keep information flow controlled across all subagents.",
       "D": "Subagents handle transient errors; the coordinator handles permanent ones; this split keeps responsibility clear and avoids duplicating retry logic in the codebase."
     },
     "correct": "C",
@@ -334,7 +335,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your coordinator agent invokes a synthesis subagent via the Task tool. The synthesis subagent's output omits citations entirely, even though the web_search subagent produced rich source URLs and the document_analysis subagent produced page numbers. Reviewing the Task tool call, you see the prompt sent to synthesis is \"Synthesize the findings into a 400-word report\" with no further context. What is the most direct fix?",
     "options": {
-      "A": "Pass the prior subagents' findings — including source URLs, document names, and page numbers — directly in the synthesis subagent's prompt so it has the evidence to cite.",
+      "A": "Pass the prior subagents' findings — including source URLs, document names, and page numbers — in the synthesis subagent's prompt so it has the evidence to cite.",
       "B": "Add a system prompt to the synthesis subagent instructing it to always include citations, and rely on the model to recall sources from the parent conversation history.",
       "C": "Configure the synthesis subagent's AgentDefinition to grant it access to the same web_search and document_analysis tools so it can re-fetch sources directly itself.",
       "D": "Modify the report_generation subagent downstream to extract claim phrases and search for matching citations after synthesis has produced its draft output."
@@ -391,7 +392,7 @@ window.QUESTIONS = [
       "A": "Cache subagent results across runs in a shared store keyed by topic so repeated queries skip the web_search and document_analysis subagents entirely on subsequent turns.",
       "B": "Replace the three Task calls with a single combined subagent that internally performs web search, document analysis, and synthesis, reducing the round-trips to one Task call.",
       "C": "Switch the coordinator to streaming mode so partial results from web_search and document_analysis can be forwarded to synthesis incrementally before completion.",
-      "D": "Emit both Task calls (web_search and document_analysis) in a single coordinator response so they run in parallel, then invoke synthesis in a follow-up turn with both results."
+      "D": "Emit both Task calls (web_search and document_analysis) in a single coordinator response so they run in parallel, then invoke synthesis with both results."
     },
     "correct": "D",
     "plausibility": {
@@ -417,7 +418,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Spawn two completely independent subagent sessions and prepend a copy-paste of the analysis to each new session's first user message, keeping their histories fully separate.",
       "B": "Run a single subagent twice with different system prompts and average the recommendations from both runs to produce a combined final answer for the developer team.",
-      "C": "Use `fork_session` to create two divergent branches from the existing analysis baseline, letting each branch explore its strategy with full prior context already shared.",
+      "C": "Use `fork_session` to spin up two divergent branches from the existing analysis baseline, letting each branch explore its strategy with the full prior context already shared.",
       "D": "Use `--resume <session-name>` twice on the same named session so each exploration continues from the prior state, then diff the resulting transcripts to compare results."
     },
     "correct": "C",
@@ -442,7 +443,7 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your coordinator's prompt to subagents is a 200-line procedural script: \"Step 1: call web_search with query X. Step 2: if results contain Y, call document_analysis. Step 3: ...\" Subagents perform reasonably on the cases that match the script but poorly on adjacent cases (e.g., when web_search returns unexpected source types). Your team is considering rewriting these prompts. What is the most effective rewrite strategy?",
     "options": {
-      "A": "Replace the step-by-step instructions with prompts that specify research goals and quality criteria, letting subagents adapt their tool choices to the inputs they actually receive.",
+      "A": "Replace the step-by-step procedural instructions with prompts that specify research goals and quality criteria, letting subagents adapt their tool choices to the inputs they actually receive.",
       "B": "Keep the procedural script but add many more `if/else` branches to cover the adjacent cases, ensuring all observed input variations have explicit instructions to follow.",
       "C": "Move the procedural script from the prompt into Python orchestration code that calls the subagent multiple times with single-action prompts for each step deterministically.",
       "D": "Lower the model used by the subagent to a cheaper one and run the procedural script unchanged, since the script's brittleness was caused by the model second-guessing the instructions."
@@ -470,7 +471,7 @@ window.QUESTIONS = [
     "stem": "Your synthesis subagent receives a prompt containing the raw text from web_search and document_analysis concatenated together. The final report has citations like \"according to one source\" without specifying which source — even though the upstream subagents emitted URLs and page numbers. The team thinks this is a synthesis prompting issue. What is the most effective change to the way context is passed?",
     "options": {
       "A": "Instruct the synthesis subagent in its system prompt to always include \"According to [source]\" before any factual claim, with a reminder example or two of correct format.",
-      "B": "Pass findings to synthesis as a structured payload — claims plus per-claim metadata fields for source URL, document name, and page number — so attribution is mechanical.",
+      "B": "Pass findings to synthesis as a structured payload — claims plus per-claim metadata fields for source URL, document name, and exact page number — so attribution is mechanical.",
       "C": "Have synthesis re-call web_search to fetch the URLs by topic phrase after drafting, then post-process the draft to insert hyperlinks matching those rediscovered URLs.",
       "D": "Switch synthesis to a model with larger context capacity so it can hold all source documents alongside the report draft and infer correct attributions from proximity."
     },
@@ -499,7 +500,7 @@ window.QUESTIONS = [
       "A": "Strengthen the system prompt with stronger language and a few-shot example showing the agent escalating a $700 refund correctly, then retest the agent on the same inputs.",
       "B": "Lower the model temperature and add a developer message that repeats the threshold rule, so the model is more deterministic when applying the $500 cutoff to refund requests.",
       "C": "Train a custom intent classifier to detect refund-amount mentions and route those above $500 to a separate escalation pipeline, leaving the main agent untouched for the rest.",
-      "D": "Replace prompt-based enforcement with a programmatic gate — a hook that intercepts `process_refund` calls and blocks any with amount > $500, redirecting them to escalate_to_human."
+      "D": "Replace prompt-based enforcement with a programmatic gate — a hook that intercepts `process_refund` and blocks any amount > $500, redirecting to escalate_to_human."
     },
     "correct": "D",
     "plausibility": {
@@ -525,7 +526,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Train the agent with reinforcement examples where it handles two concerns serially, hoping the learned pattern generalizes to other multi-concern requests in production.",
       "B": "Add a \"did you have any other concerns?\" closing prompt at the end of each conversation, relying on the customer to re-raise the dropped issue if it was missed initially.",
-      "C": "Decompose the message into distinct concerns, investigate each in parallel using shared customer context, then synthesize a unified resolution before responding to the customer.",
+      "C": "Decompose the message into distinct concerns, investigate each in parallel using shared customer context, then synthesize a unified resolution before responding.",
       "D": "Route multi-concern messages to a human agent automatically, since multi-concern resolution is too unreliable to attempt with an autonomous agent in this kind of scenario."
     },
     "correct": "C",
@@ -551,7 +552,7 @@ window.QUESTIONS = [
     "stem": "Your agent escalates difficult cases to human agents using a `handoff` MCP tool. You hear from the support team that humans receiving these handoffs are spending the first 5–10 minutes re-asking customers basic facts — customer ID, what they were trying to do, what was attempted, what failed. The human agents do not have access to the agent's transcript. Which improvement to the handoff has the greatest leverage?",
     "options": {
       "A": "Give human agents read access to the underlying chat transcript via a viewer so they can scroll through the agent's prior turns themselves before responding.",
-      "B": "Compile a structured handoff summary — customer ID, root cause, attempted resolutions, refund or order details, and a recommended action — and send it as the handoff payload.",
+      "B": "Compile a structured handoff summary — customer ID, root cause, attempted resolutions, refund or order details, and a recommended action — as the handoff payload.",
       "C": "Have the agent generate a brief \"TLDR\" sentence describing the issue at the moment of escalation, and pin that sentence to the top of the customer record for the human agent.",
       "D": "Add a system-prompt instruction asking the agent to always restate the customer's issue in its own words before escalating, so the transcript ends on a clear summary."
     },
@@ -577,7 +578,7 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your dev-productivity agent helps engineers run database migrations. The workflow requires three sequential steps: (1) `dry_run` reports what changes would happen, (2) the agent presents the dry-run output to the engineer, (3) only after explicit \"yes, apply\" does the agent call `apply_migration`. In testing, the agent sometimes calls `apply_migration` immediately after `dry_run` even without the user typing \"yes, apply.\" What is the most reliable architectural change?",
     "options": {
-      "A": "Implement a programmatic gate that blocks `apply_migration` from being called unless a recorded \"yes, apply\" user turn exists between the most recent `dry_run` and the apply call.",
+      "A": "Implement a programmatic gate that prevents any `apply_migration` invocation unless a recorded \"yes, apply\" user turn exists between the most recent `dry_run` and the apply call itself.",
       "B": "Add stronger system-prompt language: \"Under no circumstances call apply_migration without explicit human confirmation,\" then run regression tests with a temperature-zero configuration.",
       "C": "Replace the two MCP tools with a single `migrate(dry_run=bool)` tool, so the model is forced to first call with dry_run=true and then explicitly toggle to false in a second call.",
       "D": "Add a custom slash command `/apply` that engineers must invoke manually after seeing the dry-run output; the agent itself never calls `apply_migration` directly anymore at all."
@@ -607,7 +608,7 @@ window.QUESTIONS = [
       "A": "Programmatic prerequisites are cheaper at runtime because they avoid one round-trip to the model, which is the dominant motivator here for adopting them over a prompt rule.",
       "B": "Programmatic prerequisites and prompt rules are equivalent in correctness, so prefer whichever is easier for the engineering team to maintain in code review long-term.",
       "C": "System prompts are slow to update in production, while programmatic prerequisites can be hot-reloaded, so the choice is about deployment velocity in the financial domain.",
-      "D": "Prompt rules have a non-zero failure rate; for financial operations with regulatory or fraud consequences, deterministic enforcement is required, which only programmatic gates provide."
+      "D": "Prompt rules have a non-zero failure rate; for financial operations with regulatory or fraud consequences, only programmatic gates provide deterministic enforcement."
     },
     "correct": "D",
     "plausibility": {
@@ -634,7 +635,7 @@ window.QUESTIONS = [
       "A": "Use few-shot examples in the system prompt showing the agent following the four steps in order across three realistic billing-dispute conversations, then redeploy.",
       "B": "Switch to a chain-of-thought instruction that asks the agent to first write out the four-step plan in its own words at the start of each conversation, then execute it.",
       "C": "Pre-decompose the workflow upfront via the coordinator's logic and present the agent with only the next-step tool at each stage, hiding tools that shouldn't be called yet.",
-      "D": "Implement programmatic prerequisites: lookup_order blocked until get_customer returns a verified ID; process_refund blocked until lookup_order has returned a matching charge."
+      "D": "Implement programmatic prerequisites: lookup_order is blocked until get_customer returns a verified ID; process_refund stays blocked until lookup_order returns a matching charge."
     },
     "correct": "D",
     "plausibility": {
@@ -686,7 +687,7 @@ window.QUESTIONS = [
     "stem": "A senior engineer asks for an explanation of why your team is implementing the \"$500 refund cap\" as a PreToolUse hook rather than as a prompt rule. Which framing best captures the principle behind this design choice for your stakeholders?",
     "options": {
       "A": "Hooks run on the server side and are faster than prompt-based checks, so the latency win is the principal reason to prefer hooks for any business-rule enforcement.",
-      "B": "Hooks provide deterministic guarantees by intercepting tool calls in code, whereas prompt rules rely on probabilistic model compliance and can be violated under edge cases.",
+      "B": "Hooks provide deterministic guarantees by intercepting tool calls directly in code, whereas prompt rules rely on probabilistic model compliance and can be violated under edge cases.",
       "C": "Hooks are easier to test than prompts because they are pure Python functions; therefore use hooks for all business rules to maximize coverage in CI test suites and pipelines.",
       "D": "Hooks bypass the model entirely for the affected calls, so the model doesn't have to be aware of the $500 threshold rule and can be reused unchanged across other domains."
     },
@@ -767,7 +768,7 @@ window.QUESTIONS = [
     "stem": "A teammate proposes that all data normalization (timestamps, status codes, currency formatting) be done inside each MCP server itself, eliminating the need for hooks. Discuss the trade-off: when is per-server normalization the right choice, and when do PostToolUse hooks fit better in a multi-tool agent?",
     "options": {
       "A": "Per-server normalization is always better because hooks add latency on every call, and centralizing transformation inside the server is the lowest-cost option in any case.",
-      "B": "When you own all MCP servers and the canonical format is stable, per-server normalization is cleanest; PostToolUse hooks fit when servers are heterogeneous, third-party, or evolving.",
+      "B": "When you own all of the MCP servers and the canonical format is stable, per-server normalization is cleanest; PostToolUse hooks fit when servers are heterogeneous, third-party, or evolving.",
       "C": "PostToolUse hooks are always better because they can be tested in isolation, while per-server changes require redeploying the MCP service for every format adjustment now and forever.",
       "D": "Per-server normalization and PostToolUse hooks are functionally identical; the choice is a matter of team convention rather than a meaningful architectural distinction worth debating."
     },
@@ -793,7 +794,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your support agent has two competing requirements: (1) deterministically block refunds over $500, and (2) tell the customer in friendly language why the request is being escalated. The team is unsure whether the friendly explanation belongs in the hook or in the model. What is the right division of responsibility?",
     "options": {
-      "A": "The hook enforces the block and returns a structured `tool_result` describing the redirect; the model receives this and crafts the customer-facing explanation in its next turn.",
+      "A": "The hook enforces the block and returns a structured `tool_result` describing the redirect; the model crafts the customer-facing explanation in its next turn.",
       "B": "Both responsibilities live in the hook: write the friendly explanation in Python inside the hook and emit it directly to the user, bypassing the model for refund-cap responses.",
       "C": "Both responsibilities live in the model: drop the hook, and use a strong system prompt to ensure the model both blocks the refund and explains the redirect to the customer.",
       "D": "The hook writes the friendly explanation; the model is told only that \"escalation occurred\" with no further detail and parrots that exact phrase back to the customer verbatim."
@@ -823,7 +824,7 @@ window.QUESTIONS = [
       "A": "Run the same single-pass review three times and only flag issues raised by at least two of the three runs, using majority voting to filter false positives from each pass.",
       "B": "Switch to plan mode: have Claude first emit a review plan listing each file and the integration concerns, then execute the plan in a single subsequent call with the full PR.",
       "C": "Increase the model's reasoning budget and re-run a single all-files pass, since the underlying issue is the model not allocating enough thought to each file in the PR.",
-      "D": "Use prompt chaining: run a per-file local-review pass for each file, then run a separate cross-file integration pass that reads only the local-review outputs plus a high-level diff."
+      "D": "Use prompt chaining: run a per-file local-review pass for each file, then a cross-file integration pass that reads only the local-review outputs plus a high-level diff."
     },
     "correct": "D",
     "plausibility": {
@@ -847,7 +848,7 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "An engineer asks Claude to \"add comprehensive tests to a 200K-line legacy codebase.\" A naive sequential pipeline (analyze structure → write tests file by file) takes days and produces low-value tests on rarely-used modules while missing critical paths. You want a smarter task decomposition. Which pattern fits best?",
     "options": {
-      "A": "Dynamic, adaptive decomposition: first map the codebase structure, identify high-impact areas (entrypoints, hot paths), then create a prioritized plan that adapts as dependencies surface.",
+      "A": "Dynamic, adaptive decomposition: map the codebase structure first, identify high-impact areas (entrypoints, hot paths), then build a prioritized plan that adapts as dependencies surface.",
       "B": "Fixed pipeline with parallel fan-out: list every module, spawn parallel subagents to write tests for each, then merge. Speed wins matter most for a codebase this size and shape.",
       "C": "Single-shot generation: provide the codebase root and ask Claude to \"add comprehensive tests,\" relying on its judgment to prioritize without imposing an explicit decomposition pattern.",
       "D": "Strict file-by-file sequential traversal in alphabetical order, with a checklist to ensure every file gets at least one unit test before moving on to the next file in the list."
@@ -876,7 +877,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Dynamic plans are always preferable because they adapt to the input, so use a dynamic plan even for well-understood, predictable workflows like routine PR review without exception.",
       "B": "Prompt chaining always wins on cost; the marginal value of an adaptive plan is not worth the additional model calls required to decide which passes to run in a given case.",
-      "C": "Use prompt chaining because the review concerns are well-defined and consistent across PRs; reserve dynamic decomposition for open-ended investigations whose subtasks aren't known upfront.",
+      "C": "Use prompt chaining because the review concerns are well-defined and consistent across every PR; reserve dynamic decomposition for open-ended investigations whose subtasks aren't known.",
       "D": "Use dynamic decomposition because PRs vary, and a static prompt chain risks running unnecessary passes that produce false positives on the unchanged aspects of the codebase."
     },
     "correct": "C",
@@ -902,7 +903,7 @@ window.QUESTIONS = [
     "stem": "A junior engineer asks: \"When should I use prompt chaining versus dynamic adaptive decomposition?\" You want to give a one-paragraph rule of thumb that they can apply consistently across both PR-review and codebase-exploration tasks they encounter daily.",
     "options": {
       "A": "Always use prompt chaining when speed matters; use dynamic decomposition only for high-stakes tasks where you can afford the extra model calls needed for adaptation.",
-      "B": "Use prompt chaining when the subtasks are predictable and the same for every input; use dynamic decomposition when subtasks emerge from intermediate findings during the task.",
+      "B": "Use prompt chaining when subtasks are predictable and identical for every PR or input; use dynamic decomposition when the subtasks emerge from intermediate findings mid-task.",
       "C": "Always use dynamic decomposition; prompt chaining is a legacy pattern from before tool use became available and should be avoided in any newly designed agentic workflows.",
       "D": "Use prompt chaining for tasks under 10 steps and dynamic decomposition for tasks over 10 steps; the threshold is the determining factor in choosing between these patterns."
     },
@@ -930,7 +931,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Drop the local passes and give the integration pass the entire raw PR diff so it has full context for both local and cross-file reasoning at integration time.",
       "B": "Run the integration pass three times with different seed prompts and union the bugs found, increasing the chance that integration issues are caught at least once.",
-      "C": "Have the integration pass receive structured local-pass outputs (per-file summary + key signatures) plus a focused view of inter-file interfaces (function signatures, imports, schemas).",
+      "C": "Have the integration pass receive structured local-pass outputs (per-file summaries + key signatures) plus a focused view of inter-file interfaces.",
       "D": "Add an LLM-judge stage after the integration pass that critiques the cross-file findings and re-prompts the integration pass to look for missed issues until convergence."
     },
     "correct": "C",
@@ -955,7 +956,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "An engineer asks Claude to \"find all places in this codebase that handle authentication, summarize the patterns, and propose a refactor.\" The current single-pass approach gets bogged down: the model reads dozens of files but produces a shallow summary and a vague refactor proposal. Which task decomposition fits this open-ended exploration best?",
     "options": {
-      "A": "Decompose adaptively: (1) survey the codebase for auth-related touchpoints, (2) gather details per touchpoint, (3) synthesize patterns, (4) propose refactor, adapting as findings emerge.",
+      "A": "Decompose adaptively: (1) survey the codebase for auth touchpoints, (2) gather details per touchpoint, (3) synthesize patterns, (4) propose refactor, adapting as findings emerge.",
       "B": "Run three parallel single-pass agents with different prompts (\"find handlers,\" \"summarize,\" \"propose refactor\") and merge their outputs into one final report at the end of the run.",
       "C": "Use the same single-pass prompt but truncate the codebase input to the largest 30 files by line count, since the model is being distracted by lots of small irrelevant files in the input.",
       "D": "Spawn one subagent per file in the repo to summarize each file's auth involvement, then aggregate all summaries into a single refactor proposal across the codebase as a whole."
@@ -983,7 +984,7 @@ window.QUESTIONS = [
     "stem": "A developer is in the middle of a long refactoring session with Claude Code, has stepped away for the day, and wants to come back tomorrow and pick up exactly where they left off, with the same prior reasoning and tool history. Which mechanism best supports this workflow?",
     "options": {
       "A": "Save the conversation transcript to a file, then paste the transcript into a brand-new Claude Code session tomorrow as the first user message to recreate full context.",
-      "B": "Use `--resume <session-name>` to continue the named investigation session tomorrow, picking up the prior reasoning, tool history, and context from where it left off.",
+      "B": "Use `--resume <session-name>` to continue the named investigation session tomorrow, picking up the prior reasoning, the tool history, and the context from where it left off.",
       "C": "Use `fork_session` to spawn an independent branch from today's session at end-of-day, then return to that branch tomorrow as the continuation of the prior work.",
       "D": "Use `/clear` to reset the session today, then re-run the entire refactor request tomorrow from scratch and rely on Claude to rebuild the same reasoning anew."
     },
@@ -1011,7 +1012,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Resume the session and continue immediately, since Claude will detect file changes by re-running the original tool calls during its next reasoning step automatically anyway.",
       "B": "Resume the session and add a short message saying \"the codebase has changed,\" letting Claude figure out exactly what changed by exploring the repo with its existing tools.",
-      "C": "Resume the session and explicitly tell Claude which files have changed (module renames, auth refactor), so it can targeted-re-analyze only the affected files rather than full re-exploration.",
+      "C": "Resume the session and tell Claude which files changed (module renames, auth refactor), so it targeted-re-analyzes only the affected files instead of full re-exploration.",
       "D": "Start a fresh session and paste yesterday's outline plus a summary of overnight changes; resume is unsafe whenever any file has been touched between work sessions of this kind."
     },
     "correct": "C",
@@ -1039,7 +1040,7 @@ window.QUESTIONS = [
       "A": "Start two fresh sessions and paste the analysis into each first user message, then explore each strategy independently in its own fresh standalone Claude Code session.",
       "B": "Resume the original session twice (once per strategy) and let Claude switch between approaches based on user prompts; rely on Claude to keep the strategies mentally separate.",
       "C": "Use `--resume` on the original session, work through the caching strategy fully, then start fresh for the validation strategy after the first is complete and decided upon.",
-      "D": "Use `fork_session` to create two divergent branches from the shared analysis baseline, then explore each strategy independently in its own branch with the prior context intact."
+      "D": "Use `fork_session` to create two divergent branches from the shared analysis baseline, then explore each strategy in its own branch with prior context intact."
     },
     "correct": "D",
     "plausibility": {
@@ -1092,7 +1093,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Always resume to preserve token cost and avoid rebuilding state; even when prior context is wrong, the model can correct itself within a few turns of the resumed session.",
       "B": "Always start fresh to ensure a clean slate; resume is unreliable and can be confusing when prior reasoning intersects with current file state in any nontrivial way.",
-      "C": "Resume when prior context is mostly still valid; start fresh with a summary when prior tool results are substantially stale or the work direction has materially changed.",
+      "C": "Resume when the prior context is mostly still valid; start fresh with a summary when prior tool results are substantially stale or when the work direction has materially changed.",
       "D": "Resume only if less than 24 hours have passed since the last session; after 24 hours, prior tool results should always be considered stale and a fresh session is required."
     },
     "correct": "C",
@@ -1171,10 +1172,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "A new junior engineer added a tool called `process_refund` to your support agent with the description \"Processes a refund.\" During QA you observe Claude calling it for store-credit requests, partial returns, and goodwill gestures — none of which the underlying API actually supports. The engineer asks what to change first before touching any code. What is the highest-leverage edit?",
     "options": {
-      "A": "Rewrite the tool description to specify input format, the exact refund types supported, when to use it versus `escalate_to_human`, and example cases.",
-      "B": "Add a runtime validator that rejects refund calls outside the supported types and returns a generic error message to the agent.",
-      "C": "Replace the tool with three new tools named `refund_full`, `refund_partial`, and `refund_store_credit` before doing any description work.",
-      "D": "Add a system prompt paragraph listing all the situations where refunds should and should not be processed by the support agent."
+      "A": "Rewrite the tool description to specify the input format, the exact refund types supported, when to use it versus `escalate_to_human`, plus example cases for each path.",
+      "B": "Add a runtime validator that rejects refund calls outside the supported types and returns a generic error message to the agent without describing the supported set.",
+      "C": "Replace the tool with three new tools named `refund_full`, `refund_partial`, and `refund_store_credit` before doing any tool description or system prompt work.",
+      "D": "Add a system prompt paragraph listing all the situations where refunds should and should not be processed by the support agent for each customer case category."
     },
     "correct": "A",
     "plausibility": {
@@ -1198,10 +1199,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your developer-productivity agent has a `query_repo` tool with the description: \"Use this tool whenever the user asks about anything in the repository, including code, history, configuration, or documentation.\" Engineers report that the agent calls `query_repo` even when a simple Read of a known file would suffice, slowing every interaction. The team suspects the description itself is the problem. What is the best fix?",
     "options": {
-      "A": "Reduce model temperature so that the agent makes more deterministic tool choices and reverts to Read when a path is supplied.",
-      "B": "Tighten `query_repo`'s description to a narrow purpose (e.g., natural-language repository search) and explicitly direct path-based reads to the Read tool.",
-      "C": "Remove `query_repo` from the agent's tool set entirely and rely only on Read, Grep, and Glob for all repository exploration tasks.",
-      "D": "Lower the priority of `query_repo` in the system prompt by listing it last and discouraging its use except as a last resort."
+      "A": "Reduce model temperature so the agent makes more deterministic tool choices and reverts to Read whenever a path is supplied directly in the user message.",
+      "B": "Tighten `query_repo`'s description to a narrow purpose (natural-language repository search) and explicitly direct path-based reads to the Read tool.",
+      "C": "Remove `query_repo` from the agent's tool set entirely and rely only on Read, Grep, and Glob for all repository exploration tasks across the codebase.",
+      "D": "Lower the priority of `query_repo` in the system prompt by listing it last and discouraging its use except as a last resort when other tools fail."
     },
     "correct": "B",
     "plausibility": {
@@ -1225,10 +1226,10 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your research coordinator's system prompt opens with: \"Always search the web first for the most recent information.\" You later add an internal MCP tool `search_internal_kb` for proprietary documents. Logs show the agent now skips `search_internal_kb` even when the user asks about internal product specs. The tool description for `search_internal_kb` is well-written. What is the most likely cause and best mitigation?",
     "options": {
-      "A": "The MCP server response latency is too high, so Claude is silently timing out and falling back to the web search tool every time.",
-      "B": "Internal KB results have not been embedded for semantic search yet, so re-indexing the corpus will solve the routing issue.",
-      "C": "The system prompt's keyword-sensitive instruction is biasing tool selection toward web search; rewrite the prompt to route by question type.",
-      "D": "The MCP tool name should be prefixed with the server identifier so Claude treats it as a first-class option instead of an external tool."
+      "A": "The MCP server response latency is too high, so Claude is silently timing out and falling back to the web search tool every time a question is asked.",
+      "B": "Internal KB results have not been embedded for semantic search yet, so re-indexing the corpus will solve the routing issue across the agent.",
+      "C": "The system prompt's keyword-sensitive instruction is biasing tool selection toward web search; rewrite it to route by question type.",
+      "D": "The MCP tool name should be prefixed with the server identifier so Claude treats it as a first-class option instead of an external tool source."
     },
     "correct": "C",
     "plausibility": {
@@ -1252,10 +1253,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your support agent has a tool `verify_account` whose description reads \"Verifies a customer account.\" Traces show the agent calling `verify_account` on every turn, even for greetings and general policy questions, padding latency. A reviewer suggests the description should also state when *not* to use the tool. Which revised description best applies this principle?",
     "options": {
-      "A": "\"Verifies a customer account. Returns customer ID, status, and tier. The most reliable way to confirm caller identity in our system.\"",
-      "B": "\"Verifies an account. Input: a customer email or phone number. Output: a verified customer record with ID, status, and account tier.\"",
-      "C": "\"Verifies caller identity before account-modifying actions (refunds, address changes). Do not call for greetings, FAQs, or general policy questions.\"",
-      "D": "\"Calls the verification microservice and returns a JSON object containing customer details. Use whenever account information might be relevant.\""
+      "A": "\"Verifies a customer account. Returns customer ID, status, and tier. The most reliable way to confirm caller identity in the support system.\"",
+      "B": "\"Verifies an account. Input: a customer email or phone number. Output: a verified customer record with ID, status, account tier, and email.\"",
+      "C": "\"Verifies caller identity before account-modifying actions (refunds, address changes). Do not call for greetings or general FAQ.\"",
+      "D": "\"Calls the verification microservice and returns a JSON object containing customer details. Use whenever account information might be relevant to the turn.\""
     },
     "correct": "C",
     "plausibility": {
@@ -1279,10 +1280,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your developer agent has a single `analyze_document` MCP tool used for three distinct workflows: extracting structured fields, summarizing for executives, and verifying claims against a source. Users report that summaries sometimes contain extracted-field artifacts, and field extraction occasionally returns prose. The team wants a structural fix that improves both reliability and observability. What change applies the right principle?",
     "options": {
-      "A": "Add a `mode` parameter to `analyze_document` that callers must set to \"extract\", \"summarize\", or \"verify\" before the agent invokes it.",
-      "B": "Split `analyze_document` into `extract_data_points`, `summarize_content`, and `verify_claim_against_source`, each with focused descriptions and contracts.",
-      "C": "Keep `analyze_document` but tune the underlying prompt to produce conditional output based on inferred user intent during execution.",
-      "D": "Add a routing rule in the system prompt that tells Claude which of the three workflows applies and how to phrase the tool call."
+      "A": "Add a `mode` parameter to `analyze_document` that callers must set to \"extract\", \"summarize\", or \"verify\" before the agent invokes the tool.",
+      "B": "Split `analyze_document` into `extract_data_points`, `summarize_content`, and `verify_claim_against_source` with focused descriptions.",
+      "C": "Keep `analyze_document` but tune the underlying prompt to produce conditional output based on inferred user intent during execution at runtime.",
+      "D": "Add a routing rule in the system prompt that tells Claude which of the three workflows applies and how to phrase the resulting tool call."
     },
     "correct": "B",
     "plausibility": {
@@ -1306,10 +1307,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "You are designing a new MCP tool to load a research document by URL for the analysis subagent. A colleague drafts the description as \"Loads a document.\" Your style guide requires every tool description to differentiate the tool's purpose from alternatives, specify expected inputs and outputs, and indicate when to use it. Which revised description best meets the guide?",
     "options": {
-      "A": "\"Loads a document. Supports many URL types and many file formats. Use whenever the agent needs document content.\"",
-      "B": "\"Loads documents efficiently from the web with retry logic and caching for improved performance during research workflows.\"",
-      "C": "\"Fetches a document from an HTTPS URL (PDF, DOCX, HTML), returns parsed text plus metadata; use instead of web_search for known URLs.\"",
-      "D": "\"Calls the document microservice and returns whatever it returns; the caller should handle any response shape that arrives.\""
+      "A": "\"Loads a document. Supports many URL types and many file formats. Use whenever the agent needs document content during a research workflow run.\"",
+      "B": "\"Loads documents efficiently from the web with retry logic and caching for improved performance during research workflows that revisit pages.\"",
+      "C": "\"Fetches a document from an HTTPS URL (PDF, DOCX, HTML), returns parsed text plus metadata; prefer over web_search for known URLs.\"",
+      "D": "\"Calls the document microservice and returns whatever it returns; the caller should handle any response shape that arrives in the result body.\""
     },
     "correct": "C",
     "plausibility": {
@@ -1333,10 +1334,10 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your support agent has `process_refund` (description specifies USD-denominated refunds up to $500) and `escalate_to_human` (well-described). Production logs show that for non-USD refund requests the agent invokes `process_refund` anyway, ignoring the currency boundary in the description. Engineers find a system prompt line: \"Refund as quickly as possible — escalation should be a last resort.\" What is the best mitigation?",
     "options": {
-      "A": "Lower the refund threshold in `process_refund` to $100 so the agent escalates more often and avoids most non-USD cases by accident.",
-      "B": "Add a programmatic check inside `process_refund` that throws a non-retryable error for non-USD requests and tells the agent to escalate.",
-      "C": "Increase the prominence of currency information in the tool description by repeating \"USD only\" three times in the first sentence.",
-      "D": "Replace the keyword-sensitive system prompt line with neutral guidance and rely on the tool description plus a programmatic currency check."
+      "A": "Lower the refund threshold in `process_refund` to $100 so the agent escalates more often and avoids most non-USD cases by accident in production.",
+      "B": "Add a programmatic check inside `process_refund` that throws a non-retryable error for non-USD requests and tells the agent to escalate to a human.",
+      "C": "Increase the prominence of currency information in the tool description by repeating \"USD only\" three times in the first sentence of the description text.",
+      "D": "Replace the keyword-sensitive system prompt line with neutral guidance and rely on the tool description and a programmatic currency check."
     },
     "correct": "D",
     "plausibility": {
@@ -1360,10 +1361,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You are reviewing tool descriptions for your developer agent. The MCP tools `search_jira_issues` and `search_github_issues` are routinely confused — the agent sometimes queries Jira when the user clearly mentioned a GitHub PR. The current descriptions are: \"Searches Jira issues.\" and \"Searches GitHub issues.\" What is the single most important addition to make to both descriptions?",
     "options": {
-      "A": "Add concrete input format and example queries that show the kinds of natural-language requests each tool should and should not handle.",
-      "B": "Add the MCP server URL and authentication scope so the agent can verify which backend each tool is actually targeting before calling.",
-      "C": "Add an explicit cost-per-call estimate so the agent can prefer the cheaper option when the user's question is ambiguous.",
-      "D": "Add a sentence to each description praising the relative strengths of the underlying issue tracker to help the agent rank them."
+      "A": "Add concrete input format and example queries showing the kinds of natural-language requests each tool should and should not handle.",
+      "B": "Add the MCP server URL and authentication scope so the agent can verify which backend each tool is actually targeting before issuing the call.",
+      "C": "Add an explicit cost-per-call estimate so the agent can prefer the cheaper option when the user's question is ambiguous in its tool intent.",
+      "D": "Add a sentence to each description praising the relative strengths of the underlying issue tracker to help the agent rank the available tools."
     },
     "correct": "A",
     "plausibility": {
@@ -1387,10 +1388,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your `lookup_order` MCP tool currently returns the string \"Operation failed\" with `isError: true` whenever anything goes wrong — whether the order ID format is invalid, the backend is temporarily unreachable, or the order does not exist. The agent retries blindly in all cases, sometimes spamming the backend. What structural change to the error response best improves recovery behavior?",
     "options": {
-      "A": "Replace `isError: true` with a numeric HTTP-style status code so the agent can branch on retry semantics using familiar conventions.",
-      "B": "Return structured error metadata including `errorCategory` (transient/validation/permission) and `isRetryable` so the agent can decide appropriately.",
-      "C": "Append a stack trace to the existing error string so the agent has more context to reason about whether to retry the failed call.",
-      "D": "Switch the entire response to a free-form natural-language explanation that the agent can read and reason about with no schema constraints."
+      "A": "Replace `isError: true` with a numeric HTTP-style status code so the agent can branch on retry semantics using familiar web conventions from training.",
+      "B": "Return structured error metadata including `errorCategory` (transient/validation/permission) and `isRetryable` so the agent can decide.",
+      "C": "Append a stack trace to the existing error string so the agent has more context to reason about whether to retry the failed call at all.",
+      "D": "Switch the entire response to a free-form natural-language explanation that the agent can read and reason about with no schema constraints on the shape."
     },
     "correct": "B",
     "plausibility": {
@@ -1414,10 +1415,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "A document analysis subagent calls an MCP tool `fetch_pdf` that intermittently returns timeouts when the source CDN is under load. Currently the coordinator sees a generic timeout and aborts the whole research task. The team wants the failure to be recovered locally where possible and escalated to the coordinator only when truly unrecoverable. Which design best achieves this?",
     "options": {
-      "A": "Move retry logic to the coordinator so it can decide centrally when to abort the whole research task or move on to the next URL.",
-      "B": "Have the subagent immediately propagate the timeout to the coordinator along with no partial results and let the coordinator decide.",
+      "A": "Move retry logic to the coordinator so it can decide centrally when to abort the whole research task or move on to the next URL in the queue.",
+      "B": "Have the subagent immediately propagate the timeout to the coordinator along with no partial results and let the coordinator decide on next steps.",
       "C": "Implement local retry with backoff inside the subagent for transient errors, and only propagate to the coordinator if retries exhaust.",
-      "D": "Replace `fetch_pdf` with a version that always swallows timeouts silently and returns an empty document so research can continue."
+      "D": "Replace `fetch_pdf` with a version that always swallows timeouts silently and returns an empty document so research can continue without errors."
     },
     "correct": "C",
     "plausibility": {
@@ -1441,10 +1442,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your support agent calls `process_refund`, which fails because the customer's account is past due. The current response is `{ isError: true, content: \"Refund denied.\" }`. The agent sometimes retries the same refund, sometimes confidently tells the customer \"your refund is processing,\" and sometimes hangs. What is the most effective change to the error response?",
     "options": {
-      "A": "Return `{ isError: true, errorCategory: \"business\", isRetryable: false, message: \"Refunds blocked while account is past due; advise customer to settle balance first.\" }`.",
-      "B": "Return `{ isError: true, errorCategory: \"transient\", isRetryable: true, message: \"Refund failed, please try again in a few seconds.\" }`.",
-      "C": "Return a successful response with `refundId: null` so the agent treats it as completed with no further action and moves on to the next user turn.",
-      "D": "Return `{ isError: true, content: \"ERR_42\" }` and provide a separate developer-only document that maps error codes to recovery actions."
+      "A": "Return `{ isError: true, errorCategory: \"business\", isRetryable: false, message: \"Refunds blocked while account past due; tell customer to settle outstanding balance.\" }`.",
+      "B": "`Return `{ isError: true, errorCategory: \"transient\", isRetryable: true, message: \"Refund failed, please try again in a few seconds or wait briefly.\" }`.",
+      "C": "Return a successful response with `refundId: null` so the agent treats it as completed with no further action and moves on to the next user turn in the conversation.",
+      "D": "Return `{ isError: true, content: \"ERR_42\" }` and provide a separate developer-only document that maps each error code to the appropriate recovery action."
     },
     "correct": "A",
     "plausibility": {
@@ -1495,10 +1496,10 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your `escalate_to_human` MCP tool fails with `{ isError: true, errorCategory: \"permission\", isRetryable: false, message: \"Agent does not have escalation rights for VIP queue.\" }`. The support agent is in the middle of an escalation for a high-value customer. What should the agent's next action be, and what error-design lesson does this enforce?",
     "options": {
-      "A": "Retry `escalate_to_human` twice more in case it was a transient permission cache miss, then surface a generic apology message to the customer.",
-      "B": "Stop retrying, communicate the limitation to the customer, and surface the incident; design lesson: permission errors must be marked non-retryable.",
-      "C": "Call `process_refund` immediately as a fallback action, since refunds compensate the customer and avoid the need for escalation entirely.",
-      "D": "Switch to a different tool name that the agent guesses might bypass the permission boundary, since names are sometimes interchangeable."
+      "A": "Retry `escalate_to_human` twice more in case it was a transient permission cache miss, then surface a generic apology message to the customer at the end.",
+      "B": "Stop retrying, communicate the limitation to the customer, and surface the incident; lesson: permission errors must be non-retryable.",
+      "C": "Call `process_refund` immediately as a fallback action, since refunds compensate the customer and avoid the need for escalation entirely in this scenario.",
+      "D": "Switch to a different tool name that the agent guesses might bypass the permission boundary, since names are sometimes interchangeable in the tool catalog."
     },
     "correct": "B",
     "plausibility": {
@@ -1522,10 +1523,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "A web-search subagent successfully fetches three of five URLs requested by the coordinator; two URLs return 503 errors that are likely transient. The subagent's retry budget is exhausted. What should it return to the coordinator to apply the right principle for propagated errors?",
     "options": {
-      "A": "Return only the three successful results and omit any mention of the two failed URLs, since the coordinator should focus on what worked.",
-      "B": "Return a free-form summary describing roughly which URLs worked and which did not, in prose form, for the coordinator to parse.",
-      "C": "Return `isError: true` for the whole request, discarding the three successful results so the coordinator can retry the entire batch cleanly.",
-      "D": "Return all three successful results plus structured metadata listing the failed URLs, the error category, and what retry attempts were already made."
+      "A": "Return only the three successful results and omit any mention of the two failed URLs, since the coordinator should focus on what worked in this batch run.",
+      "B": "Return a free-form summary describing roughly which URLs worked and which did not, in prose form, for the coordinator to parse and interpret as needed.",
+      "C": "Return `isError: true` for the whole request, discarding the three successful results so the coordinator can retry the entire batch cleanly without partial state.",
+      "D": "Return the three successful results plus structured metadata listing the failed URLs, the error category, and retry attempts made."
     },
     "correct": "D",
     "plausibility": {
@@ -1549,7 +1550,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your team is auditing error responses. A reviewer points out that `lookup_order` returns the same generic `isError: true, message: \"Failed.\"` for these four distinct cases: malformed order ID, backend timeout, customer not authorized for that order, and order genuinely not found. Which categorization should the team adopt for these four cases respectively?",
     "options": {
-      "A": "Validation, transient, permission, and a non-error empty result, each with the corresponding `isRetryable` value set appropriately.",
+      "A": "Validation, transient, permission, and a non-error empty result, each labeled with the matching `isRetryable` flag the agent loop honors.",
       "B": "Validation, validation, permission, and validation — treating all four as input correctness problems for consistency in the agent loop.",
       "C": "Transient for all four cases, because retrying often resolves the issue regardless of the underlying cause of the failure mode.",
       "D": "Permission, permission, permission, transient — since most production failures ultimately trace back to permission cache misses anyway."
@@ -1603,10 +1604,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your research coordinator gives every subagent the same set of 18 tools, including web search, file write, PDF parser, code interpreter, image describer, math solver, citation formatter, translation, sentiment, and several niche services. Synthesis-agent traces show it calling web search and the code interpreter when it should only be combining sub-results. What principle is being violated and how do you fix it?",
     "options": {
-      "A": "Tools should be scoped per subagent to its role; restrict the synthesis agent to a small set of citation and combining tools and remove the rest.",
-      "B": "Tool selection reliability is a model-size problem; upgrade synthesis to a larger model that can choose well among 18 tools.",
-      "C": "Increase the tool descriptions' length to several paragraphs each so the model has more signal when choosing among the 18 tools.",
-      "D": "Lower the temperature dramatically so the model becomes more conservative about tool calls and is less likely to wander off-spec."
+      "A": "Tools should be scoped per subagent to its role; restrict synthesis to a small set of citation and combining tools and remove the rest.",
+      "B": "Tool selection reliability is purely a model-size problem; upgrade synthesis to a larger model that can choose well among the existing eighteen tools.",
+      "C": "Increase the tool descriptions' length to several paragraphs each so the model has more signal when choosing among the eighteen tools at hand.",
+      "D": "Lower the temperature dramatically so the model becomes more conservative about tool calls and is less likely to wander off-spec during the run."
     },
     "correct": "A",
     "plausibility": {
@@ -1630,10 +1631,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your support agent must always call a `validate_session` tool first on every conversation turn before any business logic runs. Today the agent sometimes skips it because the model decides session information is already in context. The team wants a deterministic guarantee, not a probabilistic one, for the first tool call. Which configuration applies the right principle?",
     "options": {
-      "A": "Use `tool_choice: \"any\"` so the model is guaranteed to call some tool first, even though the specific tool is not guaranteed.",
-      "B": "Use `tool_choice: { \"type\": \"tool\", \"name\": \"validate_session\" }` on the first turn to force the specific tool, then revert to `auto` afterwards.",
-      "C": "Use `tool_choice: \"auto\"` and add a sentence to the system prompt asking the model to always validate the session before doing anything else.",
-      "D": "Use `tool_choice: \"any\"` and configure the model to retry the turn if it did not happen to pick `validate_session` first."
+      "A": "Use `tool_choice: \"any\"` so the model is guaranteed to call some tool first, even though the specific tool selected is not guaranteed each time.",
+      "B": "Use `tool_choice: { \"type\": \"tool\", \"name\": \"validate_session\" }` on the first turn to force the tool, then revert to `auto`.",
+      "C": "Use `tool_choice: \"auto\"` and add a sentence to the system prompt asking the model to always validate the session before doing anything else first.",
+      "D": "Use `tool_choice: \"any\"` and configure the model to retry the turn if it did not happen to pick `validate_session` first on its initial attempt."
     },
     "correct": "B",
     "plausibility": {
@@ -1657,10 +1658,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your synthesis subagent occasionally needs to verify a single fact against a trusted source mid-synthesis. Today, the only way is to escalate back to the coordinator, which then dispatches the verification subagent, doubling latency on common cases. The team wants the synthesis agent to handle simple fact checks locally but still route hard cases through the coordinator. What is the best change?",
     "options": {
-      "A": "Give the synthesis agent the full set of web search and document tools so it can verify anything without involving the coordinator.",
-      "B": "Add a scoped `verify_fact` tool to the synthesis agent for single-claim checks; complex verifications still escalate to the coordinator.",
-      "C": "Remove the verification subagent entirely and let the coordinator perform all fact checks inline before passing work to synthesis.",
-      "D": "Configure `tool_choice: \"any\"` on the synthesis agent so it must call some tool before producing any synthesized output."
+      "A": "Give the synthesis agent the full set of web search and document tools so it can verify anything without involving the coordinator at all from then on.",
+      "B": "Add a scoped `verify_fact` tool to the synthesis agent for single-claim checks; complex verifications still escalate to the coordinator path.",
+      "C": "Remove the verification subagent entirely and let the coordinator perform all fact checks inline before passing work to synthesis on every turn.",
+      "D": "Configure `tool_choice: \"any\"` on the synthesis agent so it must call some tool before producing any synthesized output for each request."
     },
     "correct": "B",
     "plausibility": {
@@ -1684,10 +1685,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your developer-productivity agent has access to a `fetch_url` tool used to load reference pages. Engineers report that the agent sometimes uses it to download arbitrary tarballs from random domains while trying to \"explore.\" Security wants to constrain this without removing the ability to load known documentation. What is the best replacement?",
     "options": {
-      "A": "Add a runtime allowlist filter inside `fetch_url` that returns a generic error when the URL is outside an approved set of domains for the agent.",
-      "B": "Keep `fetch_url` and instrument the network layer to drop downloads larger than a fixed size to prevent the agent from pulling tarballs accidentally.",
-      "C": "Keep `fetch_url` and add a system prompt sentence asking the agent to only fetch URLs that look like documentation pages from approved sources.",
-      "D": "Replace `fetch_url` with `load_document` that validates document URLs (PDF/HTML/MD) and rejects non-document or non-allowlisted endpoints structurally."
+      "A": "Add a runtime allowlist filter inside `fetch_url` that returns a generic error when the URL is outside the approved set of domains used by the agent today.",
+      "B": "Keep `fetch_url` and instrument the network layer to drop downloads larger than a fixed size to prevent the agent from pulling tarballs accidentally over time.",
+      "C": "Keep `fetch_url` and add a system prompt sentence asking the agent to only fetch URLs that look like documentation pages from a list of approved sources.",
+      "D": "Replace `fetch_url` with `load_document` that validates URLs (PDF/HTML/MD) and rejects non-document or non-allowlisted endpoints."
     },
     "correct": "D",
     "plausibility": {
@@ -1711,10 +1712,10 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your structured-extraction pipeline requires `extract_metadata` to run before any enrichment tools, because enrichment depends on the metadata schema. Currently the prompt politely asks the model to call `extract_metadata` first, but in about 7% of runs it skips straight to enrichment, which then produces malformed outputs. You need a deterministic guarantee for the first turn. What configuration is most appropriate?",
     "options": {
-      "A": "Use `tool_choice: { \"type\": \"tool\", \"name\": \"extract_metadata\" }` on the first turn, then process enrichment tools in follow-up turns with `auto`.",
-      "B": "Use `tool_choice: \"any\"` on the first turn so that the model is forced to call a tool, even though it might still pick an enrichment tool.",
-      "C": "Add three different few-shot examples showing the correct ordering in the system prompt to bring compliance closer to 100%.",
-      "D": "Run the extraction twice in parallel and keep only the run that happened to call `extract_metadata` first, discarding the other."
+      "A": "Use `tool_choice: { \"type\": \"tool\", \"name\": \"extract_metadata\" }` on the first turn, then run enrichment tools in follow-up turns with `auto`.",
+      "B": "Use `tool_choice: \"any\"` on the first turn so the model is forced to call a tool, even though it might still pick an enrichment tool by chance.",
+      "C": "Add three different few-shot examples showing the correct ordering in the system prompt to bring extraction-first compliance closer to one hundred percent.",
+      "D": "Run the extraction twice in parallel and keep only the run that happened to call `extract_metadata` first, discarding the other run's outputs in full."
     },
     "correct": "A",
     "plausibility": {
@@ -1738,10 +1739,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "A team member proposes letting the support agent call `process_refund` without any tool restriction whenever the model thinks it would help. The agent's current tools are well-scoped to billing/account/return operations. You worry the change will cause the agent to issue refunds proactively in ambiguous situations. Which principle best supports keeping the existing scoped configuration?",
     "options": {
-      "A": "Restricting each agent's tool set to those relevant to its role prevents cross-specialization misuse and keeps action authority aligned with intent.",
-      "B": "Adding more tools to an agent always helps because larger catalogs raise the chance the right tool is available when needed for a user request.",
-      "C": "Forcing tool selection with `tool_choice: \"any\"` on every turn would eliminate the risk by ensuring the model never has discretion at all.",
-      "D": "Removing all action tools and giving the agent only read-only tools is the only safe configuration for refund-capable systems."
+      "A": "Restricting each agent's tool set to those relevant to its role prevents cross-specialization misuse and aligns action authority with intent.",
+      "B": "Adding more tools to an agent always helps because larger catalogs raise the chance the right tool is available when needed for a given user request type.",
+      "C": "Forcing tool selection with `tool_choice: \"any\"` on every turn would eliminate the risk by ensuring the model never has discretion at all during operation.",
+      "D": "Removing all action tools and giving the agent only read-only tools is the only safe configuration for refund-capable systems in production deployments."
     },
     "correct": "A",
     "plausibility": {
@@ -1819,10 +1820,10 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "You audit a developer-productivity coordinator that has 18 tools across MCP servers and built-ins, with no subagent decomposition. Selection reliability has degraded as tools were added. Leadership wants a phased refactor that addresses tool sprawl without dropping any capability. Which sequence of steps best applies the relevant principles?",
     "options": {
-      "A": "Add three more tools to cover edge cases, then ship; selection improves with more options because the model has more chances to pick correctly.",
-      "B": "Switch the coordinator to `tool_choice: \"any\"` to force a tool call every turn, leaving the 18-tool catalog otherwise unchanged.",
-      "C": "Cut the tool set to four tools and rely entirely on natural-language reasoning for everything else, regardless of capability gaps.",
-      "D": "Decompose into role-scoped subagents (e.g., code-search, refactor, test-gen), assign each only its relevant tools, and use cross-role scoping sparingly."
+      "A": "Add three more tools to cover edge cases, then ship the system; tool selection improves with more options because the model has more chances to pick correctly.",
+      "B": "Switch the coordinator to `tool_choice: \"any\"` to force a tool call every turn, leaving the eighteen-tool catalog otherwise unchanged from its current configuration.",
+      "C": "Cut the tool set down to four tools and rely entirely on natural-language reasoning for everything else, regardless of any capability gaps that may emerge.",
+      "D": "Decompose into role-scoped subagents (e.g., code-search, refactor, test-gen), give each only its relevant tools, and use cross-role scoping sparingly."
     },
     "correct": "D",
     "plausibility": {
@@ -1847,7 +1848,7 @@ window.QUESTIONS = [
     "stem": "Your team wants a shared MCP server for their internal observability backend to be available to every developer using Claude Code on the project, with credentials supplied via an environment variable so secrets are never committed. Each developer also has personal experimental MCP servers they prefer to keep private. Where should each be configured?",
     "options": {
       "A": "Both in `~/.claude.json` so each developer's setup is independent and there is no shared configuration file that could leak secrets.",
-      "B": "Shared observability server in `.mcp.json` at the project root with `${OBSERVABILITY_TOKEN}` expansion; personal servers in `~/.claude.json`.",
+      "B": "Shared observability server in `.mcp.json` at the project root with `${OBSERVABILITY_TOKEN}` expansion; personal servers go in `~/.claude.json`.",
       "C": "Both in `.mcp.json` at the project root, with personal servers gated behind environment variables that only the owner has set locally.",
       "D": "Shared observability server in a one-off shell script that each developer runs on startup; personal servers in `.mcp.json` at the project root."
     },
@@ -1875,7 +1876,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Remove Grep from the agent's tool set entirely so the only remaining option for issue lookups is the Jira MCP tool.",
       "B": "Switch to a custom MCP server written in-house so the tool integrates more tightly with your other MCP tooling.",
-      "C": "Lengthen and clarify the `search_jira` description to detail its capabilities, the freshness of results, and when to prefer it over Grep.",
+      "C": "Lengthen and clarify the `search_jira` description to detail its capabilities, the freshness of the results, and when to prefer it over Grep.",
       "D": "Move the Jira server configuration from `.mcp.json` to `~/.claude.json` so each developer can opt in or out at the user level individually."
     },
     "correct": "C",
@@ -1901,9 +1902,9 @@ window.QUESTIONS = [
     "stem": "Your research system relies on a documentation MCP server with 200+ pages of internal API docs. Today the agent runs many exploratory tool calls to discover what topics exist before retrieving any specific page. The team wants to reduce these exploratory calls without removing the agent's freedom to navigate. Which MCP feature applies the right principle?",
     "options": {
       "A": "Expose the documentation hierarchy as MCP resources so the agent can see available data without making exploratory tool calls first.",
-      "B": "Pre-summarize the entire 200-page corpus into a single 5,000-word context block injected at the start of every conversation turn.",
-      "C": "Replace the documentation MCP server with a built-in Read tool over the same files so navigation is faster and more deterministic.",
-      "D": "Cache the previous turn's exploratory tool call results in agent memory and reuse them on subsequent turns without re-querying."
+      "B": "Pre-summarize the entire two-hundred-page corpus into a single five-thousand-word context block injected at the start of every conversation turn in the run.",
+      "C": "Replace the documentation MCP server with a built-in Read tool over the same files so navigation is faster and more deterministic across the agent's turns.",
+      "D": "Cache the previous turn's exploratory tool call results in agent memory and reuse them on subsequent turns without re-querying the documentation service."
     },
     "correct": "A",
     "plausibility": {
@@ -1927,10 +1928,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "A new developer joins your team and clones the repository. Their first run of Claude Code fails to discover the MCP tools your team relies on. You inspect their machine: they have committed code, a `.gitignore`, and a `package.json`, but you notice their workflow has not picked up the MCP servers. What is the most likely root cause and fix?",
     "options": {
-      "A": "The team has not added a `.mcp.json` at the project root; create one with the shared servers and environment variable expansion, then commit it.",
-      "B": "The new developer needs to manually copy MCP server configurations into their `~/.claude.json` file before any tool will work for them.",
-      "C": "Claude Code does not support MCP server discovery automatically; the developer must run a CLI command on every session to enable servers.",
-      "D": "The repository should commit `~/.claude.json` so user-scoped configurations propagate to every team member who clones the repository."
+      "A": "The team has not added a `.mcp.json` at the project root; create one with the shared servers and env-var expansion, then commit it.",
+      "B": "The new developer needs to manually copy MCP server configurations into their own `~/.claude.json` file before any tool will work for them on the local machine.",
+      "C": "Claude Code does not support MCP server discovery automatically; the developer must run a CLI command on every session to enable the configured servers.",
+      "D": "The repository should commit `~/.claude.json` so user-scoped configurations propagate to every team member who clones the repository onto their machine."
     },
     "correct": "A",
     "plausibility": {
@@ -1957,7 +1958,7 @@ window.QUESTIONS = [
       "A": "Replace `${JIRA_TOKEN}` with the literal token value in `.mcp.json` for now and rotate the token in a follow-up sprint to limit exposure.",
       "B": "Hardcode the token in a project-level `.env.local` and commit it to a separate private branch only the developer pulls from for builds.",
       "C": "Switch the Jira server to a different MCP that does not require authentication so the developer can avoid environment variable issues entirely.",
-      "D": "Set the environment variable in a launchd plist or shell profile sourced by the GUI app's launch context so `${JIRA_TOKEN}` expansion works."
+      "D": "Set the environment variable inside a launchd plist or shell profile sourced by the GUI app's launch context so the `${JIRA_TOKEN}` expansion works."
     },
     "correct": "D",
     "plausibility": {
@@ -1981,10 +1982,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You are deciding whether to use a community MCP server or build a custom one for connecting your research system to a standard issue tracker (GitHub Issues). The community server is actively maintained, covers your needs, and supports all the operations you require. Leadership asks why you would prefer one over the other. Which principle best supports adopting the community server?",
     "options": {
-      "A": "Community servers must always be wrapped in a custom adapter before use, since the project will eventually outgrow community feature sets.",
-      "B": "Existing community MCP servers should be preferred for standard integrations; custom servers should be reserved for team-specific workflows.",
-      "C": "Custom servers are always preferred because they let your team optimize the tool descriptions to a higher quality than community defaults.",
-      "D": "Both should run in parallel and the agent should pick between them dynamically based on the user's most recent question phrasing."
+      "A": "Community servers must always be wrapped in a custom adapter before use, since the project will eventually outgrow community feature sets as needs evolve.",
+      "B": "Existing community MCP servers should be preferred for standard integrations; reserve custom servers for team-specific workflows.",
+      "C": "Custom servers are always preferred because they let your team optimize tool descriptions to a higher quality than community defaults achieve out of the box.",
+      "D": "Both should run in parallel and the agent should pick between them dynamically based on the user's most recent question phrasing for each turn."
     },
     "correct": "B",
     "plausibility": {
@@ -2037,7 +2038,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Replace the listing tool with a function that returns only the top three topics by recency to reduce response size every turn.",
       "B": "Move the topic catalog into the system prompt as a giant bulleted list refreshed nightly by a separate build job.",
-      "C": "Expose the topic catalog as an MCP resource so the agent has the catalog available without consuming a tool call to list it.",
+      "C": "Expose the topic catalog as an MCP resource so the agent has the catalog available each turn without consuming a tool call to list it.",
       "D": "Cache the catalog response in agent memory across turns and only call the listing tool on the first turn of every new session."
     },
     "correct": "C",
@@ -2197,9 +2198,9 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your agent must add a single new field to a TypeScript interface defined in `types.ts`. The interface declaration is unique in the file, but the agent's Edit call fails because the model included extra trailing whitespace from a copy-paste in the `old_string`, so it does not match exactly. The team wants a resilient fix without disabling whitespace sensitivity. What is the best next step?",
     "options": {
-      "A": "Re-attempt Edit after trimming trailing whitespace in the `old_string` argument so the match succeeds on exact bytes.",
-      "B": "Switch to Bash with `sed -i` and a regex that ignores trailing whitespace, applying the edit across all files for consistency.",
-      "C": "Use Glob to find every `.ts` file containing an interface declaration and Edit each one in turn with the same fragment.",
+      "A": "Re-attempt Edit after trimming trailing whitespace in the `old_string` argument so the match succeeds on exact bytes the next attempt around the file.",
+      "B": "Switch to Bash with `sed -i` and a regex that ignores trailing whitespace, applying the edit across all files for consistency across the repository.",
+      "C": "Use Glob to find every `.ts` file containing an interface declaration and Edit each one in turn with the same fragment applied repeatedly.",
       "D": "Read the file to capture the exact bytes of the interface declaration, then issue Edit with that precise text, or Write the modified contents."
     },
     "correct": "D",
@@ -2224,10 +2225,10 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "The agent is asked: \"Show me where we catch `DatabaseConnectionError` so I can confirm we always log before re-throwing.\" There are likely many catch blocks in many files. Which workflow applies the right principle most efficiently?",
     "options": {
-      "A": "Bash with `find . -type f` piped through `xargs grep` so the agent has full control of the search semantics across the file tree.",
-      "B": "Glob with `**/*.{ts,js}` to enumerate code files and Read each one in turn to look for `DatabaseConnectionError` references manually.",
-      "C": "Grep with the pattern `DatabaseConnectionError` to find every reference, then Read the matched files to inspect the surrounding catch blocks.",
-      "D": "Read the file that defines `DatabaseConnectionError` and assume its catchers are all listed in the class's JSDoc as documentation."
+      "A": "Bash with `find . -type f` piped through `xargs grep` so the agent has full control of the search semantics across the file tree for this task.",
+      "B": "Glob with `**/*.{ts,js}` to enumerate code files and Read each one in turn to look for `DatabaseConnectionError` references manually one by one.",
+      "C": "Grep with the pattern `DatabaseConnectionError` to find every reference, then Read the matched files to inspect surrounding catch blocks.",
+      "D": "Read the file that defines `DatabaseConnectionError` and assume its catchers are all listed in the class's JSDoc as documentation for callers."
     },
     "correct": "C",
     "plausibility": {
@@ -2251,10 +2252,10 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your agent must add a small helper function to the bottom of a 1,200-line utilities file. The file has many similar function declarations and Edit anchor matching has been unreliable. The change is large (a new 30-line function plus its imports). What is the most reliable built-in workflow for this change?",
     "options": {
-      "A": "Edit with the last 10 characters of the file as the `old_string` and the helper appended after them as the `new_string` for atomic insertion.",
-      "B": "Bash with `echo >> utilities.ts` to append the new helper, then a separate Bash call to prepend the new import line at the top of the file.",
-      "C": "Read the file to load its full current contents, build the modified version locally, and Write the full updated file back to disk in one call.",
-      "D": "Glob the project for similar utility files and Edit each one in parallel so the new helper is available everywhere it might be needed."
+      "A": "Edit with the last ten characters of the file as the `old_string` and the helper appended after them as the `new_string` for atomic file insertion.",
+      "B": "Bash with `echo >> utilities.ts` to append the new helper, then a separate Bash call to prepend the new import line at the top of the file in place.",
+      "C": "Read the file to load its full current contents, build the modified version locally, and Write the full updated file back to disk.",
+      "D": "Glob the project for similar utility files and Edit each one in parallel so the new helper is available everywhere it might be needed across modules."
     },
     "correct": "C",
     "plausibility": {
@@ -2306,7 +2307,7 @@ window.QUESTIONS = [
     "stem": "Your monorepo's root `CLAUDE.md` has grown to 2,800 lines covering API conventions, testing rules, deployment standards, security guidance, and per-package quirks. Engineers report that Claude often cites generic project rules but ignores package-specific guidance. The maintainers of each package have strong opinions about which standards documents apply to their package. What restructuring approach most directly leverages the configuration hierarchy to fix this?",
     "options": {
       "A": "Delete the root `CLAUDE.md` entirely and rely on each package maintainer pasting rules into chat as needed for their work.",
-      "B": "Keep the root `CLAUDE.md` short with shared rules, and add per-package `CLAUDE.md` files that `@import` the standards docs relevant to that package.",
+      "B": "Keep root `CLAUDE.md` short with shared rules; add per-package files that `@import` standards relevant to each package.",
       "C": "Move every rule into `.claude/rules/` and remove all `CLAUDE.md` files so nothing is auto-loaded at session start.",
       "D": "Concatenate all standards into a single 5,000-line `CLAUDE.md` so Claude always sees the complete ruleset in every session."
     },
@@ -2362,7 +2363,7 @@ window.QUESTIONS = [
       "A": "Split the file by alphabetizing all rules and chunking them into 500-line blocks named `CLAUDE-a.md`, `CLAUDE-b.md`, etc.",
       "B": "Keep `CLAUDE.md` as-is and rely on engineers writing more specific prompts to focus Claude on relevant rules.",
       "C": "Move all rules into one giant `.claude/rules/all-rules.md` file so they live outside `CLAUDE.md` but stay together.",
-      "D": "Create topic files under `.claude/rules/` like `testing.md`, `api-conventions.md`, and `deployment.md`, each with focused content."
+      "D": "Create topic files in `.claude/rules/` like `testing.md`, `api-conventions.md`, `deployment.md`, each focused."
     },
     "correct": "D",
     "plausibility": {
@@ -2440,7 +2441,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Across your monorepo you have three packages, each with a distinct maintainer who curates their own standards docs. The maintainers want to define exactly which standards files their package's `CLAUDE.md` pulls in, without forcing the other maintainers to load those rules. You want a mechanism that lets each maintainer write a short package `CLAUDE.md` that references only the standards they consider relevant. Which approach best satisfies that requirement?",
     "options": {
-      "A": "Use `@import` in each package's directory-level `CLAUDE.md` to pull in just the standards files that maintainer considers relevant.",
+      "A": "Use `@import` in each package's directory-level `CLAUDE.md` to pull only the standards files that the package's maintainer considers relevant.",
       "B": "Concatenate all standards into the root `CLAUDE.md` so every package automatically has access to everything its maintainer might need.",
       "C": "Put every standards file into `~/.claude/CLAUDE.md` on every teammate's machine, listing them all explicitly in user memory.",
       "D": "Have maintainers paste the relevant standards into chat at the start of every session that touches their package."
@@ -2495,7 +2496,7 @@ window.QUESTIONS = [
     "stem": "You're authoring a skill that performs a deep codebase analysis to summarize architecture across hundreds of files. When you tested an early version, the verbose discovery output filled the main conversation context and made later tasks struggle for context budget. You want the skill to run, return only a concise summary, and not pollute the parent session with intermediate file reads. Which frontmatter configuration most directly achieves that?",
     "options": {
       "A": "Add `allowed-tools: [Read, Grep]` to the skill so it physically cannot produce output beyond reading and searching.",
-      "B": "Set `context: fork` in the skill's `SKILL.md` frontmatter so it runs in an isolated sub-agent and returns only its summary.",
+      "B": "Set `context: fork` in the skill's `SKILL.md` frontmatter so it runs in an isolated sub-agent.",
       "C": "Add `argument-hint: \"summary only\"` to remind invokers to ask for a summary every time the skill runs.",
       "D": "Increase the model context window size in the skill frontmatter so the verbose discovery output fits without crowding."
     },
@@ -2521,7 +2522,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You are authoring a skill that performs surgical edits to YAML configuration files. You're worried that the skill could be misused to run shell commands or modify unrelated files, especially when invoked by less-experienced teammates. You want the skill itself to be unable to execute Bash or write to non-YAML files regardless of how it's prompted. Which configuration mechanism most directly enforces that constraint?",
     "options": {
-      "A": "Add an `allowed-tools` list in the skill's frontmatter that grants only the file-write tool restricted to YAML paths.",
+      "A": "Add an `allowed-tools` list in the frontmatter granting only the file-write tool restricted to YAML paths.",
       "B": "Add a strongly worded warning at the top of `SKILL.md` reminding users not to run Bash or touch other files.",
       "C": "Add `context: fork` so the skill runs in isolation and its Bash actions don't affect the main session.",
       "D": "Ask invokers to confirm interactively before each tool call so risky actions get rejected by humans."
@@ -2550,7 +2551,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Edit the project-scoped `repo-cleanup` skill in `.claude/skills/` to include the archive step behind a flag, defaulted off.",
       "B": "Submit a pull request adding the archive step and ask reviewers to merge it so the team gets the new functionality.",
-      "C": "Create a personal variant in `~/.claude/skills/` with a different name like `repo-cleanup-archive` containing the archive step.",
+      "C": "Create a personal variant in `~/.claude/skills/` named `repo-cleanup-archive` containing the archive step.",
       "D": "Rename the team skill to `repo-cleanup-team` and add a new `repo-cleanup` to his user-scoped directory that supersedes it."
     },
     "correct": "C",
@@ -2578,7 +2579,7 @@ window.QUESTIONS = [
       "A": "Configure `context: fork` in the command frontmatter so missing arguments cause it to run in isolation and ask there.",
       "B": "Add a `paths:` field in the command's YAML frontmatter so it only activates when invoked on relevant files.",
       "C": "Move the command into `.claude/rules/` so it loads more reliably with arguments attached.",
-      "D": "Add an `argument-hint` field to the command frontmatter that prompts the invoker for the required parameters when omitted."
+      "D": "Add an `argument-hint` field to the command frontmatter prompting the invoker for required parameters when omitted."
     },
     "correct": "D",
     "plausibility": {
@@ -2603,7 +2604,7 @@ window.QUESTIONS = [
     "stem": "You have two pieces of guidance for your team. The first is an internal naming convention every contributor should always follow on every file. The second is a multi-step workflow for \"investigate and propose a fix for a flaky test\" that's only run a few times per week. You want each piece of guidance in the right place so it neither pollutes loaded context unnecessarily nor is hard to invoke when needed. Where should each live?",
     "options": {
       "A": "Both belong in `CLAUDE.md` so they're always loaded and immediately available without needing invocation.",
-      "B": "The naming convention belongs in `CLAUDE.md`; the flaky-test workflow belongs in a skill invoked on demand.",
+      "B": "The naming convention belongs in `CLAUDE.md`; the flaky-test workflow belongs in an on-demand skill.",
       "C": "Both belong in a skill under `.claude/skills/` so they're consistently authored and invoked the same way.",
       "D": "The naming convention belongs in a skill; the flaky-test workflow belongs in `CLAUDE.md` for visibility."
     },
@@ -2629,7 +2630,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your team standardizes a `/triage-issue` slash command that walks Claude through a consistent process for analyzing newly filed GitHub issues. You want all current and future teammates to get this command automatically without any manual setup, and you want it to evolve via normal pull requests. Where should it live in the repo?",
     "options": {
-      "A": "`.claude/commands/triage-issue.md` checked into the repository so anyone cloning the repo gets it automatically.",
+      "A": "`.claude/commands/triage-issue.md` checked into the repository so anyone cloning the repo gets it.",
       "B": "`~/.claude/commands/triage-issue.md` on each teammate's laptop, kept in sync via a separate dotfiles repository.",
       "C": "A pinned GitHub issue containing the prompt text that teammates paste into chat when they need to triage.",
       "D": "An internal wiki page documenting the command's prompt steps for engineers to follow manually each time."
@@ -2710,7 +2711,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your team has two competing instincts for how to encode a SQL migration convention. The migrations all live under `db/migrations/` and the rule should apply only when editing files there. Option A is to add a directory-level `CLAUDE.md` inside `db/migrations/`. Option B is to add a `.claude/rules/` file with `paths: [\"db/migrations/**\"]`. Both technically work. What is the most important factor in choosing between them?",
     "options": {
-      "A": "Whether the convention also needs to apply to migration files that may live outside `db/migrations/` now or in the future.",
+      "A": "Whether the convention also needs to apply to migration files that may live outside `db/migrations/`.",
       "B": "Whether the team prefers YAML frontmatter syntax over Markdown headings as a stylistic choice in their toolchain.",
       "C": "Whether the migration files are written in raw SQL versus a higher-level migration framework's DSL.",
       "D": "Whether Claude Code is being invoked interactively or as part of a CI pipeline for migrations."
@@ -2738,7 +2739,7 @@ window.QUESTIONS = [
     "stem": "You have a `.claude/rules/python-strict.md` file with frontmatter `paths: [\"packages/strict/**/*.py\"]`. A teammate reports that the strict rules are sometimes being applied when she edits files outside that path, and other times not being applied when she edits files inside it. Which investigation step is most likely to surface the actual cause of the inconsistent application?",
     "options": {
       "A": "Confirm her Claude Code binary version matches the team's, since older versions might not support the `paths:` frontmatter field.",
-      "B": "Check whether other rule files have overlapping or conflicting `paths:` globs that broaden activation beyond what she expects.",
+      "B": "Check whether other rule files have overlapping or conflicting `paths:` globs that broaden activation beyond what her edits should match.",
       "C": "Inspect the YAML frontmatter syntax of the rule file for malformed indentation or stray characters that break parsing.",
       "D": "Delete the rule file and recreate it from scratch to rule out file corruption from a recent merge."
     },
@@ -2765,7 +2766,7 @@ window.QUESTIONS = [
     "stem": "Your team is restructuring memory and rules. You have a convention specific to a single directory (a legacy CLI tool that lives in `tools/legacy-cli/` only) that the team agrees should never apply outside that directory. There's no expectation the tool will move or appear elsewhere. Which placement is the most appropriate for this convention?",
     "options": {
       "A": "`.claude/rules/legacy-cli.md` with frontmatter `paths: [\"tools/legacy-cli/**\"]` to be safe against future moves.",
-      "B": "A directory-level `CLAUDE.md` inside `tools/legacy-cli/` containing the convention as straightforward always-loaded content.",
+      "B": "A directory-level `CLAUDE.md` placed inside `tools/legacy-cli/` containing the convention as always-loaded content.",
       "C": "`~/.claude/CLAUDE.md` on each teammate's machine for offline reliability and to keep team rules small.",
       "D": "The repo root `CLAUDE.md` with a prose conditional saying it only applies inside `tools/legacy-cli/`."
     },
@@ -2818,7 +2819,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your repo has two competing rule placements drafted by different engineers. Engineer X wants a directory-level `CLAUDE.md` in `services/billing/` to hold billing-specific conventions. Engineer Y points out that there are billing-related files scattered in `shared/types/billing.ts`, `apps/admin/billing/`, and `tests/billing/`, and proposes a `.claude/rules/` file with `paths:` globs covering all those locations. Which approach better fits the design intent of the configuration system given those facts?",
     "options": {
-      "A": "Use `.claude/rules/billing.md` with globs covering all billing-related locations, since the rule's scope spans multiple directories.",
+      "A": "Use `.claude/rules/billing.md` with globs covering all billing locations, since the rule spans multiple directories.",
       "B": "Use `services/billing/CLAUDE.md` only, and rely on Claude to infer that billing rules apply when it sees the word \"billing.\"",
       "C": "Combine both: put the rule in `services/billing/CLAUDE.md` and also paste it into every other directory's `CLAUDE.md`.",
       "D": "Skip configuration and have engineers manually paste billing rules into chat when they start work on billing."
@@ -2873,7 +2874,7 @@ window.QUESTIONS = [
     "stem": "Your team is migrating from a monolith to microservices. The migration will touch roughly 45 files, requires choosing between two integration approaches (sync RPC vs async event bus) with different infrastructure implications, and will affect several teams' interfaces. You haven't started yet. Which working mode is most appropriate for this initial phase?",
     "options": {
       "A": "Direct execution starting from the most-changed file, because seeing real diffs will clarify the right design fastest.",
-      "B": "Plan mode, to explore the codebase and produce a design proposal before committing to either integration approach.",
+      "B": "Plan mode, so you can explore the codebase and produce a design proposal before committing to either integration approach.",
       "C": "Direct execution with frequent commits, so each step is reviewable and you can roll back individual changes if needed.",
       "D": "A series of small isolated direct-execution sessions, one per file, to keep each change manageable."
     },
@@ -2899,7 +2900,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You're investigating an unfamiliar legacy module that may contain code relevant to a refactor. You expect the discovery phase to involve reading dozens of files, grep across the codebase, and tracing several call chains. You want the conclusions of that exploration available in your main session, but you don't want each individual file read and grep result clogging the context window. Which mechanism is designed for that case?",
     "options": {
-      "A": "Use the Explore subagent to handle the verbose discovery and return a concise summary back to the main session.",
+      "A": "Use the Explore subagent to handle the verbose discovery work and return a concise summary back to the main session.",
       "B": "Continue in the main session but ask Claude to stop showing file contents and only output its final conclusions.",
       "C": "Run plan mode and let it handle the discovery internally before producing a plan and committing to changes.",
       "D": "Use direct execution and trust that the model will compress its own discovery output as the context fills up."
@@ -2956,7 +2957,7 @@ window.QUESTIONS = [
       "A": "Plan mode should be used for every code change without exception, since plans never harm and frequently catch issues.",
       "B": "Plan mode should be used only for emergency fixes when production is down and there's no time to think first.",
       "C": "Plan mode should be used only for security-related changes, since those are the highest-risk category of work.",
-      "D": "Plan mode fits complex multi-file or architectural changes; direct execution fits simple well-scoped fixes like a single null-check."
+      "D": "Plan mode fits complex multi-file or architectural changes; direct execution fits simple, low-risk fixes like a null-check."
     },
     "correct": "D",
     "plausibility": {
@@ -2981,7 +2982,7 @@ window.QUESTIONS = [
     "stem": "Mid-migration, your engineer notices that her plan-mode session's context budget is running low after extensive codebase exploration. She still needs to implement the planned changes but is worried about context exhaustion. The exploration produced useful findings she wants to retain. What is the most effective recovery approach?",
     "options": {
       "A": "Continue in the same session and trust the model to silently summarize earlier turns as it approaches context limits.",
-      "B": "Capture the plan and key findings, then start a fresh direct-execution session seeded with that summary for implementation.",
+      "B": "Capture the plan and key findings, then start a fresh direct-execution session seeded with that summary.",
       "C": "Switch the session to a model with a smaller context window so the system more aggressively trims older messages.",
       "D": "Re-run the exploration in plan mode from scratch in a new session to regenerate findings with fresh context."
     },
@@ -3036,7 +3037,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Restate the requirement again using stronger imperative language like \"you must\" and \"always\" and \"never deviate.\"",
       "B": "Increase the model's temperature so it explores more transformations and converges on a stable convention.",
-      "C": "Provide 2–3 concrete input/output examples that show exactly the normalization (casing, trademark preservation) you want.",
+      "C": "Provide 2–3 concrete input/output examples showing exactly the normalization (casing, trademark) you want.",
       "D": "Ask Claude to first explain what \"normalize\" means to it, then proceed with whatever interpretation it provides."
     },
     "correct": "C",
@@ -3062,7 +3063,7 @@ window.QUESTIONS = [
     "stem": "You're asking Claude to implement a database migration utility for a domain you don't deeply understand yet. You suspect there are design considerations — cache invalidation, rollback strategy, failure modes — that you haven't thought of. You'd like Claude to surface those considerations before writing implementation code. Which refinement pattern is designed for that case?",
     "options": {
       "A": "Provide a detailed test suite covering every edge case you can think of and let Claude code against the failing tests.",
-      "B": "Use the interview pattern: have Claude ask you questions to surface considerations before it produces an implementation.",
+      "B": "Use the interview pattern: have Claude ask questions to surface considerations before it produces an implementation.",
       "C": "Start coding immediately and iterate when problems appear, since real failures are better signals than hypotheticals.",
       "D": "Write a long prompt enumerating every possible concern you can think of and ask Claude to handle each one explicitly."
     },
@@ -3088,7 +3089,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your team is building a data pipeline transformation. You want Claude to follow a strict iterative refinement loop: write expected behavior as tests first, then implement, then iterate by sharing test failures with Claude to guide the next attempt. Which best describes when this test-driven iteration approach is most appropriate compared to alternatives?",
     "options": {
-      "A": "When the behavior can be expressed as concrete pass/fail assertions including edge cases and performance requirements.",
+      "A": "When the behavior can be expressed as concrete pass/fail assertions including edge cases plus measurable speed requirements.",
       "B": "When the behavior is too qualitative to test and the team relies on subjective code review for correctness signals.",
       "C": "When time is tight and the team wants to skip tests entirely to ship the first working version as quickly as possible.",
       "D": "When the team intends to never write tests and only relies on Claude's confidence as a quality signal during development."
@@ -3169,7 +3170,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your team is adding a transformation that converts user inputs into a strict normalized form (specific casing rules, specific punctuation handling). You want Claude to fix a specific edge case where null inputs are passed through unchanged instead of being converted to empty strings. Which specific refinement technique most directly fixes this kind of edge-case behavior?",
     "options": {
-      "A": "Provide a specific failing test case with example input `null` and expected output `\"\"` so Claude has unambiguous behavior to target.",
+      "A": "Provide a specific failing test case with input `null` and expected `\"\"` so Claude has clear behavior.",
       "B": "Restate the requirement in stronger prose without examples and trust Claude to handle null correctly.",
       "C": "Add a general comment in the code saying \"handle nulls carefully\" and let Claude interpret what that means.",
       "D": "Ask Claude to enumerate every possible edge case it can imagine and then ask which ones you want fixed."
@@ -3199,7 +3200,7 @@ window.QUESTIONS = [
       "A": "Provide 50 input/output examples covering happy paths and edge cases and let Claude infer the considerations from data.",
       "B": "Ask Claude to start coding and inspect the resulting design after the fact to discover what considerations it implicitly made.",
       "C": "Generate a long prose specification covering every consideration you can already name and submit it for implementation.",
-      "D": "Use the interview pattern: prompt Claude to ask you questions covering ordering, late arrivals, replay, and back-pressure before coding."
+      "D": "Use the interview pattern: prompt Claude to ask about ordering, late arrivals, replay, and back-pressure before coding."
     },
     "correct": "D",
     "plausibility": {
@@ -3226,7 +3227,7 @@ window.QUESTIONS = [
       "A": "`--no-color` to remove terminal coloring that may confuse log parsers and trigger waits for input.",
       "B": "`--input-format json` to ensure the runner can send structured input even when no TTY is attached.",
       "C": "`--allow-all-tools` to grant unattended permission for every tool call without prompting for approval.",
-      "D": "`-p` (or `--print`) to run Claude Code in non-interactive print mode suitable for automated pipelines."
+      "D": "`-p` (or `--print`) to run Claude Code in non-interactive print mode for automated pipelines."
     },
     "correct": "D",
     "plausibility": {
@@ -3252,7 +3253,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Switch to plain-text output and write a complex regex parser that locates finding sections by Markdown heading patterns.",
       "B": "Increase the prompt's emphasis on producing well-formed Markdown so the parser's existing regex becomes more reliable.",
-      "C": "Use `--output-format json` together with `--json-schema` to enforce a structured findings shape the parser can rely on.",
+      "C": "Use `--output-format json` together with `--json-schema` to enforce a structured shape for the findings the parser can rely on.",
       "D": "Use `--debug` mode to expose Claude's internal reasoning steps so the parser can extract findings from intermediate state."
     },
     "correct": "C",
@@ -3278,7 +3279,7 @@ window.QUESTIONS = [
     "stem": "Your CI pipeline generates unit tests for new code in PRs. Engineers complain that Claude often suggests test cases your existing suite already covers, cluttering review with redundant tests. You want test generation to be aware of what's already tested and avoid duplicating scenarios. Which adjustment most directly addresses this?",
     "options": {
       "A": "Run test generation multiple times and only emit tests that appear in fewer than half the runs as candidates.",
-      "B": "Include the existing test files in the Claude Code context so it can avoid suggesting duplicate scenarios already covered.",
+      "B": "Include existing test files in the Claude Code context so it can avoid suggesting duplicates already covered.",
       "C": "Increase the temperature parameter to force more diverse test ideas that are less likely to overlap with existing tests.",
       "D": "Limit the size of the prompt by truncating function signatures so Claude has less surface area to overtest."
     },
@@ -3307,7 +3308,7 @@ window.QUESTIONS = [
       "A": "Each model snapshot has hidden randomness that resolves differently across sessions, and pipelines should rely on that variability.",
       "B": "Reviews are by nature less thorough than generation, so any review session will be shallower than the originating session.",
       "C": "Larger context windows always improve review quality, so the answer is to migrate review to a model with more context.",
-      "D": "Session context isolation matters: review benefits from an independent instance that hasn't already committed to the implementation."
+      "D": "Session context isolation matters: review benefits from an independent instance that hasn't committed to the implementation."
     },
     "correct": "D",
     "plausibility": {
@@ -3333,7 +3334,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Disable the reviewer for follow-up commits and only run it on the first commit of each PR to avoid all repetition.",
       "B": "Add a deduplication step that fuzzy-matches new comments to old ones and silently drops near-duplicates from posting.",
-      "C": "Include prior review findings in the context for re-runs and instruct Claude to report only new or still-unaddressed issues.",
+      "C": "Include prior review findings inside the context for re-runs and instruct Claude to report only new or still-unaddressed issues.",
       "D": "Increase the model's temperature for re-runs so each re-review generates different phrasing of comments to avoid duplication."
     },
     "correct": "C",
@@ -3358,7 +3359,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your CI test-generation step produces tests that are technically valid but low-value — testing trivial getters, restating obvious assertions, or duplicating existing fixtures. Reviewers say \"skip the noise.\" You want Claude to generate more meaningful tests aligned with what your team considers valuable. Which configuration mechanism most directly raises the quality bar?",
     "options": {
-      "A": "Document your team's testing standards, valuable test criteria, and available fixtures in CLAUDE.md so CI-invoked Claude Code follows them.",
+      "A": "Document team testing standards, valuable test criteria, and fixtures in CLAUDE.md so CI-invoked Claude Code foll",
       "B": "Reject all generated tests by default and require an engineer to opt each test in manually before it can be merged.",
       "C": "Add a post-generation filter that drops tests below a minimum line count to enforce that they do enough work.",
       "D": "Increase the model temperature so each generated test is more creative and less likely to be a trivial getter test."
@@ -3413,7 +3414,7 @@ window.QUESTIONS = [
     "stem": "Your PR review bot flags \"comment accuracy\" issues. The current prompt says \"check that comments are accurate and flag problems.\" Developers complain that 60% of comment flags are pedantic — formatting nits, mildly outdated phrasing, or stylistic preferences — and they've started ignoring all comment findings, including legitimate ones where comments contradict code. Production data shows the bot can correctly identify true contradictions when it surfaces them. What is the most effective change to restore developer trust?",
     "options": {
       "A": "Append \"be conservative and only flag issues you are highly confident about\" to the comment review prompt to reduce volume.",
-      "B": "Rewrite the criterion to \"flag comments only when the claimed behavior contradicts what the code actually does\" with examples.",
+      "B": "Rewrite the criterion to \"flag comments only when claimed behavior contradicts what the code does\" with examples.",
       "C": "Lower the model temperature for comment-review prompts so the model returns fewer findings overall in this category.",
       "D": "Run two independent review passes on comments and only surface findings that both passes agree on as issues."
     },
@@ -3440,7 +3441,7 @@ window.QUESTIONS = [
     "stem": "A team adds the instruction \"only report high-confidence findings\" to their PR review prompt, expecting fewer false positives. After two weeks the false positive rate is unchanged — the same categories that produced noisy findings before are still producing noisy findings, just now labeled \"high confidence.\" Senior engineers are frustrated. Which observation best explains why this approach failed?",
     "options": {
       "A": "Models cannot accurately self-report confidence without temperature scaling and an explicit calibration dataset for the review domain.",
-      "B": "Confidence-based filtering depends on subjective self-assessment and does not change the underlying criterion that produces the noisy findings.",
+      "B": "Confidence-based filtering depends on subjective self-assessment and does not change the criterion producing noisy findings.",
       "C": "The model's confidence scores are biased toward the median of the training distribution and need post-hoc recalibration to be useful.",
       "D": "High-confidence instructions only work when paired with an output schema that forces a numeric confidence value between zero and one."
     },
@@ -3495,7 +3496,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a temperature setting of 0 to the severity classification call to make outputs deterministic across identical inputs and PRs.",
       "B": "Restructure the prompt to ask the model to first describe the bug's impact, then choose a severity based on its description.",
-      "C": "Replace adjective descriptions with concrete code-example anchors for each severity level showing canonical bugs at that level.",
+      "C": "Replace the adjective descriptions with concrete code-example anchors for every severity level showing canonical bugs that belong there.",
       "D": "Move severity classification to a separate downstream model call that only sees the finding text and outputs a label."
     },
     "correct": "C",
@@ -3521,7 +3522,7 @@ window.QUESTIONS = [
     "stem": "A teammate proposes the following review criterion: \"flag any code that could be improved.\" After two weeks of running this prompt in CI, your dashboard shows the bot is flagging an average of 47 findings per PR — formatting, naming, ordering of imports, alternate idioms, and so on. Developers have stopped reading bot comments. Which fix most directly addresses the root cause?",
     "options": {
       "A": "Lower the maximum number of findings the bot can output per PR to ten, regardless of the underlying review criterion.",
-      "B": "Replace the criterion with explicit categories of what TO report (bugs, security) and what to skip (style, local patterns).",
+      "B": "Replace the criterion with explicit categories of what TO report (bugs, security) and what to skip (style, patterns).",
       "C": "Move to a larger model with better judgment so it can self-prune the noisy \"could be improved\" suggestions automatically.",
       "D": "Add a post-processing step that uses a smaller model to deduplicate and rank findings before posting them."
     },
@@ -3574,7 +3575,7 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your bot reviews PRs in a monorepo with Python, Go, and TypeScript. Each language has a different style guide. The current prompt says \"flag code that violates the team's style.\" Findings are inconsistent — the bot flags Python tuple unpacking as \"unusual,\" allows Go's idiomatic short variable names, and complains about TypeScript optional chaining. The team wants consistent, language-aware reviews. Which approach best fits the goal of precise, low-false-positive review?",
     "options": {
-      "A": "Run separate review invocations per language, each with explicit examples of acceptable and unacceptable patterns for that language.",
+      "A": "Run separate review invocations per language, each carrying explicit examples of acceptable and unacceptable patterns for that language.",
       "B": "Append the official style guide PDFs for each language to the prompt context so the model has full authoritative reference material.",
       "C": "Add a generic instruction to \"respect each language's idiomatic style\" and let the model infer based on its pretraining.",
       "D": "Use a routing classifier to detect the language and then call the same generic style prompt with the language name appended."
@@ -3712,7 +3713,7 @@ window.QUESTIONS = [
       "A": "Run a pre-classification step that identifies which citation style the paper uses, then route to a style-specific extraction prompt.",
       "B": "Add a separate model call after extraction that cross-checks the citations against external databases for validation purposes.",
       "C": "Switch to a model with a larger context window so the entire paper plus all references fits in a single extraction call.",
-      "D": "Add 2–4 few-shot examples covering each citation style: inline-with-bib, author-year, and footnote-embedded, with correct extraction."
+      "D": "Add 2–4 few-shot examples covering each citation style: inline-with-bib, author-year, and footnote-embedded, with correct extracti"
     },
     "correct": "D",
     "plausibility": {
@@ -3737,7 +3738,7 @@ window.QUESTIONS = [
     "stem": "Your PR review bot occasionally flags code that uses a deprecated internal helper, `legacy_format_date()`. The team is actively migrating away from this helper but allows it in three specific places (compatibility shims, legacy report exports, and the migration script itself). The bot flags every use, including the three allowed contexts. The team wants the bot to learn which contexts are acceptable without listing every file explicitly. What's the most effective approach?",
     "options": {
       "A": "Add a global instruction: \"do not flag `legacy_format_date` if used in a file that mentions migration or legacy in its name.\"",
-      "B": "Add 2–4 few-shot examples contrasting acceptable usages (in shim, in migration script) with genuine issues (in new feature code).",
+      "B": "Add 2–4 few-shot examples contrasting acceptable usages (in shim or migration) with genuine issues (in new feature code).",
       "C": "Use a regex-based pre-filter on the diff to suppress all findings about `legacy_format_date` regardless of context.",
       "D": "Lower the severity of findings about `legacy_format_date` to \"info\" so they appear but don't block the PR."
     },
@@ -3763,7 +3764,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your extraction pipeline pulls fields from invoices. The prompt has a strict JSON schema and clear field descriptions. For 100 sample invoices, 18 of them return null for `vendor_address` even though the address is clearly present in the document — sometimes in the header, sometimes in the footer, sometimes inline with the vendor name. The schema is correct. What's the most effective fix?",
     "options": {
-      "A": "Add 2–4 few-shot examples showing extraction from invoices with vendor address in the header, footer, and inline next to vendor name.",
+      "A": "Add 2–4 few-shot examples showing extraction from invoices with vendor address in the header, footer, and inline.",
       "B": "Add validation logic that detects null `vendor_address` and runs a second targeted extraction call asking only for the address.",
       "C": "Increase the model's temperature so it is less likely to default to null when the address is in an unusual document location.",
       "D": "Use a larger model with stronger document-understanding capabilities to better identify addresses in non-standard locations."
@@ -3792,7 +3793,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a strict instruction \"respond with ONLY valid JSON — no prose, no markdown, no fences\" at the start of the prompt.",
       "B": "Add post-processing that strips markdown fences and prose preambles from responses before passing to the parser.",
-      "C": "Define the extraction as a tool with a JSON schema and call it via tool_use; consume the structured tool_use input.",
+      "C": "Define the extraction as a tool carrying a JSON schema and invoke it via tool_use; consume the structured tool_use input.",
       "D": "Lower the temperature to 0 so the model produces deterministic outputs that won't vary in their prose framing."
     },
     "correct": "C",
@@ -3871,7 +3872,7 @@ window.QUESTIONS = [
     "difficulty": "hard",
     "stem": "Your extraction schema for clinical reports declares `diagnosis_code`, `procedure_code`, and `attending_physician` as required fields. About 12% of source reports legitimately omit one or more of these — they're preliminary or have redactions. Currently the model fabricates plausible-looking but incorrect ICD codes to satisfy the required fields. The downstream system can handle nulls but cannot handle wrong codes. What's the right schema change?",
     "options": {
-      "A": "Make `diagnosis_code`, `procedure_code`, and `attending_physician` optional (nullable) so the model can return null when absent.",
+      "A": "Make `diagnosis_code`, `procedure_code`, and `physician` optional (nullable) so the model can return null when absent.",
       "B": "Keep the fields required but add a \"confidence\" sibling field and reject low-confidence entries in a post-validation step.",
       "C": "Keep the fields required and add an instruction: \"do not fabricate values; if absent, return the string 'UNKNOWN' in the field.\"",
       "D": "Add a separate boolean `is_complete` field that signals whether the model had to invent values to satisfy the schema."
@@ -3900,7 +3901,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a free-text `category_explanation` field alongside the enum so the model can explain its choice when ambiguous.",
       "B": "Add `tags` as an array of strings so the model can apply multiple tags when categorization is ambiguous between two areas.",
-      "C": "Expand the enum with `other` plus add an `other_detail` string field for the model to describe edge cases that don't fit cleanly.",
+      "C": "Expand the enum with `other` plus an `other_detail` string for the model to describe edge cases that don't fit.",
       "D": "Remove the enum constraint and let the model produce a free-text category, which downstream code can normalize."
     },
     "correct": "C",
@@ -3927,7 +3928,7 @@ window.QUESTIONS = [
     "options": {
       "A": "The schema is too loose — adding more validation rules and a stricter type system would catch these semantic errors before output.",
       "B": "The schema is missing required fields — adding `calculated_total` as a required field forces the model to do internal math correctly.",
-      "C": "Tool-use schemas guarantee syntactic compliance but do not prevent semantic errors — these need separate validation logic to detect.",
+      "C": "Tool-use schemas guarantee syntactic JSON compliance but cannot prevent semantic errors — these require separate validation logic to detect.",
       "D": "The model is hallucinating because tool_choice is set to \"any\" — switching to forced tool selection would reduce semantic mistakes."
     },
     "correct": "C",
@@ -3953,7 +3954,7 @@ window.QUESTIONS = [
     "stem": "Source invoices in your extraction pipeline use inconsistent date formats: \"Jan 5, 2024\", \"01/05/24\", \"2024-01-05\", and \"5-Jan-2024\". Your schema requires `invoice_date` as an ISO 8601 string. The model occasionally produces dates like \"Jan 5, 2024\" inside the field, which the schema accepts as a string but downstream validators reject. The schema cannot be tightened to a true date type given the API constraints. What is the best fix?",
     "options": {
       "A": "Add a regex post-processor that rewrites any non-ISO date strings the model returns into ISO 8601 format before saving them.",
-      "B": "Include format normalization rules in the prompt: \"convert all dates to ISO 8601 (YYYY-MM-DD) before placing them in invoice_date.\"",
+      "B": "Include explicit format normalization in the prompt: convert each date to ISO 8601 (YYYY-MM-DD) before writing to `invoice_date`.",
       "C": "Switch to forced tool selection with `tool_choice` on a separate `normalize_date` tool that runs after extraction.",
       "D": "Add a few-shot example showing one ISO-formatted date and remove all other examples to anchor the model's output style."
     },
@@ -3979,7 +3980,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your extraction pipeline for purchase orders sometimes produces outputs where `total` does not equal the sum of `line_items[].amount`. The model is otherwise reliable. You've added a post-extraction validator that checks the sum. On failure, you want to retry effectively. What is the most effective retry strategy?",
     "options": {
-      "A": "Send a follow-up call including the original document, the failed extraction, and a specific error message stating the sum mismatch.",
+      "A": "Send a follow-up call including the original document, the failed extraction, and an error message stating the sum mismatch.",
       "B": "Retry the same prompt unchanged up to three times and pick the first response where line items sum equals the total field.",
       "C": "Switch to a larger model for the retry call, since the first call's failure suggests insufficient capability for arithmetic checks.",
       "D": "Lower the temperature to 0 for the retry call to make the arithmetic more deterministic and reduce sum errors on the second attempt."
@@ -4061,7 +4062,7 @@ window.QUESTIONS = [
     "stem": "Your purchase order extraction uses a schema with `total` and `line_items`. You add validation that fails when the line items don't sum to total. You want to design a richer self-correction flow that catches discrepancies at extraction time rather than via post-hoc validation. What schema/prompt change best supports this?",
     "options": {
       "A": "Add a `notes` field where the model can flag any extraction concerns it has during the run, like ambiguous totals.",
-      "B": "Have the model extract both `stated_total` (the printed value) and `calculated_total` (sum of line items) and flag if they differ.",
+      "B": "Have the model extract both `stated_total` (printed value) and `calculated_total` (line items) and flag if they differ.",
       "C": "Add a `severity` enum to indicate how serious any extraction issue is, with retry logic gated by severity.",
       "D": "Add a `validation_passed` boolean field that the model fills in as true if the extraction looks correct to it."
     },
@@ -4087,7 +4088,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your extraction pipeline ingests scanned forms. Sometimes the OCR layer produces conflicting values — the same field appears twice in the document due to checkbox grids, and the OCR captures both. The extraction model picks one arbitrarily, leading to inconsistent outputs across runs. You want the model to surface that the source had conflicting information rather than silently choosing one. What's the most effective schema addition?",
     "options": {
-      "A": "Add a `conflict_detected` boolean field that the model sets to true when source data contains conflicting values for a field.",
+      "A": "Add a `conflict_detected` boolean that the model sets to true when source data contains conflicting values for a field.",
       "B": "Add a `raw_values` array containing every candidate value the OCR layer found, in addition to the chosen field value.",
       "C": "Add a `confidence` numeric field on each extracted value so downstream code can route low-confidence conflicts to review.",
       "D": "Add a `correction_history` list that records every value the model considered before settling on the final extraction."
@@ -4116,7 +4117,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Retries with the same prompt are useful — the swap is stochastic and three retries will produce a correct extraction by majority vote.",
       "B": "Retries with error feedback would help — including the wrong-field error message would let the model self-correct on the next attempt.",
-      "C": "Retries are ineffective for this case — the failure is systematic, and the fix is prompt/schema changes (clearer field descriptions, examples).",
+      "C": "Retries are ineffective here — the failure is systematic; the fix is prompt or schema changes (clearer field descriptions plus examples).",
       "D": "Retries with a different model would help — switching mid-pipeline to a larger model on retry resolves systematic field confusion."
     },
     "correct": "C",
@@ -4197,7 +4198,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Use the batch API — its 50% cost savings outweighs latency concerns, and most batches actually complete in under 10 minutes anyway.",
       "B": "Use a hybrid: try batch first for the 50% discount, and fall back to synchronous if the batch hasn't completed within 5 minutes.",
-      "C": "The batch API has no latency SLA and can take up to 24 hours — it is inappropriate for blocking pre-merge checks regardless of typical completion time.",
+      "C": "The batch API has no latency SLA and may take 24 hours — inappropriate for blocking pre-merge checks regardless of usual timing.",
       "D": "Use batch for non-critical checks only; route critical checks (security, blocking) to synchronous calls within the same CI pipeline."
     },
     "correct": "C",
@@ -4225,7 +4226,7 @@ window.QUESTIONS = [
       "A": "Submit one batch per day at midnight; documents arriving at 11:55 PM still get processed within 24 hours and have time for shipping.",
       "B": "Submit one batch per week with all documents accumulated through the week; per-document SLA is satisfied because batch processing fits.",
       "C": "Submit batches on demand whenever 5,000 documents are accumulated, since cost-per-batch is independent of batch size.",
-      "D": "Submit one batch every 4 hours: worst-case wait for batch submission is 4 hours, plus 24 hours batch time equals 28 hours under the 30-hour SLA."
+      "D": "Submit one batch every 4 hours: worst-case 4-hour wait plus 24 hours batch time equals 28 hours under the 30-hour SLA."
     },
     "correct": "D",
     "plausibility": {
@@ -4276,7 +4277,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your team plans to use the Message Batches API for nightly PR test generation. The current synchronous workflow includes a step where the model calls a tool to look up coverage data for the file, receives the result, and then generates tests. You wonder if this same workflow can be moved to batch. What is the correct understanding?",
     "options": {
-      "A": "Batch does not support multi-turn tool calling within a single request; you'd need to flatten the workflow so the tool result is included in the prompt.",
+      "A": "Batch does not support multi-turn tool calling within a single request; you'd need to flatten so the tool result is in the prompt.",
       "B": "Batch supports the same multi-turn tool-calling workflows as synchronous — there is no functional difference between the two APIs, only timing.",
       "C": "Batch supports tool calling but only with synchronous tools that resolve in under 100ms, so you'd need to make the coverage lookup faster.",
       "D": "Batch only supports tool calling when the same tool is used by every request; differing tools across requests in a batch are not allowed."
@@ -4306,7 +4307,7 @@ window.QUESTIONS = [
       "A": "Submit immediately because batch is cheap and iteration on failures gives more diverse coverage of edge cases than synthetic 200-sample testing.",
       "B": "Submit all 50,000 in batch but with three different prompt variants in parallel; pick the best per document via post-hoc ensembling logic.",
       "C": "Run both options in parallel and compare results; whichever produces fewer errors wins, and the cost of duplicate compute is acceptable.",
-      "D": "Iterate on samples first: refine the prompt synchronously until first-pass success rate is high, then submit batch; this minimizes expensive resubmissions."
+      "D": "Iterate on samples first: refine the prompt synchronously until first-pass success is high, then submit batch; this minimizes resubmissions."
     },
     "correct": "D",
     "plausibility": {
@@ -4333,7 +4334,7 @@ window.QUESTIONS = [
       "A": "Move the audit to the synchronous API entirely; it has guaranteed per-request latency but loses the 50% cost discount.",
       "B": "Keep batch but submit twice on Sunday: once at midnight and once at 4 AM, splitting the documents to halve worst-case batch time.",
       "C": "Reduce the document count from 18,000 to 9,000 by pre-filtering low-priority items; smaller batches complete faster on average.",
-      "D": "Move audit submission earlier in the week — submit Saturday at midnight, giving 57 hours of total budget for the 24-hour batch window."
+      "D": "Move audit submission earlier — submit Saturday at midnight, giving 57 hours of total budget for the 24-hour batch window."
     },
     "correct": "D",
     "plausibility": {
@@ -4412,7 +4413,7 @@ window.QUESTIONS = [
     "stem": "Your PR review bot runs two passes: an initial pass that produces findings, and a self-review pass where the same instance critiques its own findings. You notice the self-review almost never disagrees with the original findings — it nods along, occasionally rephrasing but rarely removing or adding. The team wants meaningful second-pass feedback to catch false positives. What's the most effective change?",
     "options": {
       "A": "Increase the temperature on the self-review pass so the model is more willing to disagree with its own earlier findings.",
-      "B": "Use an independent Claude instance for the second pass, with no awareness of the first pass's findings or reasoning context.",
+      "B": "Use an independent Claude instance for the second pass, with no awareness of the first pass's findings or reasoning.",
       "C": "Add an explicit instruction in the self-review prompt: \"you MUST disagree with at least 20% of the original findings.\"",
       "D": "Have the self-review pass output a confidence score for each original finding; downstream code can drop low-confidence ones."
     },
@@ -4441,7 +4442,7 @@ window.QUESTIONS = [
       "A": "Have each instance see the others' findings and resolve contradictions through pairwise debate during the review run.",
       "B": "Add a coordinator instance whose only job is to receive each reviewer's findings and resolve contradictions before posting to developers.",
       "C": "Merge the three roles into a single instance with a single prompt covering security, style, and architecture, eliminating contradictions.",
-      "D": "Rank reviewers by domain authority (security highest), and on contradiction, automatically suppress the lower-priority reviewer's finding."
+      "D": "Rank reviewers by domain authority (security highest); on contradiction, automatically suppress the lower-priority reviewer's finding."
     },
     "correct": "D",
     "plausibility": {
@@ -4493,7 +4494,7 @@ window.QUESTIONS = [
     "stem": "Your team's review pipeline asks Claude to \"rate your confidence in each finding from 1 to 5\" alongside the finding itself. The team uses this to route low-confidence findings to a second reviewer and surface high-confidence ones directly. After deployment, you observe that nearly all findings are labeled 4 or 5, regardless of whether they later turn out to be true positives. What is the best architectural response?",
     "options": {
       "A": "Re-train developers to ignore the confidence scores and treat all findings identically until calibration improves over time.",
-      "B": "Switch to a verification pass run by an independent Claude instance that self-reports its own confidence on each finding to enable calibrated routing.",
+      "B": "Switch to a verification pass by an independent Claude instance that self-reports confidence on each finding for calibrate",
       "C": "Increase the confidence scale from 1-5 to 1-100 so the model has more resolution to distinguish high-confidence findings from medium ones.",
       "D": "Add a step where the model must justify each confidence score with at least three sentences of reasoning before assigning it."
     },
@@ -4547,7 +4548,7 @@ window.QUESTIONS = [
     "stem": "Your support agent handles long multi-issue calls. After about 20 turns, you observe that when the customer asks \"did we ever sort out my $47.32 overcharge?\", Claude responds with a vague summary about \"a billing issue from earlier\" rather than referencing the exact amount. Production transcripts show this pattern across many sessions: specific numbers and dates get smoothed into generalities as the conversation grows. What is the underlying cause you should address first?",
     "options": {
       "A": "The model is hitting its effective context window and silently truncating earlier turns from the request payload.",
-      "B": "Progressive summarization is compressing transactional facts like dollar amounts and dates into vague natural-language summaries.",
+      "B": "Progressive summarization is compressing transactional facts like exact dollar amounts and dates into vague summaries.",
       "C": "The agent is calling `lookup_order` too aggressively, flooding the context with irrelevant order fields.",
       "D": "The customer's later messages contain ambiguous pronouns that the model cannot resolve back to specifics."
     },
@@ -4575,7 +4576,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Cache `lookup_order` results in an external store keyed by order_id and reference them via short identifiers in the conversation.",
       "B": "Switch the agent to a model with a larger context window so all 47 fields can coexist without crowding out other content.",
-      "C": "Have the tool wrapper trim each `lookup_order` response to only the five refund-relevant fields before it reaches Claude's context.",
+      "C": "Have the tool wrapper trim each `lookup_order` response to only the five refund-relevant fields before it reaches Claude.",
       "D": "Add an instruction to the system prompt telling Claude to ignore irrelevant fields in `lookup_order` outputs."
     },
     "correct": "C",
@@ -4603,7 +4604,7 @@ window.QUESTIONS = [
       "A": "Increase the synthesis agent's max output tokens so it has room to disambiguate sources during writing.",
       "B": "Have the coordinator re-summarize each subagent output into a shorter prose paragraph before forwarding it to synthesis.",
       "C": "Run the synthesis agent in two passes: a first pass to identify sources and a second pass to write the final prose narrative.",
-      "D": "Modify the document-analysis subagent to return structured data with key facts, citations, and relevance scores instead of prose."
+      "D": "Modify the document-analysis subagent to return structured data with key facts, citations, and relevance scores instead of p"
     },
     "correct": "D",
     "plausibility": {
@@ -4627,7 +4628,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "A customer's case touches three issues across a 30-turn conversation: a damaged item refund ($89.50), a billing correction ($12.10), and a shipping address change. The agent occasionally conflates which amount belongs to which issue, especially in turns 20+. You want the simplest reliable pattern to preserve these per-issue facts. Which approach should you implement?",
     "options": {
-      "A": "Maintain a structured \"case facts\" block (per-issue: order_id, amount, status, requested action) prepended to every turn's prompt.",
+      "A": "Maintain a structured \"case facts\" block (per issue: order_id, amount, status, action) prepended to each prompt.",
       "B": "Instruct Claude in the system prompt to repeat all dollar amounts and order IDs verbatim whenever it references them.",
       "C": "Add a tool call at the start of every turn that retrieves a transcript-derived summary from a server-side memory store.",
       "D": "Periodically inject \"remember: amounts are $89.50 and $12.10\" reminders as user messages every five turns."
@@ -4656,7 +4657,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Re-order the aggregated input so the most important subagent's findings appear last, and trust position effects to do the rest.",
       "B": "Split synthesis into four independent calls, each handling one subagent's output, then merge the four mini-syntheses.",
-      "C": "Place a key-findings summary at the start of the aggregated input and use explicit section headers to delineate each subagent's contribution.",
+      "C": "Place a key-findings summary at the start of the aggregated input and use section headers to delineate each subagent's contributions.",
       "D": "Truncate each subagent's output to a fixed length so all four contributions compete on equal token footing."
     },
     "correct": "C",
@@ -4684,7 +4685,7 @@ window.QUESTIONS = [
       "A": "Schema validation is silently dropping middle-of-document entries that don't match the expected pattern.",
       "B": "Tokenization quirks cause middle-document content to be encoded less efficiently and effectively truncated.",
       "C": "The extraction prompt is too short to anchor the model on middle content during the long pass.",
-      "D": "The \"lost in the middle\" effect — models reliably attend to the start and end of long inputs but underweight middle content."
+      "D": "The \"lost in the middle\" effect — models attend to the start and end of long inputs and underweight middle regions."
     },
     "correct": "D",
     "plausibility": {
@@ -4708,7 +4709,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your synthesis agent receives outputs from a document-analysis subagent that summarizes academic papers. You notice the synthesis report says \"research from this year shows declining yields\" when the underlying paper was actually from 2017. Investigating, you find the subagent's output mentions \"recent research\" without dates, and \"this region\" without naming a region. What requirement should you add to the subagent's output schema?",
     "options": {
-      "A": "Require structured metadata fields including publication date, geographic scope, and source URL alongside each finding.",
+      "A": "Require structured metadata including publication date, geographic scope, and source URL alongside each finding.",
       "B": "Require the subagent to write all findings in fully resolved prose that names dates and places inline within sentences.",
       "C": "Have the synthesis agent re-fetch each source document to verify dates and places before composing the report.",
       "D": "Switch the subagent to a smaller model less prone to using vague temporal language in its summaries."
@@ -4791,7 +4792,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Keep the immediate escalation; frustrated customers benefit from being routed straight to a human in all cases.",
       "B": "Add a sentiment override — escalate only when frustration score exceeds 0.9 to keep current behavior for very angry customers.",
-      "C": "Acknowledge the customer's frustration and offer to resolve the refund directly, escalating only if they reiterate a preference for a human.",
+      "C": "Acknowledge the customer's frustration and offer to resolve the refund directly, escalating only if they prefer a human.",
       "D": "Auto-process a full refund without further verification to make the case go away quickly and preserve goodwill."
     },
     "correct": "C",
@@ -4819,7 +4820,7 @@ window.QUESTIONS = [
       "A": "Have the agent prefer the oldest account, since longer-tenured customers are less likely to be impersonators.",
       "B": "Add a tie-breaking heuristic that picks the account with the most recent order matching the description in the chat.",
       "C": "Train a re-ranker on resolved cases to score which \"Jordan Lee\" record is most likely to be the right one.",
-      "D": "Instruct the agent to ask the customer for an additional identifier (email, phone, or order number) rather than auto-selecting."
+      "D": "Instruct the agent to ask the customer for an additional identifier (email, phone, or order number) instead of auto"
     },
     "correct": "D",
     "plausibility": {
@@ -4844,7 +4845,7 @@ window.QUESTIONS = [
     "stem": "Your team is writing the support agent's system prompt for escalation behavior. The current draft just says \"escalate when appropriate.\" Production behavior is inconsistent — the agent escalates some routine refunds and resolves some policy-exception cases on its own. What addition to the prompt would most improve consistency?",
     "options": {
       "A": "A long paragraph describing the philosophy of customer service and the importance of empathy in support interactions.",
-      "B": "Explicit escalation criteria with a few-shot block showing concrete examples of when to escalate versus when to resolve autonomously.",
+      "B": "Explicit escalation criteria with a few-shot block showing concrete examples of when to escalate versus resolve.",
       "C": "A directive to always escalate when in doubt, since human review is cheaper than a wrong autonomous decision.",
       "D": "A higher temperature setting so the model can be more creative in deciding when escalation is appropriate."
     },
@@ -4899,7 +4900,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Disable order-record-based duplicate detection entirely and always rely on the customer's stated experience for billing claims.",
       "B": "Have the agent escalate after a single negative lookup since the customer's statement directly contradicts the system view.",
-      "C": "Recognize that the agent has insufficient ground truth to resolve the dispute and escalate, providing the human agent with the lookup result and the customer's statement.",
+      "C": "Recognize the agent has insufficient ground truth and escalate, providing the human agent the lookup result and customer's statement.",
       "D": "Refund the customer immediately when their statement contradicts the order system, since customer-friendly defaults outperform investigation."
     },
     "correct": "C",
@@ -4927,7 +4928,7 @@ window.QUESTIONS = [
       "A": "The status field uses \"error\" instead of the more conventional \"failure\" naming, which confuses downstream parsing.",
       "B": "The message is in English and should be in a structured machine-readable enum for reliable handling.",
       "C": "The response is missing a timestamp field, making it hard to know when the failure occurred during the workflow.",
-      "D": "The generic error hides context — failure type, what was attempted, partial results, and alternative approaches — that the coordinator needs to recover intelligently."
+      "D": "The generic error message hides recovery-critical context — failure type, attempt, partial results, and alternatives."
     },
     "correct": "D",
     "plausibility": {
@@ -4951,7 +4952,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your document-analysis subagent fetches a PDF; the fetch times out. Your web-search subagent runs a query and gets zero matching documents. Both subagents currently return the identical response `{\"results\": []}` to the coordinator. The coordinator handles both cases the same way: it logs \"no findings\" and moves on. You're seeing reports later that should have referenced the unavailable PDF. What change should you make?",
     "options": {
-      "A": "Have each subagent return distinguishable structured responses — access failures (with retry info, attempted target, error type) versus valid empty results.",
+      "A": "Have each subagent return distinguishable structured responses — access failures (retry info, target, error type) versus empty results.",
       "B": "Add a timeout-only retry policy at the coordinator that automatically re-issues any subagent call that completed in less than 100ms.",
       "C": "Always interpret `{\"results\": []}` as a possible failure and re-run the subagent up to three times before accepting an empty result.",
       "D": "Increase the subagent's timeout budget so PDF fetches less frequently fail, reducing the chance of false-negative findings."
@@ -4979,7 +4980,7 @@ window.QUESTIONS = [
     "stem": "Your web-search subagent encounters a single transient 503 response from one of its four target sources. It currently returns an error to the coordinator with that 503 as the failure type, and the coordinator escalates by aborting the research task. The other three sources succeeded with rich content. What architectural change is most appropriate?",
     "options": {
       "A": "Have the coordinator absorb the abort logic and silently treat the subagent's error as success when at least one source worked.",
-      "B": "Have the subagent implement local retry for transient failures and only propagate errors it can't resolve, including what was attempted and any partial results.",
+      "B": "Have the subagent retry locally on transient failures and propagate only errors it can't resolve, with attempts and partial re",
       "C": "Replace the 503-sensitive source with a more reliable alternative and remove the 503-handling code path entirely.",
       "D": "Centralize all retry policy in the coordinator so subagents become pure pass-throughs that propagate raw HTTP responses."
     },
@@ -5007,7 +5008,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a top-line confidence percentage at the start of the report so readers can quickly gauge overall reliability.",
       "B": "Append a bibliography section listing every source the subagents attempted, regardless of fetch success.",
-      "C": "Structure the report with explicit coverage annotations marking which findings are well-supported versus which topic areas have gaps due to unavailable sources.",
+      "C": "Structure the report with explicit coverage annotations marking well-supported findings versus areas with gaps.",
       "D": "Withhold any topic area that doesn't have at least two successful source fetches, so unsupported claims never appear."
     },
     "correct": "C",
@@ -5059,7 +5060,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "A subagent reports `{\"status\":\"partial\",\"attempted_query\":\"declining cod stocks 1990-2020\",\"retrieved\":3,\"missing\":1,\"failed_sources\":[\"fishery_bulletin_2018\"]}`. The coordinator can now decide whether to (a) retry only the failed source, (b) proceed with three sources annotated, or (c) escalate to a human researcher. What property of this error format makes the coordinator's decision possible?",
     "options": {
-      "A": "It includes structured failure context — failure type, attempted query, partial results, and what specifically failed — to enable intelligent recovery.",
+      "A": "It carries structured failure context — failure type, attempted query, partial results, what failed — exactly what recovery needs.",
       "B": "It uses JSON instead of plain text, which is the canonical machine-readable format for inter-agent communication.",
       "C": "It includes a status field with a value other than \"ok,\" which signals to the coordinator that special handling is needed.",
       "D": "It distinguishes \"partial\" from \"error\" status, which is the only meaningful axis the coordinator needs for recovery decisions."
@@ -5087,7 +5088,7 @@ window.QUESTIONS = [
     "stem": "Your document-analysis subagent occasionally hits a parsing edge case where it gets 60% through a long PDF before encountering an unparseable embedded table. It currently returns `{\"status\":\"error\",\"reason\":\"parse_failure\"}` and the coordinator discards the 60% of successful analysis. What change best aligns with Task 5.3 guidance?",
     "options": {
       "A": "Have the subagent default to a streaming response so partial output is always available, regardless of where the parse failed.",
-      "B": "Have the subagent return structured output containing both the partial successful analysis and a description of where parsing failed and why.",
+      "B": "Have the subagent return structured output with both the partial successful analysis and a description of where parsing failed.",
       "C": "Have the coordinator preemptively split long PDFs into single-page documents so any parse failure is isolated to one page's loss.",
       "D": "Have the coordinator retry the entire PDF analysis on a different subagent instance, hoping the parse failure was transient."
     },
@@ -5115,7 +5116,7 @@ window.QUESTIONS = [
     "options": {
       "A": "The developer's prompt style has drifted over the session, becoming less specific and leading to vaguer answers.",
       "B": "The codebase has multiple refund handlers and Claude is now correctly noting the ambiguity it missed earlier.",
-      "C": "Context degradation in an extended session — Claude is referencing \"typical patterns\" rather than the specific classes discovered earlier.",
+      "C": "Context degradation across an extended session — Claude is leaning on \"typical patterns\" rather than discovered classes.",
       "D": "A model version change occurred mid-session, switching to a model with different knowledge of the codebase."
     },
     "correct": "C",
@@ -5143,7 +5144,7 @@ window.QUESTIONS = [
       "A": "Restart the session from scratch and let Claude rediscover the codebase, since the current context is corrupted.",
       "B": "Manually paste in a short list of files-already-edited at the start of each turn so Claude has the running state.",
       "C": "Switch to a model with a larger context window and continue the same conversation with no other changes.",
-      "D": "Use `/compact` to reduce context usage by summarizing the conversation while preserving the high-level state of progress."
+      "D": "Use `/compact` to reduce overall context usage by summarizing the conversation while preserving the high-level state."
     },
     "correct": "D",
     "plausibility": {
@@ -5167,7 +5168,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your main coordinator agent is helping a developer trace a deeply nested dependency graph in a legacy module. To investigate \"all files importing the `RefundQueue` class,\" running the trace inline would pull dozens of file contents into the main session. You want to keep the main agent focused on high-level coordination. What is the most appropriate design?",
     "options": {
-      "A": "Spawn a subagent to investigate the import graph, returning a concise summary of findings while keeping verbose output isolated from the main session.",
+      "A": "Spawn a subagent to investigate the import graph, returning a concise summary while keeping verbose output isolated.",
       "B": "Run the trace inline in the main agent but use a longer system prompt that instructs it to ignore irrelevant file contents.",
       "C": "Have the developer run `grep -r RefundQueue` manually and paste only the summarized results into the main session.",
       "D": "Have the main agent open and read each file one at a time, summarizing as it goes to keep the active context lean."
@@ -5223,7 +5224,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a wrapper that retries the entire exploration from scratch up to three times if the previous attempt didn't complete.",
       "B": "Have the coordinator's prompt include an instruction to \"remember where you left off if interrupted,\" relying on prompt-driven recovery.",
-      "C": "Have each subagent export structured state to a known location and the coordinator load a manifest on resume to inject into agent prompts.",
+      "C": "Have each subagent export structured state to a known location and the coordinator load a manifest on resume to inject into prompts.",
       "D": "Increase host machine reliability — provision redundant hardware to eliminate the crash class rather than handling recovery in software."
     },
     "correct": "C",
@@ -5275,7 +5276,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Over a long codebase exploration, you've asked Claude five questions in sequence: about authentication, then refunds, then logging, then sessions, then now back to authentication. Claude's answer about authentication on question 5 contradicts what it said on question 1 — it now references \"typical auth patterns\" instead of the specific `AuthHandler` class it identified initially. You want to prevent this drift. What's the most direct mitigation?",
     "options": {
-      "A": "Maintain a scratchpad file that records the key findings from each topic (the specific `AuthHandler` class identified in question 1), referenced when revisiting topics.",
+      "A": "Maintain a scratchpad file recording findings per topic (the specific `AuthHandler` class), referenced when revisiting.",
       "B": "Constrain the developer to one topic per session, so Claude doesn't have to context-switch and lose specific entity references.",
       "C": "Add `temperature: 0` to all calls so Claude's answers are perfectly deterministic and can't contradict each other.",
       "D": "Run a second Claude instance in parallel that fact-checks every answer of the first instance against earlier conversation turns."
@@ -5303,7 +5304,7 @@ window.QUESTIONS = [
     "stem": "Your extraction pipeline reports 97% accuracy on validation data and you're considering reducing human review to spot-checks. Before automating high-confidence extractions, your QA lead asks for a breakdown by document type. The breakdown shows 99% accuracy on invoices, 98% on purchase orders, but 78% on multi-party contracts. What does this tell you?",
     "options": {
       "A": "Aggregate accuracy is the correct headline figure; the contract category is a small slice and doesn't materially affect overall reliability.",
-      "B": "Aggregate accuracy masks poor performance on a specific document type, so contracts shouldn't be automated until their accuracy improves.",
+      "B": "Aggregate accuracy masks the poor performance on a specific document category, so contracts should not be automated until their accuracy improves.",
       "C": "The contract accuracy will naturally rise toward the average over time as the model sees more contract examples through ongoing usage.",
       "D": "The 78% figure is likely a sampling artifact and would converge to 97% with a larger validation set."
     },
@@ -5331,7 +5332,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Randomly sample 1% of all extractions for human review regardless of confidence to maintain a baseline error-rate measurement.",
       "B": "Manually pick the 100 most \"interesting\" extractions each week and review those, relying on reviewer intuition to find new failure modes.",
-      "C": "Stratified random sampling of the high-confidence pool by document type and field, so each segment is independently measured for ongoing error rates.",
+      "C": "Stratified random sampling of the high-confidence pool by document type and field, so each segment is measured independently for new errors.",
       "D": "Review only extractions flagged by downstream consumers (customers, accounting), trusting field complaints to surface real-world errors."
     },
     "correct": "C",
@@ -5359,7 +5360,7 @@ window.QUESTIONS = [
       "A": "Show reviewers the raw source document alongside the extraction so they can quickly spot-check obvious correctness without per-field signals.",
       "B": "Sort reviewer queues by document age so older extractions are reviewed first, since the model may have drifted over time.",
       "C": "Limit reviewers to a fixed time budget per document so they're forced to prioritize attention without explicit guidance.",
-      "D": "Have the model output field-level confidence scores, calibrated against labeled validation data, and route fields below threshold to human review."
+      "D": "Have the model output field-level confidence scores, calibrated against labeled data, and route fields below threshold to human review."
     },
     "correct": "D",
     "plausibility": {
@@ -5383,7 +5384,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "You've decided to automate high-confidence extractions across all document types. Aggregate accuracy is 96%. A team member proposes a \"ship it\" plan that turns off human review immediately. What pre-deployment check most directly aligns with Task 5.5 guidance before reducing review?",
     "options": {
-      "A": "Analyze accuracy by document type and field segment, verifying consistent performance across all segments before reducing human review.",
+      "A": "Analyze accuracy by document type and field segment, verifying consistent performance across every segment before lowering review.",
       "B": "Run a one-week parallel pilot where automation and humans both process each document and only compare final aggregate counts.",
       "C": "Survey reviewers about whether they feel their review of recent extractions has been catching many errors.",
       "D": "Schedule a kickoff meeting to align stakeholders on the reduced-review plan and document the rollback procedure."
@@ -5411,7 +5412,7 @@ window.QUESTIONS = [
     "stem": "Your extraction model outputs a per-field confidence score that ranges 0.0–1.0. You're using 0.85 as the threshold above which a field is auto-approved. Audit shows 8% of fields with confidence above 0.85 are actually wrong. The team wants to raise the threshold to 0.95 to reduce errors. What's the more principled response?",
     "options": {
       "A": "Raising the threshold to 0.95 is correct because it reduces the share of incorrect auto-approvals and is a cheap, fast change.",
-      "B": "Calibrate confidence scores against a labeled validation set to learn what threshold corresponds to your target error rate per field, rather than guessing.",
+      "B": "Calibrate confidence scores against a labeled validation set so you pick the threshold that matches your target error rate per field.",
       "C": "Disable confidence-based routing entirely and have humans review every extraction until model accuracy is uniformly above 95%.",
       "D": "Switch the confidence output from a continuous score to a categorical \"high/medium/low\" tag for easier reasoning."
     },
@@ -5439,7 +5440,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Review extraction X first because high-confidence cases are easy wins that drain the queue quickly.",
       "B": "Review both with equal priority since both are still within the pre-threshold review pool.",
-      "C": "Prioritize extraction Y for review because low confidence is exactly the signal pointing to uncertain extractions that benefit from human attention.",
+      "C": "Prioritize extraction Y for review since low confidence is the signal pointing to extractions that need verification.",
       "D": "Skip both — when reviewer capacity is tight, the model's own confidence ranking should be trusted to filter cases."
     },
     "correct": "C",
@@ -5467,7 +5468,7 @@ window.QUESTIONS = [
       "A": "Pre-deployment red-team exercises where adversaries try to break the extractor with malicious inputs to find robustness gaps.",
       "B": "Pre-deployment latency benchmarking under load to ensure the extraction system meets accounts-payable processing SLAs.",
       "C": "Pre-deployment chaos testing where individual fields are randomly nulled to verify downstream systems handle missing data.",
-      "D": "Pre-deployment per-field accuracy analysis on labeled data, segmenting by document type and field, before treating aggregate as the deployment criterion."
+      "D": "Pre-deployment per-field accuracy analysis on labeled data, segmenting by document type and field, before deployment."
     },
     "correct": "D",
     "plausibility": {
@@ -5491,7 +5492,7 @@ window.QUESTIONS = [
     "difficulty": "easy",
     "stem": "Your research system synthesizes findings from four document-analysis subagents. The synthesis agent currently summarizes each subagent's findings into a single paragraph, dropping any source URLs from the original outputs. Stakeholders complain that they can't trace claims in the final report back to specific documents. What's the most direct fix?",
     "options": {
-      "A": "Require subagents to output structured claim-source mappings — source URLs, document names, and relevant excerpts — that downstream agents preserve through synthesis.",
+      "A": "Require subagents to output structured claim-source mappings — URLs, document names, and excerpts — preserved through synt",
       "B": "Have the synthesis agent add a footnote at the end of each paragraph estimating which source likely supported the claim.",
       "C": "Append the full subagent outputs as raw appendices at the back of the report so readers can search them manually.",
       "D": "Train the synthesis agent on examples that emphasize citing sources, hoping the trained behavior is preserved at inference."
@@ -5519,7 +5520,7 @@ window.QUESTIONS = [
     "stem": "Your research report covers a contentious topic where some claims have strong consensus and others have only one source. Currently, all findings are presented in uniform prose paragraphs without distinguishing the two. Reviewers report being unable to tell what's well-established versus what's tentative. What structural change addresses this?",
     "options": {
       "A": "Sort findings by source count so the most-supported claims appear at the top and least-supported at the bottom of the report.",
-      "B": "Structure the report with explicit sections distinguishing well-established findings from contested ones, preserving original source characterizations.",
+      "B": "Structure the report with explicit sections that distinguish well-established findings from contested ones, preserving sources.",
       "C": "Remove all single-source claims from the report to ensure only well-established findings are reported to stakeholders.",
       "D": "Add a single overall confidence rating at the top of the report giving readers a directional sense of overall reliability."
     },
@@ -5548,7 +5549,7 @@ window.QUESTIONS = [
       "A": "Average the two reported declines (22.5%) and present that as a balanced consensus figure across both sources.",
       "B": "Have the synthesis agent flag the discrepancy to a human researcher and pause until a manual decision resolves the conflict.",
       "C": "Always favor the source with the more rigorous methodology section, regardless of publication date or stated effect size.",
-      "D": "Have the document-analysis subagents output both values with full source attribution, letting the coordinator decide reconciliation before synthesis."
+      "D": "Have the document-analysis subagents output both values with full source attribution, letting the coordinator reconcile be"
     },
     "correct": "D",
     "plausibility": {
@@ -5574,7 +5575,7 @@ window.QUESTIONS = [
     "options": {
       "A": "Add a synthesis-time rule that filters out older studies in favor of newer ones to avoid mixing periods.",
       "B": "Have the synthesis agent ask the user for clarification whenever two numerical values from different sources don't match.",
-      "C": "Require subagents to include publication date and data-collection date range in structured outputs to enable correct temporal interpretation.",
+      "C": "Require subagents to include publication date and data-collection date range in structured outputs for correct temporal ",
       "D": "Switch synthesis to a per-study format that simply lists each study's findings without attempting cross-study reconciliation."
     },
     "correct": "C",
@@ -5599,7 +5600,7 @@ window.QUESTIONS = [
     "difficulty": "medium",
     "stem": "Your synthesis agent renders all findings as uniform prose paragraphs — financial figures, news quotes, and technical performance benchmarks alike. Readers complain that financial data is hard to compare across companies in paragraph form, and benchmark data feels muddled. You want to render content types in their appropriate forms. Which approach aligns with Task 5.6 guidance?",
     "options": {
-      "A": "Render different content types appropriately — financial data as tables, news as prose, technical findings as structured lists — rather than forcing a uniform format.",
+      "A": "Render different content types appropriately — financial as tables, news as prose, technical as lists — rather than a uniform format.",
       "B": "Convert everything into prose for narrative consistency, since the report's main job is to tell a coherent story to non-technical stakeholders.",
       "C": "Convert everything into tables for visual consistency, even narrative news and qualitative interviews, since tables are scannable.",
       "D": "Have the synthesis agent randomize formatting choices to keep readers engaged with varied visual structure."
@@ -5627,7 +5628,7 @@ window.QUESTIONS = [
     "stem": "Your research workflow's synthesis step currently produces a paragraph like: \"Multiple sources confirm declines in regional fish populations, with one study reporting a 30% decline over the decade.\" A stakeholder asks \"which study? where can I find it?\" and your team can't reconstruct the answer. What was the root failure?",
     "options": {
       "A": "The 30% figure was likely wrong, and the synthesis agent should have validated numerical claims against the original sources.",
-      "B": "Source attribution was lost during synthesis when findings were compressed into prose without preserving claim-source mappings.",
+      "B": "Source attribution was lost during synthesis when findings were compressed into prose without preserving claim-source ma",
       "C": "The stakeholder should have been given access to the underlying subagent outputs at the time of the original delivery.",
       "D": "The synthesis agent should have refused to produce the report when source attribution wasn't possible."
     },
@@ -5656,7 +5657,7 @@ window.QUESTIONS = [
       "A": "Have the synthesis agent generate a synthetic methodology paragraph after the fact based on what it thinks the methodology probably was.",
       "B": "Have the synthesis agent ask senior researchers per claim whether they want methodology included for that specific finding.",
       "C": "Move methodology to an end-of-report appendix that's stripped of any link to specific claims, but available for reference.",
-      "D": "Preserve original source characterizations and methodological context in the synthesis output so consumers can evaluate competing claims."
+      "D": "Preserve original source characterizations and methodological context in the synthesis output so consumers can evaluate competing "
     },
     "correct": "D",
     "plausibility": {
