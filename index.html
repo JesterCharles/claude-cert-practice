@@ -224,15 +224,18 @@
   }
   .q-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
   .q-option {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 12px 14px;
     border: 1.5px solid #e7e4dc;
     border-radius: 8px;
+    background: white;
+    transition: all 0.15s ease;
+    overflow: hidden;
+  }
+  .q-option-main {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px;
     cursor: pointer;
     font-size: 14px;
     line-height: 1.5;
-    background: white;
-    transition: all 0.15s ease;
   }
   .q-option:hover:not(.disabled) { border-color: #d97757; background: #fff8eb; }
   .q-option.selected { border-color: #d97757; background: #fff8eb; }
@@ -252,28 +255,77 @@
   .q-option.incorrect .letter { background: #e85a4f; color: white; }
   .q-option .otext { flex: 1; }
   .q-option .otext code { background: #f3efe5; padding: 1px 4px; border-radius: 3px; font-size: 12.5px; }
-  .q-option.disabled { cursor: default; }
-  .explanations {
-    background: #f7f4ec;
+  .q-option.disabled .q-option-main { cursor: default; }
+
+  /* Plausibility tag on option after submit */
+  .plaus-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
     border-radius: 8px;
-    padding: 14px 16px;
-    margin: 12px 0;
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+  }
+  .plaus-tag.correct { background: #5a8b5a; color: white; }
+  .plaus-tag.runner-up { background: #c47433; color: white; }
+  .plaus-tag.implausible { background: #aaa; color: white; }
+
+  /* Inline explanation attached to each option after submit */
+  .q-explanation {
+    padding: 0 16px 14px 50px;
     font-size: 13px;
-    line-height: 1.55;
+    line-height: 1.6;
+    color: #444;
+    border-top: 1px dashed #ddd;
+    margin-top: 0;
+    padding-top: 12px;
   }
-  .explanations .expl-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start; }
-  .explanations .expl-row:last-child { margin-bottom: 0; }
-  .explanations .expl-letter {
-    flex-shrink: 0;
-    width: 22px; height: 22px;
-    border-radius: 50%;
+  .q-option.correct .q-explanation { color: #2f5a1f; background: #f4f9f4; border-top-color: #b8d4b8; }
+  .q-option.incorrect .q-explanation { color: #5a1f1f; background: #fdf5f5; border-top-color: #f0bbb6; }
+  .q-explanation strong { font-weight: 600; }
+  .q-explanation code { background: white; padding: 1px 5px; border-radius: 3px; font-size: 12px; border: 1px solid #ddd; }
+  .q-explanation .your-choice {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 8px;
+    margin-right: 6px;
+    background: #d97757;
     color: white;
-    font-weight: 600; font-size: 11px;
-    display: flex; align-items: center; justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
-  .explanations .expl-letter.correct { background: #5a8b5a; }
-  .explanations .expl-letter.wrong { background: #aaa; }
-  .explanations code { background: white; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  /* Weak-domain study resource cards */
+  .weak-resources {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 8px;
+  }
+  .weak-domain-block {
+    background: white;
+    border: 1px solid #f0bbb6;
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .weak-domain-block .head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+  }
+  .weak-domain-block .head .title { font-weight: 600; font-size: 13px; color: #5a1a14; }
+  .weak-domain-block .head .score { font-size: 12px; color: #888; }
+  .weak-domain-block ul {
+    margin: 4px 0 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #444;
+  }
+  .weak-domain-block li { margin: 3px 0; }
+  .weak-domain-block a { color: #2752c4; text-decoration: none; border-bottom: 1px dotted #93acdb; }
+  .weak-domain-block a:hover { background: #eaf0fb; }
   .quiz-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
 
   /* Buttons */
@@ -518,12 +570,77 @@ const EXAM_DATE = "2026-05-29";
 const QUESTIONS_PER_DAY = 30;
 const PER_DOMAIN_PER_DAY = 6;
 const DOMAIN_INFO = {
-  1: { name: "Agentic Architecture & Orchestration", weight: 0.27, short: "D1 Agentic", className: "d1", studyLink: "00-start-here/study-plan.md" },
-  2: { name: "Tool Design & MCP Integration",        weight: 0.18, short: "D2 MCP",     className: "d2", studyLink: "00-start-here/study-plan.md" },
-  3: { name: "Claude Code Configuration & Workflows", weight: 0.20, short: "D3 Claude Code", className: "d3", studyLink: "00-start-here/study-plan.md" },
-  4: { name: "Prompt Engineering & Structured Output", weight: 0.20, short: "D4 Prompt", className: "d4", studyLink: "00-start-here/study-plan.md" },
-  5: { name: "Context Management & Reliability",     weight: 0.15, short: "D5 Context", className: "d5", studyLink: "00-start-here/study-plan.md" },
+  1: { name: "Agentic Architecture & Orchestration", weight: 0.27, short: "D1 Agentic", className: "d1" },
+  2: { name: "Tool Design & MCP Integration",        weight: 0.18, short: "D2 MCP",     className: "d2" },
+  3: { name: "Claude Code Configuration & Workflows", weight: 0.20, short: "D3 Claude Code", className: "d3" },
+  4: { name: "Prompt Engineering & Structured Output", weight: 0.20, short: "D4 Prompt", className: "d4" },
+  5: { name: "Context Management & Reliability",     weight: 0.15, short: "D5 Context", className: "d5" },
 };
+
+// Per-domain study resources for weak-area recommendations
+const DOMAIN_STUDY_RESOURCES = {
+  1: [
+    { label: "Anthropic docs: Agent loop", url: "https://platform.claude.com/docs/en/agent-sdk/agent-loop" },
+    { label: "Anthropic docs: Subagents", url: "https://platform.claude.com/docs/en/agent-sdk/subagents" },
+    { label: "Anthropic docs: Hooks", url: "https://platform.claude.com/docs/en/agent-sdk/hooks" },
+    { label: "Anthropic docs: Stop reasons", url: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons" },
+    { label: "Engineering blog: Building agents with the Claude Agent SDK", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+    { label: "Yondem §8: Agentic Patterns and Task Decomposition", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#8-agentic-patterns-and-task-decomposition" },
+    { label: "Yondem §9: Customer Service and Production Workflow Design", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#9-customer-service-and-production-workflow-design" },
+    { label: "Academy course: Intro to Subagents", url: "https://anthropic.skilljar.com/introduction-to-subagents" },
+    { label: "Daily plan: May 13–16 (D1 days)", url: "00-start-here/study-plan.md" },
+  ],
+  2: [
+    { label: "Anthropic docs: MCP in the SDK", url: "https://docs.claude.com/en/docs/agent-sdk/mcp" },
+    { label: "MCP Specification (server section + transports)", url: "https://modelcontextprotocol.io/specification/2025-06-18/" },
+    { label: "Yondem §2: Designing Tool Interfaces for LLM Agents", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#2-designing-tool-interfaces-for-llm-agents" },
+    { label: "Yondem §3: Error Handling in Agent Tools", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#3-error-handling-in-agent-tools" },
+    { label: "Yondem §7: Model Context Protocol (MCP)", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#7-model-context-protocol-mcp" },
+    { label: "Academy course: Intro to MCP", url: "https://anthropic.skilljar.com/introduction-to-model-context-protocol" },
+    { label: "Academy course: MCP Advanced Topics", url: "https://anthropic.skilljar.com/model-context-protocol-advanced-topics" },
+    { label: "Daily plan: May 19 (D3 MCP day) and May 22–23 (scenario walkthroughs)", url: "00-start-here/study-plan.md" },
+  ],
+  3: [
+    { label: "Anthropic docs: Claude Code memory (CLAUDE.md hierarchy)", url: "https://code.claude.com/docs/en/memory" },
+    { label: "Yondem §10: Claude Code and Claude Agent SDK Workflows", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#10-claude-code-and-claude-agent-sdk-workflows" },
+    { label: "Academy course: Claude Code 101", url: "https://anthropic.skilljar.com/claude-code-101" },
+    { label: "Academy course: Intro to Agent Skills", url: "https://anthropic.skilljar.com/introduction-to-agent-skills" },
+    { label: "Daily plan: May 15 (D2 Claude Code day) and May 17 (Academy day)", url: "00-start-here/study-plan.md" },
+  ],
+  4: [
+    { label: "Anthropic docs: Structured outputs", url: "https://platform.claude.com/docs/en/build-with-claude/structured-outputs" },
+    { label: "Anthropic docs: Prompt caching", url: "https://platform.claude.com/docs/en/build-with-claude/prompt-caching" },
+    { label: "Yondem §4: Structured Data Extraction and Validation", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#4-structured-data-extraction-and-validation" },
+    { label: "Yondem §6: System Prompt Engineering and Conversational Behavior", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#6-system-prompt-engineering-and-conversational-behavior" },
+    { label: "Yondem §11: Iterative Refinement, Testing, and Evaluation", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#11-iterative-refinement-testing-and-evaluation" },
+    { label: "Yondem §12: Batch Processing, Cost, and Latency", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#12-batch-processing-cost-and-latency" },
+    { label: "Daily plan: May 16 (D1 Hooks + system prompts) and May 20 (D4 day)", url: "00-start-here/study-plan.md" },
+  ],
+  5: [
+    { label: "Yondem §1: API Fundamentals and Output Control", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#1-api-fundamentals-and-output-control" },
+    { label: "Yondem §5: Conversation Context Management", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#5-conversation-context-management" },
+    { label: "Yondem §13: Quick Reference Cheat Sheet", url: "https://github.com/daronyondem/claude-architect-exam-guide/blob/main/exam-preparation-guide.md#13-quick-reference-cheat-sheet" },
+    { label: "Larionov scenario walkthroughs (especially Customer Support and Multi-Agent Research)", url: "https://github.com/paullarionov/claude-certified-architect" },
+    { label: "Engineering blog: Building agents (covers context management in §5–§7)", url: "https://www.anthropic.com/engineering/building-agents-with-the-claude-agent-sdk" },
+    { label: "Daily plan: May 21 (D5 Context day) and May 28 (cheat-sheet review)", url: "00-start-here/study-plan.md" },
+  ],
+};
+
+// Most-missed task statements per domain — recommend top 3 weakest TS resources
+function getWeakTaskStatements(domain) {
+  const tsStats = {};
+  for (const h of state.history) {
+    if (h.domain !== domain) continue;
+    if (!tsStats[h.ts]) tsStats[h.ts] = { seen: 0, correct: 0 };
+    tsStats[h.ts].seen++;
+    if (h.correct) tsStats[h.ts].correct++;
+  }
+  const ranked = Object.entries(tsStats)
+    .filter(([_, s]) => s.seen >= 2)
+    .map(([ts, s]) => ({ ts, mastery: s.correct/s.seen, seen: s.seen, correct: s.correct }))
+    .sort((a,b) => a.mastery - b.mastery);
+  return ranked.slice(0, 3);
+}
 const SCENARIO_NAMES = {
   1: "Customer Support Resolution Agent",
   2: "Code Generation with Claude Code",
@@ -773,20 +890,51 @@ function renderSkillGraph() {
     summaryEl.innerHTML = `<strong>${totalCorrect} / ${totalSeen} correct overall (${overall}%)</strong> · ${Object.keys(state.seenThisWeek||{}).length} of 210 questions seen this week`;
   }
 
-  // Weak-domain callout
+  // Weak-domain callout — surface specific study resources per weak domain
   const weak = [1,2,3,4,5].filter(d => stats[d].band === "weak");
   const callout = document.getElementById("weakCallout");
   if (weak.length === 0) {
     callout.innerHTML = "";
   } else {
-    // Sort by priority = weight × (1 - mastery)
+    // Sort by priority = weight × (1 - mastery) so heaviest-weight weak domain leads
     weak.sort((a,b) => (stats[b].weight * (1-stats[b].mastery)) - (stats[a].weight * (1-stats[a].mastery)));
-    const items = weak.map(d => `<strong>${DOMAIN_INFO[d].short}</strong> (${Math.round(stats[d].mastery*100)}%)`).join(", ");
-    callout.innerHTML = `
+    const topLine = weak.map(d => `<strong>${DOMAIN_INFO[d].short}</strong> ${Math.round(stats[d].mastery*100)}%`).join(" · ");
+    let html = `
       <div class="weak-callout">
-        <strong>Target these next:</strong> ${items}. Click "Practice this domain" on a bar below to focus your next quiz, or open the <a href="#" onclick="setView('plan'); return false;">Daily plan</a> to find which Anthropic doc covers it.
+        <div style="margin-bottom: 8px;"><strong>📚 Study these to improve weak domains:</strong> ${topLine}</div>
+        <div style="font-size:12px; color:#8a2a22; margin-bottom: 10px;">
+          Click "Practice this domain" on a bar below to drill it with a focused 10-Q quiz, or work through these targeted resources:
+        </div>
+        <div class="weak-resources">
+    `;
+    for (const d of weak) {
+      const s = stats[d];
+      const resources = DOMAIN_STUDY_RESOURCES[d] || [];
+      // Show 4 most relevant resources for this weak domain (first ones in the array are highest priority)
+      const top = resources.slice(0, 4);
+      const weakTs = getWeakTaskStatements(d);
+      let weakTsHtml = "";
+      if (weakTs.length > 0) {
+        weakTsHtml = `<div style="font-size:11px; color:#666; margin-top: 4px;">Weakest task statements: ${weakTs.map(t => `<code>TS ${t.ts}</code> (${Math.round(t.mastery*100)}%)`).join(", ")}</div>`;
+      }
+      html += `
+        <div class="weak-domain-block">
+          <div class="head">
+            <span class="title"><span class="domain-pill ${DOMAIN_INFO[d].className}">${DOMAIN_INFO[d].short}</span> — ${escapeHtml(DOMAIN_INFO[d].name)}</span>
+            <span class="score">${s.correct} / ${s.seen} correct (${Math.round(s.mastery*100)}%)</span>
+          </div>
+          ${weakTsHtml}
+          <ul>
+            ${top.map(r => `<li><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.label)}</a></li>`).join("")}
+          </ul>
+        </div>
+      `;
+    }
+    html += `
+        </div>
       </div>
     `;
+    callout.innerHTML = html;
   }
 
   const barsHtml = [1,2,3,4,5].map(d => {
@@ -868,28 +1016,36 @@ function renderQuiz() {
     const optClass = showFeedback
       ? (letter === question.correct ? "correct" : (chosen === letter ? "incorrect" : ""))
       : (chosen === letter ? "selected" : "");
+    // Plausibility tag (shown after submit)
+    let plausTagHtml = "";
+    if (showFeedback && question.plausibility) {
+      const p = question.plausibility[letter];
+      if (p === "plausible-correct") {
+        plausTagHtml = '<span class="plaus-tag correct">Correct</span>';
+      } else if (p === "plausible-runner-up") {
+        plausTagHtml = '<span class="plaus-tag runner-up">Plausible — runner-up</span>';
+      } else if (p === "implausible") {
+        plausTagHtml = '<span class="plaus-tag implausible">Implausible</span>';
+      }
+    }
+    // Inline explanation (shown after submit)
+    let explHtml = "";
+    if (showFeedback) {
+      const isYourChoice = chosen === letter;
+      const yourChoiceTag = isYourChoice ? '<span class="your-choice">Your answer</span>' : '';
+      explHtml = `<div class="q-explanation">${yourChoiceTag}${formatText(question.explanations[letter] || "")}</div>`;
+    }
     html += `
       <div class="q-option ${optClass} ${showFeedback ? 'disabled' : ''}" data-letter="${letter}">
-        <span class="letter">${letter}</span>
-        <span class="otext">${formatText(question.options[letter])}</span>
+        <div class="q-option-main">
+          <span class="letter">${letter}</span>
+          <span class="otext">${formatText(question.options[letter])}${plausTagHtml}</span>
+        </div>
+        ${explHtml}
       </div>
     `;
   }
   html += `</div>`;
-
-  if (showFeedback) {
-    html += `<div class="explanations">`;
-    for (const letter of ["A","B","C","D"]) {
-      const isCorrect = letter === question.correct;
-      html += `
-        <div class="expl-row">
-          <span class="expl-letter ${isCorrect ? 'correct' : 'wrong'}">${letter}</span>
-          <span>${isCorrect ? '<strong>(correct)</strong> ' : ''}${formatText(question.explanations[letter])}</span>
-        </div>
-      `;
-    }
-    html += `</div>`;
-  }
 
   html += `
     <div class="quiz-actions">
